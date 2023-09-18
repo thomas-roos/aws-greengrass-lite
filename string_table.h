@@ -81,8 +81,8 @@ private:
     char * _buffer;
     size_t _buflen;
 public:
-    explicit CheckedBuffer(char * buffer, size_t bufLen) :
-        _buffer{buffer},_buflen(_buflen) {
+    explicit CheckedBuffer(char * buffer, size_t buflen) :
+        _buffer{buffer},_buflen(buflen) {
         if (_buffer + _buflen < _buffer) {
             throw std::out_of_range("Buffer wraps");
         }
