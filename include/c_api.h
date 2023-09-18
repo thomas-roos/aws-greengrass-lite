@@ -6,7 +6,7 @@ typedef uint32_t (*ggapiTopicCallback)(uint32_t taskHandle, uint32_t topicOrd, u
 extern "C" uint32_t ggapiGetStringOrdinal(const char * bytes, size_t len);
 extern "C" size_t ggapiGetOrdinalString(uint32_t ord, char * bytes, size_t len);
 extern "C" size_t ggapiGetOrdinalStringLen(uint32_t ord);
-extern "C" uint32_t ggapiCreateTask(bool assignToThread);
+extern "C" uint32_t ggapiClaimThread();
 extern "C" uint32_t ggapiCreateStruct(uint32_t anchorHandle);
 extern "C" void ggapiStructPutInt32(uint32_t structHandle, uint32_t ord, uint32_t value);
 extern "C" void ggapiStructPutInt64(uint32_t structHandle, uint32_t ord, uint64_t value);

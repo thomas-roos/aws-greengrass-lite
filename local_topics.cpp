@@ -120,7 +120,7 @@ public:
     explicit ReceiverSubTask(std::shared_ptr<TopicReceiver> & receiver) :
         _receiver{receiver} {
     }
-    std::shared_ptr<SharedStruct> runInThread(std::shared_ptr<Task> & task, std::shared_ptr<SharedStruct> & dataIn) override;
+    std::shared_ptr<SharedStruct> runInThread(const std::shared_ptr<Task> &task, const std::shared_ptr<SharedStruct> &dataIn) override;
 };
 
 std::unique_ptr<SubTask> TopicReceiver::toSubTask(std::shared_ptr<Task> & task) {
@@ -130,11 +130,11 @@ std::unique_ptr<SubTask> TopicReceiver::toSubTask(std::shared_ptr<Task> & task) 
     return subTask;
 }
 
-std::shared_ptr<SharedStruct> ReceiverSubTask::runInThread(std::shared_ptr<Task> & task, std::shared_ptr<SharedStruct> & dataIn) {
+std::shared_ptr<SharedStruct> ReceiverSubTask::runInThread(const std::shared_ptr<Task> &task, const std::shared_ptr<SharedStruct> &dataIn) {
     return _receiver->runInTaskThread(task, dataIn);
 }
 
-std::shared_ptr<SharedStruct> TopicReceiver::runInTaskThread(std::shared_ptr<Task> & task, std::shared_ptr<SharedStruct> & dataIn) {
+std::shared_ptr<SharedStruct> TopicReceiver::runInTaskThread(const std::shared_ptr<Task> &task, const std::shared_ptr<SharedStruct> &dataIn) {
     Handle dataHandle { task->anchor(dataIn.get()) };
     Handle resp = _callback->operator()(task->getSelf(), _topicOrd, dataHandle);
     std::shared_ptr<SharedStruct> respData;
@@ -154,10 +154,10 @@ public:
             _topicOrd{topicOrd},
             _callback{std::move(callback)} {
     }
-    std::shared_ptr<SharedStruct> runInThread(std::shared_ptr<Task> & task, std::shared_ptr<SharedStruct> & result) override;
+    std::shared_ptr<SharedStruct> runInThread(const std::shared_ptr<Task> &task, const std::shared_ptr<SharedStruct> &result) override;
 };
 
-std::shared_ptr<SharedStruct> CompletionSubTask::runInThread(std::shared_ptr<Task> & task, std::shared_ptr<SharedStruct> & result) {
+std::shared_ptr<SharedStruct> CompletionSubTask::runInThread(const std::shared_ptr<Task> &task, const std::shared_ptr<SharedStruct> &result) {
     Handle dataHandle { task->anchor(result.get()) };
     (void)_callback->operator()(task->getSelf(), _topicOrd, dataHandle);
     return nullptr;

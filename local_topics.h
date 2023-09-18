@@ -26,7 +26,7 @@ public:
     explicit TopicReceiver(Environment & environment, Handle topicOrd, TopicReceivers * receivers, std::unique_ptr<AbstractCallback> & callback);
     ~TopicReceiver() override;
     std::unique_ptr<SubTask> toSubTask(std::shared_ptr<Task> & task);
-    std::shared_ptr<SharedStruct> runInTaskThread(std::shared_ptr<Task> & task, std::shared_ptr<SharedStruct> & dataIn);
+    std::shared_ptr<SharedStruct> runInTaskThread(const std::shared_ptr<Task> &task, const std::shared_ptr<SharedStruct> &dataIn);
 };
 
 class Task;

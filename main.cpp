@@ -56,26 +56,24 @@ uint32_t publishToIoTCoreResponder(uint32_t taskId, uint32_t topicOrdId, uint32_
 
 int main() {
     std::cout << "Running..." << std::endl;
-    auto globalTask = ggapi::ObjHandle::createTask(true); // assumed task - TODO still work to do
+    auto threadTask = ggapi::ObjHandle::claimThread(); // assume long-running thread, this provides a long-running task handle
 
     const Keys & keys {Keys::get()};
-    ggapi::ObjHandle publishToIoTCoreListenerHandle {globalTask.subscribeToTopic(keys.publishToIoTCoreTopic, publishToIoTCoreListener)};
+    ggapi::ObjHandle publishToIoTCoreListenerHandle {threadTask.subscribeToTopic(keys.publishToIoTCoreTopic, publishToIoTCoreListener)};
 
-    auto request { globalTask.createStruct() };
+    auto request {threadTask.createStruct() };
     request.put(keys.topicName, "some-cloud-topic")
         .put(keys.qos, "1") // string gets converted to int later
-        .put(keys.payload, globalTask.createStruct().put("Foo", 1U));
+        .put(keys.payload, threadTask.createStruct().put("Foo", 1U));
 
     // Async style
-    ggapi::ObjHandle newTask = globalTask.sendToTopicAsync(keys.publishToIoTCoreTopic, request, publishToIoTCoreResponder);
+    ggapi::ObjHandle newTask = threadTask.sendToTopicAsync(keys.publishToIoTCoreTopic, request, publishToIoTCoreResponder);
     ggapi::Struct respData = newTask.waitForTaskCompleted();
     uint32_t status { respData.getInt32("status") };
 
     // Sync style
-    ggapi::Struct syncRespData = globalTask.sendToTopic(keys.publishToIoTCoreTopic, request);
+    ggapi::Struct syncRespData = threadTask.sendToTopic(keys.publishToIoTCoreTopic, request);
     uint32_t syncStatus { syncRespData.getInt32("status") };
 
-    // release global task
-    globalTask.release();
     return 0;
 }

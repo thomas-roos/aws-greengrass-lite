@@ -27,13 +27,12 @@ size_t ggapiGetOrdinalStringLen(uint32_t ord) {
     return s.length();
 }
 
-uint32_t ggapiCreateTask(bool setThread) {
+uint32_t ggapiClaimThread() {
     std::shared_ptr<Anchored> taskAnchor {g_taskManager->createTask()};
-    Handle taskHandle {taskAnchor};
-    if (setThread) {
-        taskAnchor->getObject<Task>()->getSetThreadSelf(taskHandle);
-    }
-    return taskHandle.asInt();
+    std::shared_ptr<FixedTaskThread> thread {std::make_shared<FixedTaskThread>(g_environment, g_taskManager)};
+    thread->bindThreadContext(taskAnchor);
+    thread->protect(); // the thread object stays around
+    return Handle{taskAnchor}.asInt();
 }
 
 uint32_t ggapiGetCurrentTask(void) {
@@ -178,8 +177,13 @@ uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, time_t timeout
     subTaskObj->setTimeout(g_environment.relativeToAbsoluteTime(timeout));
     g_localTopics->insertCallQueue(subTaskObj, Handle{topicOrd});
     subTaskObj->setData(callDataStruct);
-    subTaskObj->runInThread();
-    return Handle { parentTaskObj->anchor(subTaskObj->getData().get())}.asInt();
+    g_taskManager->queueTask(subTaskObj); // task must be ready, any thread can pick up once queued
+    // note, we don't allocate next worker, preferring to task-steal, but ok if an idle worker picks it up
+    if (subTaskObj->waitForCompletion(g_environment.relativeToAbsoluteTime(timeout))) {
+        return Handle { parentTaskObj->anchor(subTaskObj->getData().get())}.asInt();
+    } else {
+        return 0;
+    }
 }
 
 uint32_t ggapiWaitForTaskCompleted(uint32_t asyncTask, time_t timeout) {
@@ -204,22 +208,24 @@ uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopi
     taskObject->setTimeout(g_environment.relativeToAbsoluteTime(timeout));
     g_localTopics->insertCallQueue(taskObject, Handle{topicOrd});
     taskObject->setData(callDataStruct);
-    g_taskManager->queueAsyncTask(taskObject); // task must be ready, any thread can pick up once queued
+    g_taskManager->queueTask(taskObject); // task must be ready, any thread can pick up once queued
     g_taskManager->allocateNextWorker(); // this ensures a worker picks it up
     return taskAnchor->getHandle().asInt();
 }
-
-uint32_t ggapiCallNext(uint32_t dataStruct) {
-    Handle taskHandle { Task::getThreadSelf() };
-    if (!taskHandle) {
-        return 0;
-    }
-    auto taskObj { g_environment.handleTable.getObject<Task>(taskHandle)};
-    if (dataStruct) {
-        auto dataObj {g_environment.handleTable.getObject<SharedStruct>(Handle{dataStruct})};
-        taskObj->setData(dataObj);
-    }
-    std::shared_ptr<SharedStruct> dataIn { taskObj->getData() };
-    std::shared_ptr<SharedStruct> dataOut { taskObj->runInThreadCallNext(taskObj, dataIn) };
-    return Handle{taskObj->anchor(dataOut.get())}.asInt();
-}
+//
+//uint32_t ggapiCallNext(uint32_t dataStruct) {
+//    Handle taskHandle { Task::getThreadSelf() };
+//    if (!taskHandle) {
+//        throw std::runtime_error("Expected thread to be associated with a task");
+//    }
+//    auto taskObj { g_environment.handleTable.getObject<Task>(taskHandle)};
+//    if (dataStruct) {
+//        auto dataObj {g_environment.handleTable.getObject<SharedStruct>(Handle{dataStruct})};
+//        taskObj->setData(dataObj);
+//    }
+//    // task is permitted to run everything up to but not including finalization
+//    // and transition control back to this function
+//    std::shared_ptr<SharedStruct> dataIn { taskObj->getData() };
+//    std::shared_ptr<SharedStruct> dataOut { taskObj->runInThreadCallNext(taskObj, dataIn) };
+//    return Handle{taskObj->anchor(dataOut.get())}.asInt();
+//}
