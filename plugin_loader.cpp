@@ -3,16 +3,19 @@
 namespace fs = std::filesystem;
 
 NativePlugin::~NativePlugin() {
+#if defined(USE_DLFCN)
     if (_handle) {
         ::dlclose(_handle);
         _handle = nullptr;
     }
+#endif
 }
 
 NativePlugin::NativePlugin(std::string_view name) : _moduleName(name) {
 }
 
 void NativePlugin::load(const std::string & filePath) {
+#if defined(USE_DLFCN)
     _handle = ::dlopen(filePath.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
     if (_handle == nullptr) {
         std::string error {dlerror()};
@@ -20,6 +23,7 @@ void NativePlugin::load(const std::string & filePath) {
     }
     _lifecycleFn = reinterpret_cast<lifecycleFn_t>(::dlsym(_handle, "greengrass_lifecycle"));
     _initializeFn = reinterpret_cast<initializeFn_t >(::dlsym(_handle, "greengrass_initialize"));
+#endif
 }
 
 void NativePlugin::initialize() {
@@ -54,9 +58,12 @@ void PluginLoader::discoverPlugins() {
 
 void PluginLoader::discoverPlugin(const fs::directory_entry &entry) {
     std::string name {entry.path()};
-    if (endsWith(name, ".so")) {
+#if defined(NATIVE_SUFFIX)
+    if (endsWith(name, NATIVE_SUFFIX)) {
         loadNativePlugin(name);
+        return;
     }
+#endif
 }
 
 void PluginLoader::loadNativePlugin(const std::string &name) {

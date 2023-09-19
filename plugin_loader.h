@@ -6,7 +6,11 @@
 #include <mutex>
 #include <filesystem>
 #include "environment.h"
-#include "dlfcn.h"
+#if defined(USE_DLFCN)
+#include <dlfcn.h>
+#elif defined(USE_WINDLL)
+#include <windows.h>
+#endif
 
 class AbstractPlugin : public std::enable_shared_from_this<AbstractPlugin> {
 public:
@@ -18,7 +22,9 @@ public:
 class NativePlugin : public AbstractPlugin {
 private:
     std::string _moduleName;
+#if defined(USE_DLFCN)
     void * _handle { nullptr };
+#endif
     typedef void (*initializeFn_t)();
     typedef void (*lifecycleFn_t)(uint32_t phase);
     initializeFn_t _initializeFn { nullptr };
