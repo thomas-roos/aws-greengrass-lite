@@ -15,11 +15,6 @@ private:
     std::unordered_map<std::string, Handle> _interned;
     std::unordered_map<Handle, std::string, Handle::Hash, Handle::CompEq> _reverse;
 public:
-    Handle testAndGetOrd(std::string_view str_ref) const {
-        std::string copy {str_ref}; // desired feature in C++20 not C++17
-        return testAndGetOrd(copy);
-    }
-
     Handle testAndGetOrd(std::string const & str) const {
         std::shared_lock guard {_mutex};
         auto i = _interned.find(str);
@@ -28,11 +23,6 @@ public:
         } else {
             return i->second;
         }
-    }
-
-    Handle getOrCreateOrd(std::string_view str_ref) {
-        std::string copy{str_ref}; // desired feature in C++20 not C++17
-        return getOrCreateOrd(copy);
     }
 
     Handle getOrCreateOrd(std::string const & str) {

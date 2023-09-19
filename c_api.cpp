@@ -9,7 +9,7 @@ auto g_taskManager { std::make_shared<TaskManager>(g_environment) };
 auto g_localTopics { std::make_unique<LocalTopics>(g_environment) };
 
 uint32_t ggapiGetStringOrdinal(const char * bytes, size_t len) {
-    return g_environment.stringTable.getOrCreateOrd(std::string_view {bytes, len}).asInt();
+    return g_environment.stringTable.getOrCreateOrd(std::string {bytes, len}).asInt();
 }
 
 size_t ggapiGetOrdinalString(uint32_t ord, char * bytes, size_t len) {
@@ -40,6 +40,9 @@ uint32_t ggapiGetCurrentTask(void) {
 }
 
 uint32_t ggapiCreateStruct(uint32_t anchorHandle) {
+    if (anchorHandle == 0) {
+        anchorHandle = Task::getThreadSelf().asInt();
+    }
     auto ss {std::make_shared<SharedStruct>(g_environment)};
     auto owner {g_environment.handleTable.getObject<AnchoredWithRoots>(Handle{anchorHandle})};
     return owner->anchor(ss.get())->getHandle().asInt();
@@ -141,6 +144,9 @@ size_t ggapiStructGetString(uint32_t structHandle, uint32_t ord, char * buffer, 
 }
 
 uint32_t ggapiAnchorHandle(uint32_t anchorHandle, uint32_t objectHandle) {
+    if (anchorHandle == 0) {
+        anchorHandle = Task::getThreadSelf().asInt();
+    }
     auto ss {g_environment.handleTable.getObject<AnchoredObject>(Handle{objectHandle})};
     auto owner {g_environment.handleTable.getObject<AnchoredWithRoots>(Handle{anchorHandle})};
     return owner->anchor(ss.get())->getHandle().asInt();

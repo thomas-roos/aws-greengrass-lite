@@ -140,7 +140,7 @@ public:
     }
 
     void put(const std::string_view sv, const StructElement & element) {
-        Handle handle = _environment.stringTable.getOrCreateOrd(sv);
+        Handle handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
         std::unique_lock guard {_environment.sharedStructMutex};
         rootsCheck(element); // in lock
         _elements[handle] = element;
@@ -165,7 +165,7 @@ public:
     }
 
     StructElement get(const std::string_view sv) const {
-        Handle handle = _environment.stringTable.getOrCreateOrd(sv);
+        Handle handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
         return get(handle);
     }
 };

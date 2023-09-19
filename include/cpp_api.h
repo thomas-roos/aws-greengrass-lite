@@ -22,6 +22,9 @@ namespace ggapi {
         }
         explicit StringOrd(uint32_t ord) : _ord{ord} {
         }
+        bool operator==(StringOrd other) const {
+            return _ord == other._ord;
+        }
 
         [[nodiscard]] uint32_t toOrd() const {
             return _ord;
@@ -37,6 +40,9 @@ namespace ggapi {
         }
         ObjHandle(const ObjHandle & other) = default;
         ObjHandle & operator=(const ObjHandle & other) = default;
+        bool operator==(ObjHandle other) const {
+            return _handle == other._handle;
+        }
 
         [[nodiscard]] uint32_t getHandleId() const {
             return _handle;
@@ -64,6 +70,10 @@ namespace ggapi {
         }
 
         [[nodiscard]] Struct createStruct();
+
+        [[nodiscard]] static ObjHandle thisTask() {
+            return ObjHandle {::ggapiGetCurrentTask()};
+        }
 
     };
 
