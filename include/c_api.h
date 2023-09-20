@@ -8,7 +8,7 @@
 #define EXPORT __declspec(dllexport)
 #else
 #define IMPORT
-#define EXPORT
+#define EXPORT __attribute__((visibility("default")))
 #endif
 #if defined(EXPORT_API)
 #define IMPEXP EXPORT
