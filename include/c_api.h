@@ -1,5 +1,7 @@
 #pragma once
 #include <cstdint>
+#include <cstddef>
+#include <ctime>
 
 #if defined(_WIN32)
 #define IMPORT __declspec(dllimport)
