@@ -1,7 +1,10 @@
-#include <iostream>
 #include <cpp_api.h>
+#include <thread>
+#include <iostream>
 
 struct Keys {
+    const ggapi::StringOrd start { "start"};
+    const ggapi::StringOrd run { "run"};
     const ggapi::StringOrd publishToIoTCoreTopic {"aws.greengrass.PublishToIoTCore"};
     const ggapi::StringOrd topicName {"topicName"};
     const ggapi::StringOrd qos {"qos"};
@@ -13,22 +16,23 @@ struct Keys {
     const ggapi::StringOrd responseTopic {"responseTopic"};
     const ggapi::StringOrd payloadFormat {"payloadFormat"};
     const ggapi::StringOrd contentType {"contentType"};
-
-    static const Keys & get() {
-        static std::unique_ptr<Keys> keyRef;
-        if (keyRef == nullptr) {
-            keyRef = std::make_unique<Keys>();
-        }
-        return *keyRef;
-    }
 };
+Keys keys;
+std::thread asyncThread;
+
+void asyncThreadFn();
+
+extern "C" void greengrass_lifecycle(uint32_t phase) {
+    ggapi::StringOrd phaseOrd{phase};
+    if (phaseOrd == keys.run) {
+        asyncThread = std::thread{asyncThreadFn};
+    }
+}
 
 uint32_t publishToIoTCoreListener(uint32_t taskId, uint32_t topicOrdId, uint32_t dataId) {
     ggapi::ObjHandle task {taskId};
     ggapi::StringOrd topic {topicOrdId};
     ggapi::Struct callData {dataId};
-    // ordinal constants not needed, but this is how to do it
-    const Keys & keys {Keys::get()};
     // real work
     std::string destTopic { callData.getString(keys.topicName)};
     int qos { (int)callData.getInt32(keys.qos)};
@@ -53,17 +57,16 @@ uint32_t publishToIoTCoreResponder(uint32_t taskId, uint32_t topicOrdId, uint32_
     return 0;
 }
 
-int main() {
+void asyncThreadFn() {
     std::cout << "Running..." << std::endl;
     auto threadTask = ggapi::ObjHandle::claimThread(); // assume long-running thread, this provides a long-running task handle
 
-    const Keys & keys {Keys::get()};
     ggapi::ObjHandle publishToIoTCoreListenerHandle {threadTask.subscribeToTopic(keys.publishToIoTCoreTopic, publishToIoTCoreListener)};
 
     auto request {threadTask.createStruct() };
     request.put(keys.topicName, "some-cloud-topic")
-        .put(keys.qos, "1") // string gets converted to int later
-        .put(keys.payload, threadTask.createStruct().put("Foo", 1U));
+            .put(keys.qos, "1") // string gets converted to int later
+            .put(keys.payload, threadTask.createStruct().put("Foo", 1U));
 
     // Async style
     ggapi::ObjHandle newTask = threadTask.sendToTopicAsync(keys.publishToIoTCoreTopic, request, publishToIoTCoreResponder);
@@ -74,19 +77,16 @@ int main() {
     ggapi::Struct syncRespData = threadTask.sendToTopic(keys.publishToIoTCoreTopic, request);
     uint32_t syncStatus { syncRespData.getInt32("status") };
 
-//    PluginLoader loader;
-//    loader.discoverPlugins();
-//    loader.initialize();
-//    loader.lifecycleStart();
-//    loader.lifecycleRun();
-//
-//    std::cout << "Ping..." << std::endl;
-//
-//    ggapi::Struct pingData = threadTask.createStruct().put("ping", "abcde");
-//    ggapi::Struct pongData = threadTask.sendToTopic(ggapi::StringOrd{"test"}, pingData);
-//    std::string pongString = pongData.getString("pong");
-//
-//    std::cout << "Pong..." << pongString << std::endl;
+    std::cout << "Ping..." << std::endl;
 
-    return 0;
+    ggapi::Struct pingData = threadTask.createStruct().put("ping", "abcde");
+    ggapi::Struct pongData = threadTask.sendToTopic(ggapi::StringOrd{"test"}, pingData);
+    std::string pongString = pongData.getString("pong");
+
+    std::cout << "Pong..." << pongString << std::endl;
+
+    //
+    // terminate this test (kills process)
+    //
+    std::exit(0);
 }
