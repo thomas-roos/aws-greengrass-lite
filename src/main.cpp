@@ -1,6 +1,6 @@
 #include <iostream>
-#include "include/cpp_api.h"
-#include "plugin_loader.h"
+#include <cpp_api.h>
+//#include "nucleus-core/plugin_loader.h"
 
 struct Keys {
     const ggapi::StringOrd publishToIoTCoreTopic {"aws.greengrass.PublishToIoTCore"};
@@ -75,19 +75,19 @@ int main() {
     ggapi::Struct syncRespData = threadTask.sendToTopic(keys.publishToIoTCoreTopic, request);
     uint32_t syncStatus { syncRespData.getInt32("status") };
 
-    PluginLoader loader;
-    loader.discoverPlugins();
-    loader.initialize();
-    loader.lifecycleStart();
-    loader.lifecycleRun();
-
-    std::cout << "Ping..." << std::endl;
-
-    ggapi::Struct pingData = threadTask.createStruct().put("ping", "abcde");
-    ggapi::Struct pongData = threadTask.sendToTopic(ggapi::StringOrd{"test"}, pingData);
-3    std::string pongString = pongData.getString("pong");
-
-    std::cout << "Pong..." << pongString << std::endl;
+//    PluginLoader loader;
+//    loader.discoverPlugins();
+//    loader.initialize();
+//    loader.lifecycleStart();
+//    loader.lifecycleRun();
+//
+//    std::cout << "Ping..." << std::endl;
+//
+//    ggapi::Struct pingData = threadTask.createStruct().put("ping", "abcde");
+//    ggapi::Struct pongData = threadTask.sendToTopic(ggapi::StringOrd{"test"}, pingData);
+//    std::string pongString = pongData.getString("pong");
+//
+//    std::cout << "Pong..." << pongString << std::endl;
 
     return 0;
 }

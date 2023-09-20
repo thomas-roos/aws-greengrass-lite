@@ -1,5 +1,4 @@
 #pragma once
-#include "../safe_handle.h"
 
 #if defined(_WIN32)
 #define IMPORT __declspec(dllimport)

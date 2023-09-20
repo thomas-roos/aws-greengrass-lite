@@ -1,4 +1,4 @@
-#include "../include/cpp_api.h"
+#include <cpp_api.h>
 
 struct Keys {
     const ggapi::StringOrd start { "start"};

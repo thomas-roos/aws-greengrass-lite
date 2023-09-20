@@ -4,7 +4,7 @@
 #include <string_view>
 #include <memory>
 #include <string>
-#include "c_api.h"
+#include <c_api.h>
 
 //
 // Sugar around the c-api to make cpp development easier
