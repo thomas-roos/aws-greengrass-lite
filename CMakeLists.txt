@@ -9,9 +9,9 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 if(UNIX)
-    add_compile_definitions(USE_DLFCN NATIVE_SUFFIX="so")
+    add_compile_definitions(USE_DLFCN NATIVE_SUFFIX=".so")
 elseif(WIN32)
-    add_compile_definitions(USE_WINDLL NATIVE_SUFFIX="dll")
+    add_compile_definitions(USE_WINDLL NATIVE_SUFFIX=".dll")
 endif()
 add_compile_definitions(EXPORT_API)
 

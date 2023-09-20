@@ -71,9 +71,10 @@ void PluginLoader::discoverPlugins() {
 }
 
 void PluginLoader::discoverPlugin(const fs::directory_entry &entry) {
-    std::string name {entry.path().filename().generic_string()};
+    std::string name {entry.path().generic_string()};
+    std::string ext {entry.path().extension().generic_string()};
 #if defined(NATIVE_SUFFIX)
-    if (entry.path().extension().compare(NATIVE_SUFFIX)) {
+    if (entry.path().extension().compare(NATIVE_SUFFIX) == 0) {
         loadNativePlugin(name);
         return;
     }

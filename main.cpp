@@ -85,7 +85,7 @@ int main() {
 
     ggapi::Struct pingData = threadTask.createStruct().put("ping", "abcde");
     ggapi::Struct pongData = threadTask.sendToTopic(ggapi::StringOrd{"test"}, pingData);
-    std::string pongString = pongData.getString("pong");
+3    std::string pongString = pongData.getString("pong");
 
     std::cout << "Pong..." << pongString << std::endl;
 
