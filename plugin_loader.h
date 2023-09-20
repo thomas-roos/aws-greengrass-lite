@@ -24,9 +24,14 @@ private:
     std::string _moduleName;
 #if defined(USE_DLFCN)
     void * _handle { nullptr };
-#endif
     typedef void (*initializeFn_t)();
     typedef void (*lifecycleFn_t)(uint32_t phase);
+#elif defined(USE_WINDLL)
+    HINSTANCE _handle { nullptr };
+    typedef void (WINAPI *initializeFn_t)();
+    typedef void (WINAPI *lifecycleFn_t)(uint32_t phase);
+
+#endif
     initializeFn_t _initializeFn { nullptr };
     lifecycleFn_t _lifecycleFn { nullptr };
 

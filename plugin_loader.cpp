@@ -8,6 +8,11 @@ NativePlugin::~NativePlugin() {
         ::dlclose(_handle);
         _handle = nullptr;
     }
+#elif defined(USE_WINDLL)
+    if (_handle) {
+        ::FreeLibrary(_handle);
+        _handle = nullptr;
+    }
 #endif
 }
 
@@ -23,6 +28,15 @@ void NativePlugin::load(const std::string & filePath) {
     }
     _lifecycleFn = reinterpret_cast<lifecycleFn_t>(::dlsym(_handle, "greengrass_lifecycle"));
     _initializeFn = reinterpret_cast<initializeFn_t >(::dlsym(_handle, "greengrass_initialize"));
+#elif defined(USE_WINDLL)
+    _handle = ::LoadLibraryEx(filePath.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+    if (_handle == nullptr) {
+        uint32_t lastError = ::GetLastError();
+        // TODO: use FormatMessage
+        throw std::runtime_error(std::string("Cannot load DLL: ")+filePath + std::string(" ") + std::to_string(lastError));
+    }
+    _lifecycleFn = reinterpret_cast<lifecycleFn_t>(::GetProcAddress(_handle, "greengrass_lifecycle"));
+    _initializeFn = reinterpret_cast<initializeFn_t>(::GetProcAddress(_handle, "greengrass_initialize"));
 #endif
 }
 
@@ -57,9 +71,9 @@ void PluginLoader::discoverPlugins() {
 }
 
 void PluginLoader::discoverPlugin(const fs::directory_entry &entry) {
-    std::string name {entry.path()};
+    std::string name {entry.path().filename().generic_string()};
 #if defined(NATIVE_SUFFIX)
-    if (endsWith(name, NATIVE_SUFFIX)) {
+    if (entry.path().extension().compare(NATIVE_SUFFIX)) {
         loadNativePlugin(name);
         return;
     }
