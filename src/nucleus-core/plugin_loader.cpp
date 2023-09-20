@@ -57,7 +57,8 @@ void NativePlugin::lifecycle(Handle phase) {
 void PluginLoader::discoverPlugins() {
     std::unique_lock guard{_mutex};
     // two-layer iterator just to make testing easier
-    for (const auto & top : fs::directory_iterator(".")) {
+    fs::path root = fs::absolute(".");
+    for (const auto & top : fs::directory_iterator(root)) {
         if (top.is_regular_file()) {
             discoverPlugin(top);
         } else if (top.is_directory()) {

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.25)
 project(greengrass-lite)
-
+set(TOP_BINARY_DIR ${PROJECT_BINARY_DIR})
 add_subdirectory(nucleus-core)
 add_subdirectory(simple-plugin)
 

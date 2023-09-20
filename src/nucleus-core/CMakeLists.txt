@@ -15,3 +15,11 @@ add_library(nucleus-core SHARED
         task.cpp
         )
 target_link_libraries(nucleus-core Threads::Threads ${CMAKE_DL_LIBS})
+add_custom_command(TARGET nucleus-core
+        POST_BUILD
+        COMMAND echo "${TOP_BINARY_DIR}"
+        )
+add_custom_command(TARGET nucleus-core
+        POST_BUILD
+        COMMAND ${CMAKE_COMMAND} -E copy "$<TARGET_FILE:nucleus-core>" "${TOP_BINARY_DIR}"
+        )
