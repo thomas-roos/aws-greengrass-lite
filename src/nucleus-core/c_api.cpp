@@ -1,12 +1,9 @@
 #include "environment.h"
 #include "task.h"
-#include <c_api.h>
 #include "shared_struct.h"
 #include "local_topics.h"
-
-auto & g_environment { Environment::singleton()};
-auto g_taskManager { std::make_shared<TaskManager>(g_environment) };
-auto g_localTopics { std::make_unique<LocalTopics>(g_environment) };
+#include "globals.h"
+#include <c_api.h>
 
 uint32_t ggapiGetStringOrdinal(const char * bytes, size_t len) {
     return g_environment.stringTable.getOrCreateOrd(std::string {bytes, len}).asInt();

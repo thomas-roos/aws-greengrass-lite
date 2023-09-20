@@ -64,8 +64,6 @@ private:
 public:
     explicit PluginLoader(Environment & environment) : _environment{environment} {
     }
-    PluginLoader() : PluginLoader(Environment::singleton()) {
-    }
 
     void discoverPlugins();
     void discoverPlugin(const std::filesystem::directory_entry &entry);

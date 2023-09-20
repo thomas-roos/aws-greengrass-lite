@@ -4,13 +4,14 @@ project(nucleus-core)
 add_compile_definitions(EXPORT_API)
 
 add_library(nucleus-core SHARED
-        string_table.cpp
         c_api.cpp
-        handle_table.cpp
-        task.cpp
         environment.cpp
-        shared_struct.cpp
+        handle_table.cpp
         local_topics.cpp
+        main_thread.cpp
         plugin_loader.cpp
+        shared_struct.cpp
+        string_table.cpp
+        task.cpp
         )
 target_link_libraries(nucleus-core Threads::Threads ${CMAKE_DL_LIBS})

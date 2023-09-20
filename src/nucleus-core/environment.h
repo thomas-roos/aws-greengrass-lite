@@ -11,9 +11,4 @@ struct Environment {
     std::shared_mutex sharedLocalTopicsMutex;
 
     virtual time_t relativeToAbsoluteTime(time_t relTime);
-
-    static Environment & singleton() {
-        static Environment _self;
-        return _self;
-    }
 };

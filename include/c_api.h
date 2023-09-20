@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdint>
 
 #if defined(_WIN32)
 #define IMPORT __declspec(dllimport)
@@ -42,3 +43,6 @@ extern "C" IMPEXP uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStru
 extern "C" IMPEXP uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopicCallback respCallback, time_t timeout);
 extern "C" IMPEXP uint32_t ggapiCallNext(uint32_t dataStruct);
 extern "C" IMPEXP uint32_t ggapiWaitForTaskCompleted(uint32_t asyncTask, time_t timeout);
+
+// Used only by top-level executable
+extern "C" IMPEXP int ggapiMainThread();
