@@ -1,4 +1,5 @@
 #include <cpp_api.h>
+#include <iostream>
 
 struct Keys {
     const ggapi::StringOrd start { "start"};
@@ -44,10 +45,12 @@ void doRunPhase() {
 
 }
 
-extern "C" void greengrass_initialize() {
+extern "C" EXPORT void greengrass_initialize() {
+    std::cout << "Running initialize plugin 1... " << std::endl;
 }
 
-extern "C" void greengrass_lifecycle(uint32_t phase) {
+extern "C" EXPORT void greengrass_lifecycle(uint32_t phase) {
+    std::cout << "Running lifecycle plugin 1... " << ggapi::StringOrd{phase}.toString() << std::endl;
     const auto & keys = Keys::get();
 
     ggapi::StringOrd phaseOrd{phase};

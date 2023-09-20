@@ -29,6 +29,13 @@ namespace ggapi {
         [[nodiscard]] uint32_t toOrd() const {
             return _ord;
         }
+
+        [[nodiscard]] std::string toString() const {
+            size_t len = ::ggapiGetOrdinalStringLen(_ord);
+            auto buf = std::make_unique<char[]>(len+1);
+            size_t checkLen = ::ggapiGetOrdinalString(_ord, buf.get(), len + 1);
+            return {buf.get(), checkLen};
+        }
     };
 
     class Struct;

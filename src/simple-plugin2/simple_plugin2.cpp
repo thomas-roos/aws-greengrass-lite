@@ -22,7 +22,8 @@ std::thread asyncThread;
 
 void asyncThreadFn();
 
-extern "C" void greengrass_lifecycle(uint32_t phase) {
+extern "C" EXPORT void greengrass_lifecycle(uint32_t phase) {
+    std::cout << "Running lifecycle plugin 2... " << ggapi::StringOrd{phase}.toString() << std::endl;
     ggapi::StringOrd phaseOrd{phase};
     if (phaseOrd == keys.run) {
         asyncThread = std::thread{asyncThreadFn};
@@ -58,7 +59,7 @@ uint32_t publishToIoTCoreResponder(uint32_t taskId, uint32_t topicOrdId, uint32_
 }
 
 void asyncThreadFn() {
-    std::cout << "Running..." << std::endl;
+    std::cout << "Running async plugin 2..." << std::endl;
     auto threadTask = ggapi::ObjHandle::claimThread(); // assume long-running thread, this provides a long-running task handle
 
     ggapi::ObjHandle publishToIoTCoreListenerHandle {threadTask.subscribeToTopic(keys.publishToIoTCoreTopic, publishToIoTCoreListener)};
@@ -88,5 +89,5 @@ void asyncThreadFn() {
     //
     // terminate this test (kills process)
     //
-    std::exit(0);
+    //std::exit(0);
 }

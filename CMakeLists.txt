@@ -8,7 +8,7 @@ find_package(Threads REQUIRED)
 
 if(UNIX)
     add_compile_definitions(USE_DLFCN NATIVE_SUFFIX=".so")
-    add_link_options(-fvisibility=hidden)
+    add_compile_options(-fvisibility=hidden)
 elseif(WIN32)
     add_compile_definitions(USE_WINDLL NATIVE_SUFFIX=".dll")
 endif()
