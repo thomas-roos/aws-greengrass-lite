@@ -95,8 +95,7 @@ void LocalTopics::insertCallQueue(std::shared_ptr<Task> & task, Handle topicOrd)
     std::vector<std::shared_ptr<TopicReceiver>> callOrder;
     receivers->getCallOrder(callOrder);
     for (const auto& i : callOrder) {
-        std::unique_ptr<SubTask> subtask {i->toSubTask(task)};
-        task->addSubtask(subtask);
+        task->addSubtask(std::move(i->toSubTask(task)));
     }
 }
 

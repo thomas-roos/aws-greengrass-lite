@@ -77,7 +77,7 @@ std::shared_ptr<Task> TaskManager::acquireTaskForWorker(TaskThread *worker) {
         // backlog is empty, need to idle this worker
         for (auto i = _busyWorkers.begin(); i != _busyWorkers.end(); ++i) {
             if (i->get() == worker) {
-                _idleWorkers.push_back(*i);
+                _idleWorkers.emplace_back(*i);
                 _busyWorkers.erase(i);
                 break;
             }
@@ -89,9 +89,9 @@ std::shared_ptr<Task> TaskManager::acquireTaskForWorker(TaskThread *worker) {
     return work;
 }
 
-void Task::addSubtask(std::unique_ptr<SubTask> &subTask) {
+void Task::addSubtask(std::unique_ptr<SubTask> subTask) {
     std::unique_lock guard {_mutex};
-    _subtasks.push_back(std::move(subTask));
+    _subtasks.emplace_back(std::move(subTask));
 }
 
 void TaskThread::bindThreadContext() {
@@ -135,6 +135,7 @@ TaskPoolWorker::TaskPoolWorker(Environment & environment, const std::shared_ptr<
 }
 
 void TaskPoolWorker::runner() {
+    _thread.detach(); // Make this a daemon thread that never joins
     bindThreadContext();
     while (!isShutdown()) {
         std::shared_ptr<Task> task = pickupTask();
@@ -286,14 +287,14 @@ Task::Status Task::finalizeTask(const std::shared_ptr<SharedStruct> & data) {
     _data = data; // finalization data
     if (_finalize) {
         // move finalization function to end of call chain
-        _subtasks.push_back(std::move(_finalize));
+        _subtasks.emplace_back(std::move(_finalize));
     }
     return _lastStatus = Finalizing; // perform finalization step in same thread if possible
 }
 
 void Task::addBlockedThread(const std::shared_ptr<TaskThread> & blockedThread) {
     std::unique_lock guard{_mutex};
-    _blockedThreads.push_back(blockedThread); // threads blocked and in process of task stealing
+    _blockedThreads.emplace_back(blockedThread); // threads blocked and in process of task stealing
 }
 
 bool Task::waitForCompletion(time_t terminateTime) {

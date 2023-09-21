@@ -85,7 +85,7 @@ public:
     }
 
     Status removeSubtask(std::unique_ptr<SubTask> & subTask);
-    void addSubtask(std::unique_ptr<SubTask> & subTask);
+    void addSubtask(std::unique_ptr<SubTask> subTask);
     void setCompletion(std::unique_ptr<SubTask> & finalize) {
         std::unique_lock guard{_mutex};
         _finalize = std::move(finalize);
