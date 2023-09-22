@@ -132,10 +132,10 @@ TaskThread::TaskThread(Environment & environment, const std::shared_ptr<TaskMana
 TaskPoolWorker::TaskPoolWorker(Environment & environment, const std::shared_ptr<TaskManager> &pool) :
         TaskThread(environment, pool) {
     _thread = std::thread(&TaskPoolWorker::runner, this);
+    _thread.detach(); // Make this a daemon thread that never joins
 }
 
 void TaskPoolWorker::runner() {
-    _thread.detach(); // Make this a daemon thread that never joins
     bindThreadContext();
     while (!isShutdown()) {
         std::shared_ptr<Task> task = pickupTask();
