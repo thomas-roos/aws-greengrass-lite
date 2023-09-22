@@ -5,64 +5,100 @@
 #include <shared_mutex>
 #include <mutex>
 #include <filesystem>
+#include <c_api.h>
 #include "environment.h"
+#include "handle_table.h"
 #if defined(USE_DLFCN)
 #include <dlfcn.h>
 #elif defined(USE_WINDLL)
 #include <windows.h>
 #endif
 
-class AbstractPlugin : public std::enable_shared_from_this<AbstractPlugin> {
+class SharedStruct;
+//
+// Abstract plugin also acts as a global anchor for the given plugin module
+//
+class AbstractPlugin : public AnchoredWithRoots {
+protected:
+    std::string _moduleName;
 public:
-    virtual ~AbstractPlugin() = default;
-    virtual void initialize() = 0;
-    virtual void lifecycle(Handle phase) = 0;
+    explicit AbstractPlugin(Environment & environment, const std::string_view & name) :
+        AnchoredWithRoots(environment), _moduleName{name} {
+    }
+    virtual void lifecycle(Handle pluginRoot, Handle phase, const std::shared_ptr<SharedStruct> & data) = 0;
+    virtual bool isActive() {
+        return true;
+    }
 };
 
+//
+// Delegate plugin is managed by a parent plugin
+//
+class DelegatePlugin : public AbstractPlugin {
+private:
+    std::shared_ptr<AbstractPlugin> _parent; // delegate keeps parent in memory
+    ggapiLifecycleCallback _delegateLifecycle { nullptr }; // called to handle this delegate
+    uintptr_t _delegateContext {0}; // use of this defined by delegate
+public:
+    explicit DelegatePlugin(Environment & environment, std::string_view name,
+                            const std::shared_ptr<AbstractPlugin> & parent,
+                            ggapiLifecycleCallback delegateLifecycle,
+                            uintptr_t delegateContext) :
+        AbstractPlugin(environment, name),
+        _parent{parent},
+        _delegateLifecycle{delegateLifecycle},
+        _delegateContext{delegateContext} {
+    }
+    std::shared_ptr<DelegatePlugin> shared_from_this() {
+        return std::static_pointer_cast<DelegatePlugin>(AbstractPlugin::shared_from_this());
+    }
+    void lifecycle(Handle pluginRoot, Handle phase, const std::shared_ptr<SharedStruct> & data) override;
+};
+
+//
+// Native plugins are first-class, handled by the Nucleus itself
+//
 class NativePlugin : public AbstractPlugin {
 private:
-    std::string _moduleName;
 #if defined(USE_DLFCN)
-    void * _handle { nullptr };
-    typedef void (*initializeFn_t)();
-    typedef void (*lifecycleFn_t)(uint32_t phase);
+    typedef void * nativeHandle_t;
+    typedef uint32_t (*lifecycleFn_t)(uint32_t moduleHandle, uint32_t phase, uint32_t data);
 #elif defined(USE_WINDLL)
-    HINSTANCE _handle { nullptr };
-    typedef void (WINAPI *initializeFn_t)();
-    typedef void (WINAPI *lifecycleFn_t)(uint32_t phase);
-
+    typedef HINSTANCE nativeHandle_t;
+    typedef void (WINAPI *lifecycleFn_t)(uint32_t globalHandle, uint32_t phase, uint32_t data);
 #endif
-    initializeFn_t _initializeFn { nullptr };
-    lifecycleFn_t _lifecycleFn { nullptr };
+    volatile nativeHandle_t _handle { nullptr };
+    volatile lifecycleFn_t _lifecycleFn { nullptr };
 
-public:
-    explicit NativePlugin(std::string_view name);
-    ~NativePlugin() override;
+protected:
     std::shared_ptr<NativePlugin> shared_from_this() {
         return std::static_pointer_cast<NativePlugin>(AbstractPlugin::shared_from_this());
     }
-    void load(const std::string & filePath);
-    void initialize() override;
-    void lifecycle(Handle phase) override;
-};
-
-class PluginLoader {
-private:
-    Environment & _environment;
-    std::list<std::shared_ptr<AbstractPlugin>> _plugins;
-    std::shared_mutex _mutex;
-
-    static bool endsWith(const std::string_view name, const std::string_view suffix) {
-        if (name.length() <= suffix.length()) {
-            return false;
-        }
-        return name.compare(name.length()-suffix.length(), suffix.length(), suffix) == 0;
-    }
-
-    std::vector<std::shared_ptr<AbstractPlugin>> pluginSnapshot();
 
 public:
-    explicit PluginLoader(Environment & environment) : _environment{environment} {
+    explicit NativePlugin(Environment & environment, std::string_view name) :
+        AbstractPlugin(environment, name) {
+    }
+    ~NativePlugin() override;
+    void load(const std::string & filePath);
+    void lifecycle(Handle pluginRoot, Handle phase, const std::shared_ptr<SharedStruct> & data) override;
+    bool isActive();
+};
+
+//
+// Loader is responsible for handling all plugins
+//
+class PluginLoader : public AnchoredWithRoots {
+private:
+    std::vector<std::shared_ptr<Anchored>> getPlugins();
+
+protected:
+    std::shared_ptr<PluginLoader> shared_from_this() {
+        return std::static_pointer_cast<PluginLoader>(AnchoredWithRoots::shared_from_this());
+    }
+
+public:
+    explicit PluginLoader(Environment & environment) : AnchoredWithRoots(environment) {
     }
 
     void discoverPlugins();
@@ -70,11 +106,10 @@ public:
 
     void loadNativePlugin(const std::string &name);
 
-    void initialize();
-
-    void lifecycleStart();
-
-    void lifecycleRun();
-
-    void lifecycle(Handle phase);
+    void lifecycleBootstrap(const std::shared_ptr<SharedStruct> & data);
+    void lifecycleDiscover(const std::shared_ptr<SharedStruct> & data);
+    void lifecycleStart(const std::shared_ptr<SharedStruct> & data);
+    void lifecycleRun(const std::shared_ptr<SharedStruct> & data);
+    void lifecycleTerminate(const std::shared_ptr<SharedStruct> & data);
+    void lifecycle(Handle phase, const std::shared_ptr<SharedStruct> & data);
 };

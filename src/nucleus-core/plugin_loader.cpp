@@ -1,5 +1,6 @@
 #include "plugin_loader.h"
-#include <iostream>
+#include "shared_struct.h"
+#include "task.h"
 namespace fs = std::filesystem;
 
 NativePlugin::~NativePlugin() {
@@ -16,46 +17,78 @@ NativePlugin::~NativePlugin() {
 #endif
 }
 
-NativePlugin::NativePlugin(std::string_view name) : _moduleName(name) {
-}
-
 void NativePlugin::load(const std::string & filePath) {
 #if defined(USE_DLFCN)
-    _handle = ::dlopen(filePath.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
-    if (_handle == nullptr) {
+    nativeHandle_t handle = ::dlopen(filePath.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
+    _handle = handle;
+    if (handle == nullptr) {
         std::string error {dlerror()};
         throw std::runtime_error(std::string("Cannot load shared object: ")+filePath + std::string(" ") + error);
     }
     _lifecycleFn = reinterpret_cast<lifecycleFn_t>(::dlsym(_handle, "greengrass_lifecycle"));
-    _initializeFn = reinterpret_cast<initializeFn_t >(::dlsym(_handle, "greengrass_initialize"));
 #elif defined(USE_WINDLL)
-    _handle = ::LoadLibraryEx(filePath.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
-    if (_handle == nullptr) {
+    nativeHandle_t handle = ::LoadLibraryEx(filePath.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+    _handle = handle;
+    if (handle == nullptr) {
         uint32_t lastError = ::GetLastError();
         // TODO: use FormatMessage
         throw std::runtime_error(std::string("Cannot load DLL: ")+filePath + std::string(" ") + std::to_string(lastError));
     }
     _lifecycleFn = reinterpret_cast<lifecycleFn_t>(::GetProcAddress(_handle, "greengrass_lifecycle"));
-    _initializeFn = reinterpret_cast<initializeFn_t>(::GetProcAddress(_handle, "greengrass_initialize"));
 #endif
 }
 
-void NativePlugin::initialize() {
-    // TODO: thread safety?
-    if (_initializeFn != nullptr) {
-        _initializeFn();
+bool NativePlugin::isActive() {
+    return _lifecycleFn;
+}
+
+void PluginLoader::lifecycle(Handle phase, const std::shared_ptr<SharedStruct> & data) {
+    // TODO: Run this inside of a task, right now we end up using calling threads task
+    // However probably good to defer that until there's a basic lifecycle manager
+    for (const auto &i : getPlugins()) {
+        std::shared_ptr<AbstractPlugin> plugin {i->getObject<AbstractPlugin>()};
+        if (plugin->isActive()) {
+            plugin->lifecycle(Handle{i}, phase, data);
+        }
     }
 }
 
-void NativePlugin::lifecycle(Handle phase) {
-    // TODO: thread safety?
-    if (_lifecycleFn != nullptr) {
-        _lifecycleFn(phase.asInt());
+void NativePlugin::lifecycle(Handle pluginAnchor, Handle phase, const std::shared_ptr<SharedStruct> & data) {
+    lifecycleFn_t lifecycleFn = _lifecycleFn;
+    if (lifecycleFn != nullptr) {
+        std::shared_ptr<SharedStruct> copy = data->copy();
+        std::shared_ptr<Task> threadTask = _environment.handleTable.getObject<Task>(Task::getThreadSelf());
+        std::shared_ptr<Anchored> dataAnchor = threadTask->anchor(copy.get());
+        lifecycleFn(
+                pluginAnchor.asInt(),
+                phase.asInt(),
+                Handle {dataAnchor}.asInt()
+                );
+    }
+}
+
+void DelegatePlugin::lifecycle(Handle pluginAnchor, Handle phase, const std::shared_ptr<SharedStruct> & data) {
+    uintptr_t delegateContext;
+    ggapiLifecycleCallback delegateLifecycle;
+    {
+        std::shared_lock guard{_mutex};
+        delegateContext = _delegateContext;
+        delegateLifecycle = _delegateLifecycle;
+    }
+    if (delegateLifecycle != nullptr) {
+        std::shared_ptr<SharedStruct> copy = data->copy();
+        std::shared_ptr<Task> threadTask = _environment.handleTable.getObject<Task>(Task::getThreadSelf());
+        std::shared_ptr<Anchored> dataAnchor = threadTask->anchor(copy.get());
+        delegateLifecycle(
+                delegateContext,
+                pluginAnchor.asInt(),
+                phase.asInt(),
+                Handle {dataAnchor}.asInt()
+        );
     }
 }
 
 void PluginLoader::discoverPlugins() {
-    std::unique_lock guard{_mutex};
     // two-layer iterator just to make testing easier
     fs::path root = fs::absolute(".");
     for (const auto & top : fs::directory_iterator(root)) {
@@ -73,7 +106,6 @@ void PluginLoader::discoverPlugins() {
 
 void PluginLoader::discoverPlugin(const fs::directory_entry &entry) {
     std::string name {entry.path().generic_string()};
-    std::string ext {entry.path().extension().generic_string()};
 #if defined(NATIVE_SUFFIX)
     if (entry.path().extension().compare(NATIVE_SUFFIX) == 0) {
         loadNativePlugin(name);
@@ -83,42 +115,44 @@ void PluginLoader::discoverPlugin(const fs::directory_entry &entry) {
 }
 
 void PluginLoader::loadNativePlugin(const std::string &name) {
-    // Linux/Unix specific
-    std::shared_ptr<NativePlugin> plugin {std::make_shared<NativePlugin>(name)};
+    std::shared_ptr<NativePlugin> plugin {std::make_shared<NativePlugin>(_environment, name)};
     plugin->load(name);
-
-    //std::unique_lock guard{_mutex};
-    _plugins.push_back(plugin);
+    // add the plugin to collection by "anchoring"
+    // which solves a number of interesting problems
+    anchor(plugin.get());
 }
 
-std::vector<std::shared_ptr<AbstractPlugin>> PluginLoader::pluginSnapshot() {
+std::vector<std::shared_ptr<Anchored>> PluginLoader::getPlugins() {
     std::shared_lock guard{_mutex};
-    std::vector<std::shared_ptr<AbstractPlugin>> copy;
-    copy.reserve(_plugins.size());
-    for (const auto &i : _plugins) {
-        copy.push_back(i);
+    std::vector<std::shared_ptr<Anchored>> copy;
+    copy.reserve(_roots.size());
+    for (const auto &i : _roots) {
+        copy.emplace_back(i.second);
     }
     return copy;
 }
 
-void PluginLoader::lifecycleStart() {
+void PluginLoader::lifecycleBootstrap(const std::shared_ptr<SharedStruct> & data) {
+    Handle key = _environment.stringTable.getOrCreateOrd("bootstrap");
+    lifecycle(key, data);
+}
+
+void PluginLoader::lifecycleDiscover(const std::shared_ptr<SharedStruct> & data) {
+    Handle key = _environment.stringTable.getOrCreateOrd("discover");
+    lifecycle(key, data);
+}
+
+void PluginLoader::lifecycleStart(const std::shared_ptr<SharedStruct> & data) {
     Handle key = _environment.stringTable.getOrCreateOrd("start");
-    lifecycle(key);
+    lifecycle(key, data);
 }
 
-void PluginLoader::lifecycleRun() {
+void PluginLoader::lifecycleRun(const std::shared_ptr<SharedStruct> & data) {
     Handle key = _environment.stringTable.getOrCreateOrd("run");
-    lifecycle(key);
+    lifecycle(key, data);
 }
 
-void PluginLoader::initialize() {
-    for (const auto &i : pluginSnapshot()) {
-        i->initialize();
-    }
-}
-
-void PluginLoader::lifecycle(Handle handle) {
-    for (const auto &i : pluginSnapshot()) {
-        i->lifecycle(handle);
-    }
+void PluginLoader::lifecycleTerminate(const std::shared_ptr<SharedStruct> & data) {
+    Handle key = _environment.stringTable.getOrCreateOrd("run");
+    lifecycle(key, data);
 }

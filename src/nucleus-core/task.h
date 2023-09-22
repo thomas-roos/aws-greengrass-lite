@@ -38,7 +38,6 @@ public:
     };
     friend class TaskManager;
 private:
-    mutable std::mutex _mutex;
     std::shared_ptr<SharedStruct> _data;
     std::unique_ptr<SubTask> _finalize;
     std::list<std::unique_ptr<SubTask>> _subtasks;
@@ -195,7 +194,6 @@ inline std::shared_ptr<TaskThread> SubTask::getAffinity() {
 
 class TaskManager : public AnchoredWithRoots {
 private:
-    std::mutex _workerPoolMutex;
     std::list<std::shared_ptr<TaskPoolWorker>> _busyWorkers; // assumes small pool, else std::set
     std::list<std::shared_ptr<TaskPoolWorker>> _idleWorkers; // LIFO
     std::list<std::shared_ptr<Task>> _backlog; // tasks with no thread affinity (assumed async)

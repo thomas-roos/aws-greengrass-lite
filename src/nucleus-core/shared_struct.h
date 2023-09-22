@@ -18,13 +18,11 @@ private:
     // size of variant is prob ~ 32 bytes or so, because of std::string
     // in theory, can be optimized, but is it worth it?
     std::variant<std::monostate, uint64_t, double, std::shared_ptr<SharedStruct>, std::string> _value;
-    static constexpr int VOID = 0;
+    static constexpr int NONE = 0;
     static constexpr int INT = 1;
     static constexpr int DOUBLE = 2;
     static constexpr int STRUCT = 3;
     static constexpr int STRING = 4;
-
-    void rootsCheck(const SharedStruct * target) const;
 
 public:
     friend class SharedStruct;
@@ -42,10 +40,10 @@ public:
     StructElement(const StructElement & other) = default;
     StructElement & operator=(const StructElement & other) = default;
     explicit operator bool() const {
-        return _value.index() != VOID;
+        return _value.index() != NONE;
     }
     bool operator!() const {
-        return _value.index() == VOID;
+        return _value.index() == NONE;
     }
     [[nodiscard]] bool isStruct() const {
         return _value.index() == STRUCT;
@@ -86,7 +84,7 @@ public:
                 throw std::runtime_error("Unsupported type conversion to string");
         }
     }
-    [[nodiscard]] std::shared_ptr<SharedStruct> getStructRef() {
+    [[nodiscard]] std::shared_ptr<SharedStruct> getStructRef() const {
         switch (_value.index()) {
             case STRUCT:
                 return std::get<std::shared_ptr<SharedStruct>>(_value);
@@ -117,10 +115,9 @@ inline const StructElement StructElement::nullElement {};
 class SharedStruct : public AnchoredObject {
 private:
     std::map<Handle, StructElement, Handle::CompLess> _elements;
+    mutable std::shared_mutex _mutex;
 
-    void rootsCheck(const StructElement & element) const {
-        element.rootsCheck(this);
-    }
+    bool putStruct(const Handle handle, const StructElement & element);
 
     void rootsCheck(const SharedStruct * target) const;
 
@@ -134,28 +131,27 @@ public:
 
     void put(const Handle handle, const StructElement & element) {
         _environment.stringTable.assertStringHandle(handle);
-        std::unique_lock guard {_environment.sharedStructMutex};
-        rootsCheck(element); // in lock
-        _elements[handle] = element;
+        if (!(element.isStruct() && putStruct(handle, element))) {
+            std::unique_lock guard{_mutex};
+            _elements[handle] = element;
+        }
     }
 
     void put(const std::string_view sv, const StructElement & element) {
         Handle handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
-        std::unique_lock guard {_environment.sharedStructMutex};
-        rootsCheck(element); // in lock
-        _elements[handle] = element;
+        put(handle, element);
     }
 
     bool hasKey(const Handle handle) {
         //_environment.stringTable.assertStringHandle(handle);
-        std::shared_lock guard {_environment.sharedStructMutex};
+        std::shared_lock guard {_mutex};
         auto i = _elements.find(handle);
         return i != _elements.end();
     }
 
     StructElement get(const Handle handle) const {
         //_environment.stringTable.assertStringHandle(handle);
-        std::shared_lock guard {_environment.sharedStructMutex};
+        std::shared_lock guard {_mutex};
         auto i = _elements.find(handle);
         if (i == _elements.end()) {
             return StructElement::nullElement;
@@ -168,6 +164,8 @@ public:
         Handle handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
         return get(handle);
     }
+
+    std::shared_ptr<SharedStruct> copy() const;
 };
 
 inline StructElement::StructElement(SharedStruct * p) : _value{p->struct_shared_from_this()} {

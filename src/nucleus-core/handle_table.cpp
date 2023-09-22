@@ -75,7 +75,7 @@ std::shared_ptr<Anchored> AnchoredWithRoots::anchor(AnchoredObject *obj) {
     }
     auto ptr { std::make_shared<Anchored>(_environment, obj)};
     Handle h = ptr->getHandle();
-    std::unique_lock guard{_environment.sharedRootsMutex};
+    std::unique_lock guard{_mutex};
     _roots[h] = ptr;
     auto self = std::dynamic_pointer_cast<AnchoredWithRoots>(shared_from_this());
     ptr->_owner = self;
@@ -107,7 +107,7 @@ bool AnchoredWithRoots::release(Handle handle) {
     if (!handle) {
         return false;
     }
-    std::unique_lock guard{_environment.sharedRootsMutex};
+    std::unique_lock guard{_mutex};
     return _roots.erase(handle) > 0;
 }
 

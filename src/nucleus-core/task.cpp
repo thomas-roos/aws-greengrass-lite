@@ -19,7 +19,7 @@ void TaskManager::queueTask(const std::shared_ptr<Task> &task) {
         affinity->waken();
     } else {
         // no affinity, just add to backlog, a worker will pick this up
-        std::unique_lock guard{_workerPoolMutex};
+        std::unique_lock guard{_mutex};
         _backlog.push_back(task);
     }
 }
@@ -30,7 +30,7 @@ void TaskThread::queueTask(const std::shared_ptr<Task> &task) {
 }
 
 bool TaskManager::allocateNextWorker() {
-    std::unique_lock guard{_workerPoolMutex};
+    std::unique_lock guard{_mutex};
     if (_backlog.empty()) {
         return true; // backlog is empty (does not include thread-assigned tasks)
     }
@@ -55,7 +55,7 @@ bool TaskManager::allocateNextWorker() {
     }
 }
 std::shared_ptr<Task> TaskManager::acquireTaskWhenStealing(TaskThread *worker, const std::shared_ptr<Task> & priorityTask) {
-    std::unique_lock guard{_workerPoolMutex};
+    std::unique_lock guard{_mutex};
     if (_backlog.empty()) {
         return nullptr;
     }
@@ -72,7 +72,7 @@ std::shared_ptr<Task> TaskManager::acquireTaskWhenStealing(TaskThread *worker, c
 }
 
 std::shared_ptr<Task> TaskManager::acquireTaskForWorker(TaskThread *worker) {
-    std::unique_lock guard{_workerPoolMutex};
+    std::unique_lock guard{_mutex};
     if (_backlog.empty()) {
         // backlog is empty, need to idle this worker
         for (auto i = _busyWorkers.begin(); i != _busyWorkers.end(); ++i) {

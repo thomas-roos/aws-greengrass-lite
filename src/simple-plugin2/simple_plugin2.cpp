@@ -22,7 +22,7 @@ std::thread asyncThread;
 
 void asyncThreadFn();
 
-extern "C" EXPORT void greengrass_lifecycle(uint32_t phase) {
+extern "C" EXPORT void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) {
     std::cout << "Running lifecycle plugin 2... " << ggapi::StringOrd{phase}.toString() << std::endl;
     ggapi::StringOrd phaseOrd{phase};
     if (phaseOrd == keys.run) {
@@ -30,10 +30,7 @@ extern "C" EXPORT void greengrass_lifecycle(uint32_t phase) {
     }
 }
 
-uint32_t publishToIoTCoreListener(uint32_t taskId, uint32_t topicOrdId, uint32_t dataId) {
-    ggapi::ObjHandle task {taskId};
-    ggapi::StringOrd topic {topicOrdId};
-    ggapi::Struct callData {dataId};
+ggapi::Struct publishToIoTCoreListener(ggapi::ObjHandle task, ggapi::StringOrd topic, ggapi::Struct callData) {
     // real work
     std::string destTopic { callData.getString(keys.topicName)};
     int qos { (int)callData.getInt32(keys.qos)};
@@ -43,19 +40,16 @@ uint32_t publishToIoTCoreListener(uint32_t taskId, uint32_t topicOrdId, uint32_t
     ggapi::Struct response = task.createStruct();
     response.put("status", 1U);
     // return response
-    return response.getHandleId();
+    return response;
 }
 
-uint32_t publishToIoTCoreResponder(uint32_t taskId, uint32_t topicOrdId, uint32_t dataId) {
-    if (dataId == 0) {
+ggapi::Struct publishToIoTCoreResponder(ggapi::ObjHandle task, ggapi::StringOrd topic, ggapi::Struct respData) {
+    if (!respData) {
         // unhandled
-        return 0;
+        return respData;
     }
-    ggapi::ObjHandle task {taskId};
-    ggapi::StringOrd topic {topicOrdId};
-    ggapi::Struct respData {dataId};
     uint32_t status { respData.getInt32("status") };
-    return 0;
+    return respData;
 }
 
 void asyncThreadFn() {
@@ -70,7 +64,7 @@ void asyncThreadFn() {
             .put(keys.payload, threadTask.createStruct().put("Foo", 1U));
 
     // Async style
-    ggapi::ObjHandle newTask = threadTask.sendToTopicAsync(keys.publishToIoTCoreTopic, request, publishToIoTCoreResponder);
+    ggapi::ObjHandle newTask = threadTask.sendToTopicAsync(keys.publishToIoTCoreTopic, request, publishToIoTCoreResponder, 0);
     ggapi::Struct respData = newTask.waitForTaskCompleted();
     uint32_t status { respData.getInt32("status") };
 

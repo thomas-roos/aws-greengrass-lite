@@ -4,6 +4,7 @@ set(TOP_BINARY_DIR ${PROJECT_BINARY_DIR})
 add_subdirectory(nucleus-core)
 add_subdirectory(simple-plugin1)
 add_subdirectory(simple-plugin2)
+add_subdirectory(layered-plugin)
 
 add_executable(greengrass-lite main.cpp)
 target_link_libraries(greengrass-lite Threads::Threads ${CMAKE_DL_LIBS} nucleus-core)

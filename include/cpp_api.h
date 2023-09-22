@@ -4,12 +4,24 @@
 #include <string_view>
 #include <memory>
 #include <string>
+#include <functional>
 #include <c_api.h>
 
 //
 // Sugar around the c-api to make cpp development easier
 //
 namespace ggapi {
+
+    class Struct;
+    class StringOrd;
+    class ObjHandle;
+
+    typedef std::function<Struct(ObjHandle,StringOrd,Struct)> topicCallbackLambda;
+    typedef std::function<void(ObjHandle,StringOrd,Struct)> lifecycleCallbackLambda;
+    typedef Struct (*topicCallback_t)(ObjHandle,StringOrd,Struct);
+    typedef void (*lifecycleCallback_t)(ObjHandle,StringOrd,Struct);
+    extern uint32_t topicCallbackProxy(uintptr_t callbackContext, uint32_t taskHandle, uint32_t topicOrd, uint32_t dataStruct);
+    extern void lifecycleCallbackProxy(uintptr_t callbackContext, uint32_t moduleHandle, uint32_t phaseOrd, uint32_t dataStruct);
 
     class StringOrd {
     private:
@@ -38,7 +50,6 @@ namespace ggapi {
         }
     };
 
-    class Struct;
     class ObjHandle {
     protected:
         uint32_t _handle;
@@ -49,6 +60,15 @@ namespace ggapi {
         ObjHandle & operator=(const ObjHandle & other) = default;
         bool operator==(ObjHandle other) const {
             return _handle == other._handle;
+        }
+        bool operator!=(ObjHandle other) const {
+            return _handle != other._handle;
+        }
+        explicit operator bool() const {
+            return _handle != 0;
+        }
+        bool operator!() const {
+            return _handle == 0;
         }
 
         [[nodiscard]] uint32_t getHandleId() const {
@@ -63,14 +83,15 @@ namespace ggapi {
             return ObjHandle(::ggapiClaimThread());
         }
 
-        [[nodiscard]] ObjHandle subscribeToTopic(StringOrd topic, ::ggapiTopicCallback callback) const {
-            return ObjHandle(::ggapiSubscribeToTopic(getHandleId(), topic.toOrd(), callback));
+        [[nodiscard]] ObjHandle subscribeToTopic(StringOrd topic, topicCallback_t callback) {
+            return ObjHandle(::ggapiSubscribeToTopic(getHandleId(), topic.toOrd(), topicCallbackProxy, reinterpret_cast<uintptr_t>(callback)));
         }
 
-        [[nodiscard]] ObjHandle sendToTopicAsync(StringOrd topic, Struct message, ::ggapiTopicCallback result, time_t timeout = -1) const;
+        [[nodiscard]] ObjHandle sendToTopicAsync(StringOrd topic, Struct message, topicCallback_t result, time_t timeout = -1);
 
-        [[nodiscard]] Struct sendToTopic(StringOrd topic, Struct message, time_t timeout = -1) const;
-        [[nodiscard]] Struct waitForTaskCompleted(time_t timeout = -1) const;
+        [[nodiscard]] Struct sendToTopic(StringOrd topic, Struct message, time_t timeout = -1);
+        [[nodiscard]] Struct waitForTaskCompleted(time_t timeout = -1);
+        [[nodiscard]] ObjHandle registerPlugin(StringOrd componentName, lifecycleCallback_t callback);
 
         void release() const {
             ::ggapiReleaseHandle(_handle);
@@ -221,16 +242,30 @@ namespace ggapi {
         return Struct::create(*this);
     }
 
-    ObjHandle ObjHandle::sendToTopicAsync(StringOrd topic, Struct message, ::ggapiTopicCallback result, time_t timeout) const {
-        return ObjHandle(::ggapiSendToTopicAsync(topic.toOrd(), message.getHandleId(), result, timeout));
+    ObjHandle ObjHandle::sendToTopicAsync(StringOrd topic, Struct message, topicCallback_t result, time_t timeout) {
+        return ObjHandle(::ggapiSendToTopicAsync(topic.toOrd(), message.getHandleId(), topicCallbackProxy, reinterpret_cast<uintptr_t>(result), timeout));
     }
 
-    Struct ObjHandle::sendToTopic(ggapi::StringOrd topic, Struct message, time_t timeout) const {
+    Struct ObjHandle::sendToTopic(ggapi::StringOrd topic, Struct message, time_t timeout) {
         return Struct(::ggapiSendToTopic(topic.toOrd(), message.getHandleId(), timeout));
     }
 
-    Struct ObjHandle::waitForTaskCompleted(time_t timeout) const {
+    Struct ObjHandle::waitForTaskCompleted(time_t timeout) {
         return Struct(::ggapiWaitForTaskCompleted(getHandleId(), timeout));
+    }
+
+    ObjHandle ObjHandle::registerPlugin(StringOrd componentName, lifecycleCallback_t callback) {
+        return Struct(::ggapiRegisterPlugin(getHandleId(), componentName.toOrd(), lifecycleCallbackProxy, reinterpret_cast<uintptr_t>(callback)));
+    }
+
+    uint32_t topicCallbackProxy(uintptr_t callbackContext, uint32_t taskHandle, uint32_t topicOrd, uint32_t dataStruct) {
+        auto callback = reinterpret_cast<topicCallback_t>(callbackContext);
+        return callback(ObjHandle{taskHandle}, StringOrd{topicOrd}, Struct{dataStruct}).getHandleId();
+    }
+
+    void lifecycleCallbackProxy(uintptr_t callbackContext, uint32_t moduleHandle, uint32_t phaseOrd, uint32_t dataStruct) {
+        auto callback = reinterpret_cast<lifecycleCallback_t>(callbackContext);
+        callback(ObjHandle{moduleHandle}, StringOrd{phaseOrd}, Struct{dataStruct});
     }
 
 }

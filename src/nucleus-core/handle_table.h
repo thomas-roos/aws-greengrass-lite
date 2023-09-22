@@ -59,8 +59,9 @@ public:
 };
 
 class AnchoredWithRoots : public AnchoredObject {
-private:
+protected:
     std::map<Handle, std::shared_ptr<Anchored>, Handle::CompLess> _roots;
+    mutable std::shared_mutex _mutex;
 public:
     explicit AnchoredWithRoots(Environment & environment) : AnchoredObject{environment} {
     }

@@ -6,9 +6,8 @@
 struct Environment {
     HandleTable handleTable;
     StringTable stringTable;
-    std::shared_mutex sharedStructMutex;
-    std::mutex sharedRootsMutex;
     std::shared_mutex sharedLocalTopicsMutex;
+    std::mutex cycleCheckMutex;
 
     virtual time_t relativeToAbsoluteTime(time_t relTime);
 };

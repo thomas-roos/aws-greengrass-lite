@@ -16,7 +16,10 @@
 #define IMPEXP IMPORT
 #endif
 
-typedef uint32_t (*ggapiTopicCallback)(uint32_t taskHandle, uint32_t topicOrd, uint32_t dataStruct);
+typedef uint32_t (*ggapiTopicCallback)(uintptr_t callbackContext, uint32_t taskHandle, uint32_t topicOrd, uint32_t dataStruct);
+typedef void (*ggapiLifecycleCallback)(uintptr_t callbackContext, uint32_t moduleHandle, uint32_t phaseOrd, uint32_t dataStruct);
+
+extern "C" void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data);
 
 extern "C" IMPEXP uint32_t ggapiGetStringOrdinal(const char * bytes, size_t len);
 extern "C" IMPEXP size_t ggapiGetOrdinalString(uint32_t ord, char * bytes, size_t len);
@@ -40,11 +43,12 @@ extern "C" IMPEXP uint32_t ggapiStructGetStruct(uint32_t structHandle, uint32_t 
 extern "C" IMPEXP uint32_t ggapiAnchorHandle(uint32_t anchorHandle, uint32_t objectHandle);
 extern "C" IMPEXP void ggapiReleaseHandle(uint32_t objectHandle);
 extern "C" IMPEXP uint32_t ggapiGetCurrentTask(void);
-extern "C" IMPEXP uint32_t ggapiSubscribeToTopic(uint32_t anchorHandle, uint32_t topicOrd, ggapiTopicCallback rxCallback);
+extern "C" IMPEXP uint32_t ggapiSubscribeToTopic(uint32_t anchorHandle, uint32_t topicOrd, ggapiTopicCallback rxCallback, uintptr_t callbackContext);
 extern "C" IMPEXP uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, time_t timeout);
-extern "C" IMPEXP uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopicCallback respCallback, time_t timeout);
+extern "C" IMPEXP uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopicCallback respCallback, uintptr_t callbackContext, time_t timeout);
 extern "C" IMPEXP uint32_t ggapiCallNext(uint32_t dataStruct);
 extern "C" IMPEXP uint32_t ggapiWaitForTaskCompleted(uint32_t asyncTask, time_t timeout);
+extern "C" IMPEXP uint32_t ggapiRegisterPlugin(uint32_t moduleHandle, uint32_t componentName, ggapiLifecycleCallback lifecycleCallback, uintptr_t callbackContext);
 
 // Used only by top-level executable
 extern "C" IMPEXP int ggapiMainThread();

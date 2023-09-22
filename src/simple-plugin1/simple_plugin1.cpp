@@ -26,14 +26,11 @@ struct Keys {
 };
 
 
-uint32_t testListener(uint32_t taskId, uint32_t topicOrdId, uint32_t dataId) {
-    ggapi::ObjHandle task {taskId};
-    ggapi::StringOrd topic {topicOrdId};
-    ggapi::Struct callData {dataId};
+ggapi::Struct testListener(ggapi::ObjHandle task, ggapi::StringOrd topic, ggapi::Struct callData) {
     std::string pingMessage { callData.getString("ping")};
     ggapi::Struct response = task.createStruct();
     response.put("pong", pingMessage);
-    return response.getHandleId();
+    return response;
 }
 
 
@@ -45,11 +42,7 @@ void doRunPhase() {
 
 }
 
-extern "C" EXPORT void greengrass_initialize() {
-    std::cout << "Running initialize plugin 1... " << std::endl;
-}
-
-extern "C" EXPORT void greengrass_lifecycle(uint32_t phase) {
+extern "C" EXPORT void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) {
     std::cout << "Running lifecycle plugin 1... " << ggapi::StringOrd{phase}.toString() << std::endl;
     const auto & keys = Keys::get();
 
