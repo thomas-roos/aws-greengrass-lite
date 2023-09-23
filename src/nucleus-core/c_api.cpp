@@ -29,11 +29,14 @@ size_t ggapiGetOrdinalStringLen(uint32_t ord) {
 
 uint32_t ggapiClaimThread() {
     Global & global = Global::self();
-    std::shared_ptr<Anchored> taskAnchor {global.taskManager->createTask()};
     std::shared_ptr<FixedTaskThread> thread {std::make_shared<FixedTaskThread>(global.environment, global.taskManager)};
-    thread->bindThreadContext(taskAnchor);
-    thread->protect(); // the thread object stays around
-    return Handle{taskAnchor}.asInt();
+    return Handle{thread->claimFixedThread()}.asInt();
+}
+
+void ggapiReleaseThread() {
+    Global & global = Global::self();
+    std::shared_ptr<TaskThread> thread = FixedTaskThread::getThreadContext();
+    thread->releaseFixedThread();
 }
 
 uint32_t ggapiGetCurrentTask(void) {
@@ -172,7 +175,10 @@ uint32_t ggapiAnchorHandle(uint32_t anchorHandle, uint32_t objectHandle) {
 void ggapiReleaseHandle(uint32_t objectHandle) {
     Global & global = Global::self();
     std::shared_ptr<Anchored> anchored {global.environment.handleTable.getAnchor(Handle{objectHandle})};
-    anchored->release();
+    // releasing a non-existing handle is a no-op as it may have been garbage collected
+    if (anchored) {
+        anchored->release();
+    }
 }
 
 class NativeCallback : public AbstractCallback {

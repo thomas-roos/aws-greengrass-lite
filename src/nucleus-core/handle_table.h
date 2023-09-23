@@ -95,13 +95,21 @@ public:
 
     std::shared_ptr<Anchored> getAnchor(const Handle handle) {
         std::shared_lock guard {_mutex};
-        return _handles.at(handle).lock();
+        auto i = _handles.find(handle);
+        if (i == _handles.end()) {
+            return nullptr;
+        }
+        return i->second.lock();
     }
 
     template<typename T>
     std::shared_ptr<T> getObject(const Handle handle) {
         std::shared_ptr<Anchored> obj {getAnchor(handle)};
-        return obj->getObject<T>();
+        if (obj) {
+            return obj->getObject<T>();
+        } else {
+            return nullptr;
+        }
     }
 
 };

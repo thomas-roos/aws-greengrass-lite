@@ -1,7 +1,8 @@
 #include "task.h"
 
 thread_local Handle Task::_threadTask {Handle::nullHandle};
-thread_local std::weak_ptr<TaskThread> TaskThread::_threadContext;
+//thread_local std::weak_ptr<TaskThread> TaskThread::_threadContext;
+thread_local TaskThread* TaskThread::_threadContext;
 
 std::shared_ptr<Anchored> TaskManager::createTask() {
     auto task{ std::make_shared<Task>(_environment)};
@@ -95,17 +96,27 @@ void Task::addSubtask(std::unique_ptr<SubTask> subTask) {
 }
 
 void TaskThread::bindThreadContext() {
-    _threadContext = weak_from_this();
+    _threadContext = this;
 }
 
 std::shared_ptr<TaskThread> TaskThread::getThreadContext() {
     // TaskThread for current thread
-    return _threadContext.lock();
+    TaskThread * thread = _threadContext; // Thread-local, so safe
+    if (thread) {
+        return thread->shared_from_this();
+    } else {
+        return nullptr;
+    }
 }
 
 void FixedTaskThread::setDefaultTask(const std::shared_ptr<Anchored> &task) {
     std::unique_lock guard{_mutex};
     _defaultTask = task;
+}
+
+std::shared_ptr<Anchored> FixedTaskThread::getDefaultTask() {
+    std::unique_lock guard{_mutex};
+    return _defaultTask;
 }
 
 void FixedTaskThread::protect() {
@@ -212,11 +223,17 @@ void Task::markTaskComplete() {
     for (const auto& i : _blockedThreads) {
         i->waken();
     }
+    _blockedThreads.clear();
 }
 
 bool Task::isCompleted() {
-    std::unique_lock guard {_mutex};
+    std::shared_lock guard {_mutex};
     return _lastStatus == Completed;
+}
+
+bool Task::willNeverComplete() {
+    std::shared_lock guard {_mutex};
+    return _lastStatus == Running && _subtasks.empty();
 }
 
 Task::Status Task::removeSubtask(std::unique_ptr<SubTask> & subTask) {
@@ -297,11 +314,31 @@ void Task::addBlockedThread(const std::shared_ptr<TaskThread> & blockedThread) {
     _blockedThreads.emplace_back(blockedThread); // threads blocked and in process of task stealing
 }
 
+void Task::removeBlockedThread(const std::shared_ptr<TaskThread> & blockedThread) {
+    std::unique_lock guard{_mutex};
+    _blockedThreads.remove(blockedThread);
+}
+
+class BlockedThreadScope {
+    const std::shared_ptr<Task> & _task;
+    const std::shared_ptr<TaskThread> & _thread;
+public:
+    explicit BlockedThreadScope(const std::shared_ptr<Task> & task, const std::shared_ptr<TaskThread> & thread) :
+    _task(task), _thread(thread) {
+        _task->addBlockedThread(_thread);
+    }
+    void taskStealing() {
+        _thread->taskStealing(_task);
+    }
+    ~BlockedThreadScope() {
+        _task->removeBlockedThread(_thread);
+    }
+};
+
 bool Task::waitForCompletion(time_t terminateTime) {
     // TODO: Timeout
-    std::shared_ptr<TaskThread> thisThread = TaskThread::getThreadContext();
-    addBlockedThread(thisThread);
-    thisThread->taskStealing(shared_from_this());
+    BlockedThreadScope scope {shared_from_this(), TaskThread::getThreadContext()};
+    scope.taskStealing(); // exception safe
     return isCompleted();
 }
 
@@ -317,4 +354,29 @@ Task::Status Task::runInThreadCallNext(const std::shared_ptr<Task> & task, const
             return NoSubTasks;
         }
     }
+}
+
+std::shared_ptr<Anchored> FixedTaskThread::claimFixedThread() {
+    std::shared_ptr<TaskManager> mgr {_pool.lock()};
+    std::shared_ptr<Anchored> taskAnchor {mgr->createTask()};
+    bindThreadContext(taskAnchor);
+    protect();
+    return taskAnchor;
+}
+
+void TaskThread::releaseFixedThread() {
+    throw std::runtime_error("Releasing a non-fixed thread");
+}
+
+void FixedTaskThread::releaseFixedThread() {
+//    std::shared_ptr<Anchored> defaultTask = FixedTaskThread::getDefaultTask();
+//    Handle taskHandle {Task::getThreadSelf()};
+//    if ((!defaultTask) || defaultTask->getHandle() != taskHandle) {
+//        throw std::runtime_error("Thread associated with another task");
+//    }
+//    setDefaultTask(nullptr);
+//    defaultTask->release();
+//    Task::getSetThreadSelf(Handle::nullHandle);
+//    unprotect();
+//    _threadContext.reset();
 }

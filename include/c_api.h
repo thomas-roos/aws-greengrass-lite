@@ -25,6 +25,7 @@ extern "C" IMPEXP uint32_t ggapiGetStringOrdinal(const char * bytes, size_t len)
 extern "C" IMPEXP size_t ggapiGetOrdinalString(uint32_t ord, char * bytes, size_t len);
 extern "C" IMPEXP size_t ggapiGetOrdinalStringLen(uint32_t ord);
 extern "C" IMPEXP uint32_t ggapiClaimThread();
+extern "C" IMPEXP void ggapiReleaseThread();
 extern "C" IMPEXP uint32_t ggapiCreateStruct(uint32_t anchorHandle);
 extern "C" IMPEXP void ggapiStructPutInt32(uint32_t structHandle, uint32_t ord, uint32_t value);
 extern "C" IMPEXP void ggapiStructPutInt64(uint32_t structHandle, uint32_t ord, uint64_t value);

@@ -98,8 +98,10 @@ public:
     Status runInThreadCallNext(const std::shared_ptr<Task> & task, const std::shared_ptr<SharedStruct> & dataIn, std::shared_ptr<SharedStruct> & dataOut);
 
     void addBlockedThread(const std::shared_ptr<TaskThread> &blockedThread);
+    void removeBlockedThread(const std::shared_ptr<TaskThread> &blockedThread);
 
     bool isCompleted();
+    bool willNeverComplete();
 
     Status finalizeTask(const std::shared_ptr<SharedStruct> &data);
 };
@@ -113,7 +115,8 @@ protected:
     std::mutex _mutex;
     std::condition_variable _wake;
     bool _shutdown {false};
-    static thread_local std::weak_ptr<TaskThread> _threadContext;
+//    static thread_local std::weak_ptr<TaskThread> _threadContext;
+    static thread_local TaskThread * _threadContext;
     void bindThreadContext();
 public:
     explicit TaskThread(Environment & environment, const std::shared_ptr<TaskManager> &pool);
@@ -121,6 +124,7 @@ public:
     std::shared_ptr<Task> pickupAffinitizedTask();
     std::shared_ptr<Task> pickupPoolTask();
     std::shared_ptr<Task> pickupTask();
+    virtual void releaseFixedThread();
 
     static std::shared_ptr<TaskThread> getThreadContext();
 
@@ -178,8 +182,11 @@ public:
     // Call this on the native thread
     void bindThreadContext(const std::shared_ptr<Anchored> & task);
     void setDefaultTask(const std::shared_ptr<Anchored> & task);
+    std::shared_ptr<Anchored> getDefaultTask();
     void protect();
     void unprotect();
+    std::shared_ptr<Anchored> claimFixedThread();
+    void releaseFixedThread() override;
     std::shared_ptr<FixedTaskThread> shared_from_this() {
         return std::static_pointer_cast<FixedTaskThread>(TaskThread::shared_from_this());
     }

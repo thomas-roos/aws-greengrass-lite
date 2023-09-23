@@ -27,6 +27,7 @@ extern "C" EXPORT void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phas
     ggapi::StringOrd phaseOrd{phase};
     if (phaseOrd == keys.run) {
         asyncThread = std::thread{asyncThreadFn};
+        asyncThread.detach();
     }
 }
 
@@ -80,8 +81,5 @@ void asyncThreadFn() {
 
     std::cout << "Pong..." << pongString << std::endl;
 
-    //
-    // terminate this test (kills process)
-    //
-    //std::exit(0);
+    ggapi::ObjHandle::releaseThread();
 }

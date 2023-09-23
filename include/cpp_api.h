@@ -83,6 +83,10 @@ namespace ggapi {
             return ObjHandle(::ggapiClaimThread());
         }
 
+        static void releaseThread() {
+            ::ggapiReleaseThread();
+        }
+
         [[nodiscard]] ObjHandle subscribeToTopic(StringOrd topic, topicCallback_t callback) {
             return ObjHandle(::ggapiSubscribeToTopic(getHandleId(), topic.toOrd(), topicCallbackProxy, reinterpret_cast<uintptr_t>(callback)));
         }
