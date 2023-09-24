@@ -52,13 +52,16 @@ namespace config {
     };
 
     constexpr Timestamp Timestamp::never() {
-        return Timestamp(0);
+        return {0};
     }
     constexpr Timestamp Timestamp::dawn() {
-        return Timestamp(1);
+        return {1};
     }
     constexpr Timestamp Timestamp::infinite() {
-        return Timestamp(-1);
+        return {-1};
     }
 
+    class Manager {
+
+    };
 }

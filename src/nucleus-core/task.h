@@ -23,7 +23,7 @@ protected:
     std::shared_ptr<TaskThread> _threadAffinity;
 public:
     virtual ~SubTask() = default;
-    virtual std::shared_ptr<SharedStruct> runInThread(const std::shared_ptr<Task> &task, const std::shared_ptr<SharedStruct> &dataIn) = 0;
+    virtual std::shared_ptr<Structish> runInThread(const std::shared_ptr<Task> &task, const std::shared_ptr<Structish> &dataIn) = 0;
     void setAffinity(const std::shared_ptr<TaskThread> & affinity);
     std::shared_ptr<TaskThread> getAffinity();
 };
@@ -39,7 +39,7 @@ public:
     };
     friend class TaskManager;
 private:
-    std::shared_ptr<SharedStruct> _data;
+    std::shared_ptr<Structish> _data;
     std::unique_ptr<SubTask> _finalize;
     std::list<std::unique_ptr<SubTask>> _subtasks;
     std::list<std::shared_ptr<TaskThread>> _blockedThreads;
@@ -65,11 +65,11 @@ public:
         std::unique_lock guard{_mutex};
         return _self;
     }
-    std::shared_ptr<SharedStruct> getData() {
+    std::shared_ptr<Structish> getData() {
         std::unique_lock guard{_mutex};
         return _data;
     }
-    void setData(const std::shared_ptr<SharedStruct> &newData) {
+    void setData(const std::shared_ptr<Structish> &newData) {
         std::unique_lock guard{_mutex};
         _data = newData;
     }
@@ -100,7 +100,7 @@ public:
     }
     Status runInThread();
     bool waitForCompletion(const ExpireTime & terminateTime);
-    Status runInThreadCallNext(const std::shared_ptr<Task> & task, const std::shared_ptr<SharedStruct> & dataIn, std::shared_ptr<SharedStruct> & dataOut);
+    Status runInThreadCallNext(const std::shared_ptr<Task> & task, const std::shared_ptr<Structish> & dataIn, std::shared_ptr<Structish> & dataOut);
 
     void addBlockedThread(const std::shared_ptr<TaskThread> &blockedThread);
     void removeBlockedThread(const std::shared_ptr<TaskThread> &blockedThread);
@@ -108,7 +108,7 @@ public:
     bool isCompleted();
     bool willNeverComplete();
 
-    Status finalizeTask(const std::shared_ptr<SharedStruct> &data);
+    Status finalizeTask(const std::shared_ptr<Structish> &data);
 };
 
 class TaskThread : public std::enable_shared_from_this<TaskThread> {

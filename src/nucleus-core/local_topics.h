@@ -15,7 +15,7 @@ public:
 class Task;
 class SubTask;
 class TopicReceivers;
-class SharedStruct;
+class Structish;
 class TopicReceiver : public AnchoredObject {
 private:
     Handle _topicOrd;
@@ -26,7 +26,7 @@ public:
     explicit TopicReceiver(Environment & environment, Handle topicOrd, TopicReceivers * receivers, std::unique_ptr<AbstractCallback> & callback);
     ~TopicReceiver() override;
     std::unique_ptr<SubTask> toSubTask(std::shared_ptr<Task> & task);
-    std::shared_ptr<SharedStruct> runInTaskThread(const std::shared_ptr<Task> &task, const std::shared_ptr<SharedStruct> &dataIn);
+    std::shared_ptr<Structish> runInTaskThread(const std::shared_ptr<Task> &task, const std::shared_ptr<Structish> &dataIn);
 };
 
 class Task;

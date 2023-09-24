@@ -14,7 +14,7 @@
 #include <windows.h>
 #endif
 
-class SharedStruct;
+class Structish;
 //
 // Abstract plugin also acts as a global anchor for the given plugin module
 //
@@ -25,7 +25,7 @@ public:
     explicit AbstractPlugin(Environment & environment, const std::string_view & name) :
         AnchoredWithRoots(environment), _moduleName{name} {
     }
-    virtual void lifecycle(Handle pluginRoot, Handle phase, const std::shared_ptr<SharedStruct> & data) = 0;
+    virtual void lifecycle(Handle pluginRoot, Handle phase, const std::shared_ptr<Structish> & data) = 0;
     virtual bool isActive() {
         return true;
     }
@@ -52,7 +52,7 @@ public:
     std::shared_ptr<DelegatePlugin> shared_from_this() {
         return std::static_pointer_cast<DelegatePlugin>(AbstractPlugin::shared_from_this());
     }
-    void lifecycle(Handle pluginRoot, Handle phase, const std::shared_ptr<SharedStruct> & data) override;
+    void lifecycle(Handle pluginRoot, Handle phase, const std::shared_ptr<Structish> & data) override;
 };
 
 //
@@ -81,7 +81,7 @@ public:
     }
     ~NativePlugin() override;
     void load(const std::string & filePath);
-    void lifecycle(Handle pluginRoot, Handle phase, const std::shared_ptr<SharedStruct> & data) override;
+    void lifecycle(Handle pluginRoot, Handle phase, const std::shared_ptr<Structish> & data) override;
     bool isActive();
 };
 
@@ -106,10 +106,10 @@ public:
 
     void loadNativePlugin(const std::string &name);
 
-    void lifecycleBootstrap(const std::shared_ptr<SharedStruct> & data);
-    void lifecycleDiscover(const std::shared_ptr<SharedStruct> & data);
-    void lifecycleStart(const std::shared_ptr<SharedStruct> & data);
-    void lifecycleRun(const std::shared_ptr<SharedStruct> & data);
-    void lifecycleTerminate(const std::shared_ptr<SharedStruct> & data);
-    void lifecycle(Handle phase, const std::shared_ptr<SharedStruct> & data);
+    void lifecycleBootstrap(const std::shared_ptr<Structish> & data);
+    void lifecycleDiscover(const std::shared_ptr<Structish> & data);
+    void lifecycleStart(const std::shared_ptr<Structish> & data);
+    void lifecycleRun(const std::shared_ptr<Structish> & data);
+    void lifecycleTerminate(const std::shared_ptr<Structish> & data);
+    void lifecycle(Handle phase, const std::shared_ptr<Structish> & data);
 };

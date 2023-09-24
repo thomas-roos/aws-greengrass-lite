@@ -42,7 +42,7 @@ bool NativePlugin::isActive() {
     return _lifecycleFn;
 }
 
-void PluginLoader::lifecycle(Handle phase, const std::shared_ptr<SharedStruct> & data) {
+void PluginLoader::lifecycle(Handle phase, const std::shared_ptr<Structish> & data) {
     // TODO: Run this inside of a task, right now we end up using calling threads task
     // However probably good to defer that until there's a basic lifecycle manager
     for (const auto &i : getPlugins()) {
@@ -53,10 +53,10 @@ void PluginLoader::lifecycle(Handle phase, const std::shared_ptr<SharedStruct> &
     }
 }
 
-void NativePlugin::lifecycle(Handle pluginAnchor, Handle phase, const std::shared_ptr<SharedStruct> & data) {
+void NativePlugin::lifecycle(Handle pluginAnchor, Handle phase, const std::shared_ptr<Structish> & data) {
     lifecycleFn_t lifecycleFn = _lifecycleFn;
     if (lifecycleFn != nullptr) {
-        std::shared_ptr<SharedStruct> copy = data->copy();
+        std::shared_ptr<Structish> copy = data->copy();
         std::shared_ptr<Task> threadTask = _environment.handleTable.getObject<Task>(Task::getThreadSelf());
         std::shared_ptr<Anchored> dataAnchor = threadTask->anchor(copy.get());
         lifecycleFn(
@@ -67,7 +67,7 @@ void NativePlugin::lifecycle(Handle pluginAnchor, Handle phase, const std::share
     }
 }
 
-void DelegatePlugin::lifecycle(Handle pluginAnchor, Handle phase, const std::shared_ptr<SharedStruct> & data) {
+void DelegatePlugin::lifecycle(Handle pluginAnchor, Handle phase, const std::shared_ptr<Structish> & data) {
     uintptr_t delegateContext;
     ggapiLifecycleCallback delegateLifecycle;
     {
@@ -76,7 +76,7 @@ void DelegatePlugin::lifecycle(Handle pluginAnchor, Handle phase, const std::sha
         delegateLifecycle = _delegateLifecycle;
     }
     if (delegateLifecycle != nullptr) {
-        std::shared_ptr<SharedStruct> copy = data->copy();
+        std::shared_ptr<Structish> copy = data->copy();
         std::shared_ptr<Task> threadTask = _environment.handleTable.getObject<Task>(Task::getThreadSelf());
         std::shared_ptr<Anchored> dataAnchor = threadTask->anchor(copy.get());
         delegateLifecycle(
@@ -132,27 +132,27 @@ std::vector<std::shared_ptr<Anchored>> PluginLoader::getPlugins() {
     return copy;
 }
 
-void PluginLoader::lifecycleBootstrap(const std::shared_ptr<SharedStruct> & data) {
+void PluginLoader::lifecycleBootstrap(const std::shared_ptr<Structish> & data) {
     Handle key = _environment.stringTable.getOrCreateOrd("bootstrap");
     lifecycle(key, data);
 }
 
-void PluginLoader::lifecycleDiscover(const std::shared_ptr<SharedStruct> & data) {
+void PluginLoader::lifecycleDiscover(const std::shared_ptr<Structish> & data) {
     Handle key = _environment.stringTable.getOrCreateOrd("discover");
     lifecycle(key, data);
 }
 
-void PluginLoader::lifecycleStart(const std::shared_ptr<SharedStruct> & data) {
+void PluginLoader::lifecycleStart(const std::shared_ptr<Structish> & data) {
     Handle key = _environment.stringTable.getOrCreateOrd("start");
     lifecycle(key, data);
 }
 
-void PluginLoader::lifecycleRun(const std::shared_ptr<SharedStruct> & data) {
+void PluginLoader::lifecycleRun(const std::shared_ptr<Structish> & data) {
     Handle key = _environment.stringTable.getOrCreateOrd("run");
     lifecycle(key, data);
 }
 
-void PluginLoader::lifecycleTerminate(const std::shared_ptr<SharedStruct> & data) {
+void PluginLoader::lifecycleTerminate(const std::shared_ptr<Structish> & data) {
     Handle key = _environment.stringTable.getOrCreateOrd("run");
     lifecycle(key, data);
 }

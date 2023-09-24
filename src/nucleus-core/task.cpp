@@ -277,8 +277,8 @@ std::shared_ptr<TaskThread> Task::getThreadAffinity() {
 Task::Status Task::runInThread() {
     std::shared_ptr<Task> taskObj { std::static_pointer_cast<Task>(shared_from_this()) };
     ThreadSelf threadSelf(getSelf());
-    std::shared_ptr<SharedStruct> dataIn { getData() };
-    std::shared_ptr<SharedStruct> dataOut;
+    std::shared_ptr<Structish> dataIn {getData() };
+    std::shared_ptr<Structish> dataOut;
     Status status = runInThreadCallNext(taskObj, dataIn, dataOut);
     while (status == NoSubTasks) {
         status = finalizeTask(dataOut);
@@ -294,7 +294,7 @@ Task::Status Task::runInThread() {
     return status;
 }
 
-Task::Status Task::finalizeTask(const std::shared_ptr<SharedStruct> & data) {
+Task::Status Task::finalizeTask(const std::shared_ptr<Structish> & data) {
     std::unique_lock guard{_mutex};
     if (_lastStatus == Finalizing) {
         if (_subtasks.empty()) {
@@ -345,7 +345,7 @@ bool Task::waitForCompletion(const ExpireTime & expireTime) {
     return isCompleted();
 }
 
-Task::Status Task::runInThreadCallNext(const std::shared_ptr<Task> & task, const std::shared_ptr<SharedStruct> & dataIn, std::shared_ptr<SharedStruct> & dataOut) {
+Task::Status Task::runInThreadCallNext(const std::shared_ptr<Task> & task, const std::shared_ptr<Structish> & dataIn, std::shared_ptr<Structish> & dataOut) {
     for (;;) {
         std::unique_ptr<SubTask> subTask;
         Status status = removeSubtask(subTask);

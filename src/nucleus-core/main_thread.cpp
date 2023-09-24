@@ -10,7 +10,7 @@ int ggapiMainThread() {
 
     // This needs to be subsumed by the lifecyle management - not yet implemented, so current approach is hacky
     global.loader->discoverPlugins();
-    std::shared_ptr<SharedStruct> emptyStruct {std::make_shared<SharedStruct>(global.environment)}; // TODO, empty for now
+    std::shared_ptr<Structish> emptyStruct {std::make_shared<SharedStruct>(global.environment)}; // TODO, empty for now
     global.loader->lifecycleBootstrap(emptyStruct);
     global.loader->lifecycleDiscover(emptyStruct);
     global.loader->lifecycleStart(emptyStruct);

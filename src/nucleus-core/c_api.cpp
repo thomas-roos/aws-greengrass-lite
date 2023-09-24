@@ -55,7 +55,7 @@ uint32_t ggapiCreateStruct(uint32_t anchorHandle) {
 }
 void ggapiStructPutInt32(uint32_t structHandle, uint32_t ord, uint32_t value) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     StructElement newElement {static_cast<uint64_t>(value)};
     ss->put(ordH, newElement);
@@ -63,7 +63,7 @@ void ggapiStructPutInt32(uint32_t structHandle, uint32_t ord, uint32_t value) {
 
 void ggapiStructPutInt64(uint32_t structHandle, uint32_t ord, uint64_t value) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     StructElement newElement {value};
     ss->put(ordH, newElement);
@@ -71,7 +71,7 @@ void ggapiStructPutInt64(uint32_t structHandle, uint32_t ord, uint64_t value) {
 
 void ggapiStructPutFloat32(uint32_t structHandle, uint32_t ord, float value) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     StructElement newElement {value};
     ss->put(ordH, newElement);
@@ -79,7 +79,7 @@ void ggapiStructPutFloat32(uint32_t structHandle, uint32_t ord, float value) {
 
 void ggapiStructPutFloat64(uint32_t structHandle, uint32_t ord, double value) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     StructElement newElement {value};
     ss->put(ordH, newElement);
@@ -87,7 +87,7 @@ void ggapiStructPutFloat64(uint32_t structHandle, uint32_t ord, double value) {
 
 void ggapiStructPutString(uint32_t structHandle, uint32_t ord, const char * bytes, size_t len) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     StructElement newElement { std::string(bytes, len)};
     ss->put(ordH, newElement);
@@ -95,8 +95,8 @@ void ggapiStructPutString(uint32_t structHandle, uint32_t ord, const char * byte
 
 void ggapiStructPutStruct(uint32_t structHandle, uint32_t ord, uint32_t nestedHandle) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
-    auto s2 {global.environment.handleTable.getObject<SharedStruct>(Handle{nestedHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
+    auto s2 {global.environment.handleTable.getObject<Structish>(Handle{nestedHandle})};
     Handle ordH = Handle{ord};
     StructElement newElement {s2};
     ss->put(ordH, newElement);
@@ -104,35 +104,35 @@ void ggapiStructPutStruct(uint32_t structHandle, uint32_t ord, uint32_t nestedHa
 
 bool ggapiStructHasKey(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     return ss->hasKey(ordH);
 }
 
 uint32_t ggapiStructGetInt32(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     return static_cast<uint32_t >(ss->get(ordH));
 }
 
 uint64_t ggapiStructGetInt64(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     return static_cast<uint64_t >(ss->get(ordH));
 }
 
 float ggapiStructGetFloat32(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     return static_cast<float>(ss->get(ordH));
 }
 
 double ggapiStructGetFloat64(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     return static_cast<double>(ss->get(ordH));
 }
@@ -141,14 +141,14 @@ uint32_t ggapiStructGetStruct(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
     std::shared_ptr<Anchored> ss_anchor {global.environment.handleTable.getAnchor(Handle{structHandle})};
     std::shared_ptr<AnchoredWithRoots> ss_root { ss_anchor->getOwner()};
-    auto ss {ss_anchor->getObject<SharedStruct>()};
+    auto ss {ss_anchor->getObject<Structish>()};
     Handle ordH = Handle{ord};
     return ss_root->anchor(ss.get())->getHandle().asInt();
 }
 
 size_t ggapiStructGetStringLen(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     std::string s = ss->get(ordH).getString();
     return s.length();
@@ -156,7 +156,7 @@ size_t ggapiStructGetStringLen(uint32_t structHandle, uint32_t ord) {
 
 size_t ggapiStructGetString(uint32_t structHandle, uint32_t ord, char * buffer, size_t buflen) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<SharedStruct>(Handle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     std::string s = ss->get(ordH).getString();
     CheckedBuffer checked(buffer, buflen);
@@ -207,7 +207,7 @@ uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, int32_t timeou
     std::shared_ptr<Task> parentTaskObj { global.environment.handleTable.getObject<Task>(parentTask) };
     std::shared_ptr<Anchored> taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context
     std::shared_ptr<Task> subTaskObj = taskAnchor->getObject<Task>();
-    std::shared_ptr<SharedStruct> callDataStruct { global.environment.handleTable.getObject<SharedStruct>(Handle{callStruct}) };
+    std::shared_ptr<Structish> callDataStruct {global.environment.handleTable.getObject<Structish>(Handle{callStruct}) };
     ExpireTime expireTime = global.environment.translateExpires(timeout);
     subTaskObj->setTimeout(expireTime);
     global.lpcTopics->insertCallQueue(subTaskObj, Handle{topicOrd});
@@ -238,7 +238,7 @@ uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopi
     Global & global = Global::self();
     std::shared_ptr<Anchored> taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context
     std::shared_ptr<Task> taskObject = taskAnchor->getObject<Task>();
-    std::shared_ptr<SharedStruct> callDataStruct { global.environment.handleTable.getObject<SharedStruct>(Handle{callStruct}) };
+    std::shared_ptr<Structish> callDataStruct {global.environment.handleTable.getObject<Structish>(Handle{callStruct}) };
     if (respCallback) {
         std::unique_ptr<AbstractCallback> callback{new NativeCallback(respCallback, context)};
         global.lpcTopics->applyCompletion(taskObject, Handle{topicOrd}, callback);
@@ -259,13 +259,13 @@ uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopi
 //    }
 //    auto taskObj { global.environment.handleTable.getObject<Task>(taskHandle)};
 //    if (dataStruct) {
-//        auto dataObj {global.environment.handleTable.getObject<SharedStruct>(Handle{dataStruct})};
+//        auto dataObj {global.environment.handleTable.getObject<Structish>(Handle{dataStruct})};
 //        taskObj->setData(dataObj);
 //    }
 //    // task is permitted to run everything up to but not including finalization
 //    // and transition control back to this function
-//    std::shared_ptr<SharedStruct> dataIn { taskObj->getData() };
-//    std::shared_ptr<SharedStruct> dataOut { taskObj->runInThreadCallNext(taskObj, dataIn) };
+//    std::shared_ptr<Structish> dataIn { taskObj->getData() };
+//    std::shared_ptr<Structish> dataOut { taskObj->runInThreadCallNext(taskObj, dataIn) };
 //    return Handle{taskObj->anchor(dataOut.get())}.asInt();
 //}
 
