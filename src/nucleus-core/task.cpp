@@ -153,12 +153,12 @@ void TaskPoolWorker::runner() {
         if (task) {
             task->runInThread();
         } else {
-            stall();
+            stall(task->getTimeout());
         }
     }
 }
 
-void TaskThread::taskStealing(const std::shared_ptr<Task> & blockingTask) {
+void TaskThread::taskStealing(const std::shared_ptr<Task> & blockingTask, const ExpireTime & end) {
     // this loop is entered when we have an associated task
     while (!blockingTask->isCompleted()) {
         std::shared_ptr<Task> task = pickupTask(blockingTask);
@@ -167,7 +167,10 @@ void TaskThread::taskStealing(const std::shared_ptr<Task> & blockingTask) {
         } else {
             // stall until task unblocked
             // TODO: right now this will ignore all free-task workers
-            stall();
+            if (end <= ExpireTime::now()) {
+                return;
+            }
+            stall(end);
         }
     }
 }
@@ -327,18 +330,18 @@ public:
     _task(task), _thread(thread) {
         _task->addBlockedThread(_thread);
     }
-    void taskStealing() {
-        _thread->taskStealing(_task);
+    void taskStealing(const ExpireTime & end) {
+        _thread->taskStealing(_task, end);
     }
     ~BlockedThreadScope() {
         _task->removeBlockedThread(_thread);
     }
 };
 
-bool Task::waitForCompletion(time_t terminateTime) {
+bool Task::waitForCompletion(const ExpireTime & expireTime) {
     // TODO: Timeout
     BlockedThreadScope scope {shared_from_this(), TaskThread::getThreadContext()};
-    scope.taskStealing(); // exception safe
+    scope.taskStealing(expireTime); // exception safe
     return isCompleted();
 }
 

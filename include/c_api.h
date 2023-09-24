@@ -45,10 +45,10 @@ extern "C" IMPEXP uint32_t ggapiAnchorHandle(uint32_t anchorHandle, uint32_t obj
 extern "C" IMPEXP void ggapiReleaseHandle(uint32_t objectHandle);
 extern "C" IMPEXP uint32_t ggapiGetCurrentTask(void);
 extern "C" IMPEXP uint32_t ggapiSubscribeToTopic(uint32_t anchorHandle, uint32_t topicOrd, ggapiTopicCallback rxCallback, uintptr_t callbackContext);
-extern "C" IMPEXP uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, time_t timeout);
-extern "C" IMPEXP uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopicCallback respCallback, uintptr_t callbackContext, time_t timeout);
+extern "C" IMPEXP uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, int32_t timeout);
+extern "C" IMPEXP uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopicCallback respCallback, uintptr_t callbackContext, int32_t timeout);
 extern "C" IMPEXP uint32_t ggapiCallNext(uint32_t dataStruct);
-extern "C" IMPEXP uint32_t ggapiWaitForTaskCompleted(uint32_t asyncTask, time_t timeout);
+extern "C" IMPEXP uint32_t ggapiWaitForTaskCompleted(uint32_t asyncTask, int32_t timeout);
 extern "C" IMPEXP uint32_t ggapiRegisterPlugin(uint32_t moduleHandle, uint32_t componentName, ggapiLifecycleCallback lifecycleCallback, uintptr_t callbackContext);
 
 // Used only by top-level executable

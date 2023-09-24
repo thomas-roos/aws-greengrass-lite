@@ -3,6 +3,7 @@
 #include "shared_struct.h"
 #include "local_topics.h"
 #include "globals.h"
+#include "expire_time.h"
 #include <c_api.h>
 
 uint32_t ggapiGetStringOrdinal(const char * bytes, size_t len) {
@@ -200,38 +201,40 @@ uint32_t ggapiSubscribeToTopic(uint32_t anchorHandle, uint32_t topicOrd, ggapiTo
     return global.lpcTopics->subscribe(Handle{anchorHandle}, Handle{topicOrd}, callback)->getHandle().asInt();
 }
 
-uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, time_t timeout) {
+uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, int32_t timeout) {
     Global & global = Global::self();
     Handle parentTask { Task::getThreadSelf() };
     std::shared_ptr<Task> parentTaskObj { global.environment.handleTable.getObject<Task>(parentTask) };
     std::shared_ptr<Anchored> taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context
     std::shared_ptr<Task> subTaskObj = taskAnchor->getObject<Task>();
     std::shared_ptr<SharedStruct> callDataStruct { global.environment.handleTable.getObject<SharedStruct>(Handle{callStruct}) };
-    subTaskObj->setTimeout(global.environment.relativeToAbsoluteTime(timeout));
+    ExpireTime expireTime = global.environment.translateExpires(timeout);
+    subTaskObj->setTimeout(expireTime);
     global.lpcTopics->insertCallQueue(subTaskObj, Handle{topicOrd});
     subTaskObj->setData(callDataStruct);
     global.taskManager->queueTask(subTaskObj); // task must be ready, any thread can pick up once queued
     // note, we don't allocate next worker, preferring to task-steal, but ok if an idle worker picks it up
-    if (subTaskObj->waitForCompletion(global.environment.relativeToAbsoluteTime(timeout))) {
+    if (subTaskObj->waitForCompletion(expireTime)) {
         return Handle { parentTaskObj->anchor(subTaskObj->getData().get())}.asInt();
     } else {
         return 0;
     }
 }
 
-uint32_t ggapiWaitForTaskCompleted(uint32_t asyncTask, time_t timeout) {
+uint32_t ggapiWaitForTaskCompleted(uint32_t asyncTask, int32_t timeout) {
     Global & global = Global::self();
     Handle parentTask { Task::getThreadSelf() };
     std::shared_ptr<Task> parentTaskObj { global.environment.handleTable.getObject<Task>(parentTask) };
     std::shared_ptr<Task> asyncTaskObj { global.environment.handleTable.getObject<Task>(Handle{asyncTask}) };
-    if (asyncTaskObj->waitForCompletion(global.environment.relativeToAbsoluteTime(timeout))) {
+    ExpireTime expireTime = global.environment.translateExpires(timeout);
+    if (asyncTaskObj->waitForCompletion(expireTime)) {
         return Handle { parentTaskObj->anchor(asyncTaskObj->getData().get())}.asInt();
     } else {
         return 0;
     }
 }
 
-uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopicCallback respCallback, uintptr_t context, time_t timeout) {
+uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopicCallback respCallback, uintptr_t context, int32_t timeout) {
     Global & global = Global::self();
     std::shared_ptr<Anchored> taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context
     std::shared_ptr<Task> taskObject = taskAnchor->getObject<Task>();
@@ -240,7 +243,8 @@ uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopi
         std::unique_ptr<AbstractCallback> callback{new NativeCallback(respCallback, context)};
         global.lpcTopics->applyCompletion(taskObject, Handle{topicOrd}, callback);
     }
-    taskObject->setTimeout(global.environment.relativeToAbsoluteTime(timeout));
+    ExpireTime expireTime = global.environment.translateExpires(timeout);
+    taskObject->setTimeout(expireTime);
     global.lpcTopics->insertCallQueue(taskObject, Handle{topicOrd});
     taskObject->setData(callDataStruct);
     global.taskManager->queueTask(taskObject); // task must be ready, any thread can pick up once queued

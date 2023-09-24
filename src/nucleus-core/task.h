@@ -2,6 +2,7 @@
 #include "environment.h"
 #include "handle_table.h"
 #include "local_topics.h"
+#include "expire_time.h"
 #include <vector>
 #include <mutex>
 #include <list>
@@ -43,7 +44,7 @@ private:
     std::list<std::unique_ptr<SubTask>> _subtasks;
     std::list<std::shared_ptr<TaskThread>> _blockedThreads;
     Handle _self;
-    time_t _timeout;
+    ExpireTime _timeout;
     Status _lastStatus {Running};
     static thread_local Handle _threadTask;
 
@@ -51,7 +52,7 @@ public:
 
     explicit Task(Environment & environment) :
         AnchoredWithRoots {environment},
-        _timeout{-1} {
+        _timeout{ ExpireTime::fromNow(-1)} {
     }
     std::shared_ptr<Task> shared_from_this() {
         return std::static_pointer_cast<Task>(AnchoredWithRoots::shared_from_this());
@@ -89,12 +90,16 @@ public:
         std::unique_lock guard{_mutex};
         _finalize = std::move(finalize);
     }
-    void setTimeout(time_t terminateTime) {
+    void setTimeout(const ExpireTime & terminateTime) {
         std::unique_lock guard{_mutex};
         _timeout = terminateTime;
     }
+    ExpireTime getTimeout() const {
+        std::unique_lock guard{_mutex};
+        return _timeout;
+    }
     Status runInThread();
-    bool waitForCompletion(time_t terminateTime);
+    bool waitForCompletion(const ExpireTime & terminateTime);
     Status runInThreadCallNext(const std::shared_ptr<Task> & task, const std::shared_ptr<SharedStruct> & dataIn, std::shared_ptr<SharedStruct> & dataOut);
 
     void addBlockedThread(const std::shared_ptr<TaskThread> &blockedThread);
@@ -134,12 +139,12 @@ public:
         _wake.notify_one();
     }
 
-    void stall() {
+    void stall(const ExpireTime & end) {
         std::unique_lock guard(_mutex);
         if (_shutdown) {
             return;
         }
-        _wake.wait(guard);
+        _wake.wait_for(guard, end.remaining());
     }
 
     void waken() {
@@ -152,7 +157,7 @@ public:
         return _shutdown;
     }
 
-    void taskStealing(const std::shared_ptr<Task> & blockingTask);
+    void taskStealing(const std::shared_ptr<Task> & blockingTask, const ExpireTime & end);
 
     std::shared_ptr<Task> pickupTask(const std::shared_ptr<Task> &blockingTask);
 

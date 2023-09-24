@@ -1,6 +1,7 @@
 #pragma once
 #include "handle_table.h"
 #include "string_table.h"
+#include "expire_time.h"
 #include <shared_mutex>
 
 struct Environment {
@@ -9,5 +10,5 @@ struct Environment {
     std::shared_mutex sharedLocalTopicsMutex;
     std::mutex cycleCheckMutex;
 
-    virtual time_t relativeToAbsoluteTime(time_t relTime);
+    virtual ExpireTime translateExpires(int32_t delta);
 };
