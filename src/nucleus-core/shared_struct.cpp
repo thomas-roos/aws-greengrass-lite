@@ -1,4 +1,3 @@
-#include <unordered_set>
 #include "shared_struct.h"
 #include "environment.h"
 

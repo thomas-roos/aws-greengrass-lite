@@ -8,9 +8,9 @@
 struct Environment {
     HandleTable handleTable;
     StringTable stringTable;
-    config::Manager configManager;
     std::shared_mutex sharedLocalTopicsMutex;
     std::mutex cycleCheckMutex;
+    config::Manager configManager {*this};
 
     virtual ExpireTime translateExpires(int32_t delta);
 };

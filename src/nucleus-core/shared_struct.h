@@ -10,10 +10,12 @@ class Structish;
 class Environment;
 
 class StructElement {
-private:
+public:
+    typedef std::variant<std::monostate, uint64_t, double, std::shared_ptr<Structish>, std::string> ValueType;
+protected:
     // size of variant is prob ~ 32 bytes or so, because of std::string
     // in theory, can be optimized, but is it worth it?
-    std::variant<std::monostate, uint64_t, double, std::shared_ptr<Structish>, std::string> _value;
+    ValueType _value;
     static constexpr int NONE = 0;
     static constexpr int INT = 1;
     static constexpr int DOUBLE = 2;
@@ -24,6 +26,8 @@ public:
     friend class Structish;
     static const StructElement nullElement;
     StructElement() : _value{} {
+    }
+    explicit StructElement(ValueType v) : _value(std::move(v)) {
     }
     explicit StructElement(const uint64_t v) : _value{v} {
     }
@@ -120,7 +124,6 @@ public:
         return std::dynamic_pointer_cast<Structish>(shared_from_this());
     }
 
-    virtual bool putStruct(Handle handle, const StructElement & element) = 0;
     virtual void rootsCheck(const Structish * target) const = 0;
     virtual void put(Handle handle, const StructElement & element) = 0;
     virtual void put(std::string_view sv, const StructElement & element) = 0;
@@ -143,12 +146,11 @@ protected:
     std::map<Handle, StructElement, Handle::CompLess> _elements;
     mutable std::shared_mutex _mutex;
 
-    bool putStruct(Handle handle, const StructElement & element) override;
+    bool putStruct(Handle handle, const StructElement & element);
 
     void rootsCheck(const Structish * target) const override;
 
 public:
-    friend class StructElement;
     explicit SharedStruct(Environment & environment) : Structish{environment} {
     }
     std::shared_ptr<SharedStruct> struct_shared_from_this() {
