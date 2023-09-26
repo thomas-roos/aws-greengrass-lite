@@ -1,8 +1,10 @@
 #include "kernel_command_line.h"
 #include "../data/shared_struct.h"
 #include "../data/globals.h"
-#include "c_api.h"
+#include <c_api.h>
+#include <util.h>
 #include <optional>
+namespace fs = std::filesystem;
 
 void KernelCommandLine::parseArgs(int argc, char * argv[]) {
     std::vector<std::string> args;
@@ -22,18 +24,18 @@ void KernelCommandLine::parseProgramName(std::string_view progName) {
     if (progName.empty()) {
         return;
     }
-    std::filesystem::path progPath {progName};
+    fs::path progPath {progName};
     progPath = absolute(progPath);
     if (!exists(progPath)) {
         // assume this is not usable for extracting directory information
         return;
     }
-    std::filesystem::path parent { progPath.parent_path() };
-    if (parent.filename().generic_string() == "bin") {
-        parent = parent.parent_path(); // strip the /bin
+    fs::path root { progPath.parent_path() };
+    if (root.filename().generic_string() == "bin") {
+        root = root.parent_path(); // strip the /bin
     }
-    // TODO:
-    /* rootPath = parent; */
+    std::unique_lock guard {_mutex};
+    _programRootDir = root;
 }
 
 std::string KernelCommandLine::nextArg(const std::vector<std::string> & args, std::vector<std::string>::const_iterator & iter) {
@@ -45,8 +47,39 @@ std::string KernelCommandLine::nextArg(const std::vector<std::string> & args, st
     return v;
 }
 
+void KernelCommandLine::parseHome(data::SysProperties &env) {
+    std::unique_lock guard {_mutex};
+    std::optional<std::string> homePath = env.get("HOME");
+    if (homePath.has_value() && !homePath.value().empty()) {
+        _userHomeDir = fs::absolute(fs::path(homePath.value()));
+        return;
+    }
+    homePath = env.get("USERPROFILE");
+    if (homePath.has_value() && !homePath.value().empty()) {
+        _userHomeDir = fs::absolute(fs::path(homePath.value()));
+        return;
+    }
+    homePath = env.get("HOMEPATH");
+    std::optional<std::string> homeDrive = env.get("HOMEDRIVE");
+    if (homePath.has_value() && homeDrive.has_value()) {
+        fs::path drive {homeDrive.value()};
+        fs::path rel {homePath.value()};
+        _userHomeDir = fs::absolute(drive/rel);
+    } else if (homePath.has_value()) {
+        _userHomeDir = fs::absolute(fs::path(homePath.value()));
+    } else if (homeDrive.has_value()) {
+        _userHomeDir = fs::absolute(fs::path(homeDrive.value()));
+    } else {
+        _userHomeDir = fs::absolute(".");
+    }
+}
+
+void KernelCommandLine::parseEnv(data::SysProperties &env) {
+    parseHome(env);
+}
+
 void KernelCommandLine::parseArgs(const std::vector<std::string> & args) {
-    std::string rootAbsolutePath; // TODO: see parse filename
+    std::unique_lock guard {_mutex};
     for (auto i = args.begin(); i != args.end(); ) {
         std::string op = nextArg(args, i);
         // TODO: GG-Java ignores case
@@ -62,7 +95,7 @@ void KernelCommandLine::parseArgs(const std::vector<std::string> & args) {
         }
         if (op == "--root" || op == "-r") {
             std::string arg = nextArg(args, i);
-            rootAbsolutePath = deTilde(arg);
+            _programRootDir = deTilde(arg);
             continue;
         }
         if (op == "--aws-region" || op == "-ar") {
@@ -82,14 +115,36 @@ void KernelCommandLine::parseArgs(const std::vector<std::string> & args) {
         }
         throw std::runtime_error(std::string("Unrecognized command: ") + op);
     }
-    if (rootAbsolutePath.empty() && !_providedInitialConfigPath.empty() &&
-                exists(std::filesystem::path(_providedInitialConfigPath))) {
-        throw std::runtime_error("TODO: read path from config");
+//    if (rootAbsolutePath.empty() && !_providedInitialConfigPath.empty() &&
+//                exists(std::filesystem::path(_providedInitialConfigPath))) {
+//        throw std::runtime_error("TODO: read path from config");
+//    }
+    if (_programRootDir.empty()) {
+        // deviates from GG-Java, which uses "~/.greengrass"
+        throw std::runtime_error("No root path");
     }
-    if (rootAbsolutePath.empty()) {
-        rootAbsolutePath = "~/.greengrass";
+    //
+    // TODO: continue this code
+    //
+}
+
+fs::path KernelCommandLine::resolve(const fs::path & first, const fs::path & second) {
+    return fs::absolute(first/second);
+}
+
+fs::path KernelCommandLine::resolve(const fs::path & first, std::string_view second) {
+    return fs::absolute(first/second);
+}
+
+fs::path KernelCommandLine::deTilde(std::string_view s) const {
+    // converts a string-form path into an OS path
+    // replicates GG-Java
+    // TODO: code tracks GG-Java, noting that '/' and '\\' should be interchangable for Windows
+    if (util::startsWith(s, HOME_DIR_PREFIX)) {
+        return resolve(_userHomeDir, util::trimStart(s, HOME_DIR_PREFIX));
     }
-    rootAbsolutePath = deTilde(rootAbsolutePath);
+    // TODO: resolve with nucleus paths
+    return s;
 }
 
 int KernelCommandLine::main() {

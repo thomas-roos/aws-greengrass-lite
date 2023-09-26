@@ -40,19 +40,6 @@ uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, int32_t timeou
     }
 }
 
-uint32_t ggapiWaitForTaskCompleted(uint32_t asyncTask, int32_t timeout) {
-    Global & global = Global::self();
-    Handle parentTask { Task::getThreadSelf() };
-    std::shared_ptr<Task> parentTaskObj { global.environment.handleTable.getObject<Task>(parentTask) };
-    std::shared_ptr<Task> asyncTaskObj { global.environment.handleTable.getObject<Task>(Handle{asyncTask}) };
-    ExpireTime expireTime = global.environment.translateExpires(timeout);
-    if (asyncTaskObj->waitForCompletion(expireTime)) {
-        return Handle { parentTaskObj->anchor(asyncTaskObj->getData().get())}.asInt();
-    } else {
-        return 0;
-    }
-}
-
 uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopicCallback respCallback, uintptr_t context, int32_t timeout) {
     Global & global = Global::self();
     std::shared_ptr<Anchored> taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context

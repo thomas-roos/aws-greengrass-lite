@@ -1,4 +1,4 @@
-#pragma auto
+#pragma once
 #include "environment.h"
 #include "../tasks/task.h"
 #include "../pubsub/local_topics.h"

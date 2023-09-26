@@ -69,9 +69,6 @@ namespace config {
     // Extend structure element to include name & time
     // not entirely parallels GG-Java "Topic"
     class Element : public StructElement {
-    private:
-        static int foldChar(int c);
-
     protected:
         Handle _nameOrd;
         Timestamp _modtime;

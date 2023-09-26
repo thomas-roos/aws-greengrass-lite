@@ -5,8 +5,16 @@
 class KernelCommandLine {
 private:
     Global & _global;
-    std::string _providedConfigPathName;
-    std::string _providedInitialConfigPath;
+    mutable std::shared_mutex _mutex;
+    static constexpr auto HOME_DIR_PREFIX { "~/" };
+    static constexpr auto ROOT_DIR_PREFIX { "~root/" };
+    static constexpr auto CONFIG_DIR_PREFIX { "~config/" };
+    static constexpr auto PACKAGE_DIR_PREFIX { "~packages/" };
+
+    std::filesystem::path _userHomeDir;
+    std::filesystem::path _programRootDir;
+    std::filesystem::path _providedConfigPathName;
+    std::filesystem::path _providedInitialConfigPath;
     std::string _awsRegionFromCmdLine;
     std::string _envStageFromCmdLine;
     std::string _defaultUserFromCmdLine;
@@ -20,12 +28,16 @@ private:
     std::string _binPathName { "~root/bin" };
 
     static std::string nextArg(const std::vector<std::string> & args, std::vector<std::string>::const_iterator & iter);
-    std::string deTilde(std::string_view s);
+    std::filesystem::path deTilde(std::string_view s) const; // assumes lock held
+    static std::filesystem::path resolve(const std::filesystem::path & first, const std::filesystem::path & second);
+    static std::filesystem::path resolve(const std::filesystem::path & first, std::string_view second);
 
 public:
     KernelCommandLine(Global & global) : _global{global} {
     }
     int main();
+    void parseEnv(data::SysProperties & sysProperties);
+    void parseHome(data::SysProperties & sysProperties);
     void parseArgs(int argc, char * argv[]);
     void parseArgs(const std::vector<std::string> & args);
     void parseProgramName(std::string_view progName);

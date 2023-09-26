@@ -52,4 +52,4 @@ extern "C" IMPEXP uint32_t ggapiWaitForTaskCompleted(uint32_t asyncTask, int32_t
 extern "C" IMPEXP uint32_t ggapiRegisterPlugin(uint32_t moduleHandle, uint32_t componentName, ggapiLifecycleCallback lifecycleCallback, uintptr_t callbackContext);
 
 // Used only by top-level executable
-extern "C" IMPEXP int ggapiMainThread(int argc, char* argv[]);
+extern "C" IMPEXP int ggapiMainThread(int argc, char* argv[], char * envp[]);

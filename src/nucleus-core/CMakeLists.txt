@@ -8,11 +8,16 @@ add_compile_definitions(EXPORT_API)
 find_package(yaml-cpp REQUIRED)
 
 add_library(nucleus-core SHARED
+        api/data.cpp
+        api/main.cpp
+        api/plugins.cpp
         api/pubsub.cpp
+        api/tasks.cpp
         config/config_manager.cpp config/config_manager.h
         config/config_reader.cpp config/config_reader.h
         data/environment.cpp data/environment.h
         data/handle_table.cpp data/handle_table.h
+        data/safe_handle.h
         data/shared_struct.cpp data/shared_struct.h
         data/string_table.cpp data/string_table.h
         lifecycle/kernel_command_line.cpp lifecycle/kernel_command_line.h

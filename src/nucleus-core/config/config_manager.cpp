@@ -1,5 +1,6 @@
 #include "config_manager.h"
 #include "../data/environment.h"
+#include "util.h"
 
 //
 // TODO: Decide if this belongs in Nucleus, or belongs in another plugin
@@ -10,14 +11,6 @@
 //
 namespace config {
 
-    int Element::foldChar(int c) {
-        // simple folding rules to handle the mixed-ascii-case config style
-        if (c >= 'A' && c <= 'Z') {
-            return c-'A'+'a';
-        } else {
-            return c;
-        }
-    }
     Handle Element::getKey(Environment & env) const {
         return getKey(env, _nameOrd);
     }
@@ -26,14 +19,13 @@ namespace config {
             return nameOrd;
         }
         std::string str = env.stringTable.getString(nameOrd);
-        std::string folded;
         // a folded string strictly acts on the ascii range and not on international characters
         // this keeps it predictable and handles the problems with GG configs
-        std::transform(str.begin(), str.end(), folded.begin(), foldChar);
-        if (str == folded) {
+        std::string lowered = util::lower(str);
+        if (str == lowered) {
             return nameOrd;
         } else {
-            return env.stringTable.getOrCreateOrd(folded);
+            return env.stringTable.getOrCreateOrd(lowered);
         }
     }
 

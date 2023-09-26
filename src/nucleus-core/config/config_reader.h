@@ -21,8 +21,6 @@ namespace config {
 
         void inplaceMap(const std::shared_ptr<Topics> & topics, YAML::Node & node);
 
-        void inplaceMap(const std::shared_ptr<Topics> & topics, YAML::Node & node);
-
         void inplaceValue(const std::shared_ptr<Topics> & topics, const std::string &key, YAML::Node & node);
 
         void inplaceSequenceValue(const std::shared_ptr<Topics> & topics, const std::string &key, YAML::Node & node);
