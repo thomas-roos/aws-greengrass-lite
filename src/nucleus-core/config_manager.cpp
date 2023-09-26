@@ -1,4 +1,4 @@
-#include "config.h"
+#include "config_manager.h"
 #include "environment.h"
 
 //
@@ -37,8 +37,8 @@ namespace config {
         }
     }
 
-    Element Element::withName(Environment &env, std::string str) {
-        return withOrd(env.stringTable.getOrCreateOrd(str));
+    Element & Element::setName(Environment &env, const std::string & str) {
+        return setOrd(env.stringTable.getOrCreateOrd(str));
     }
 
     bool Topics::putStruct(Handle key, const Element &element) {

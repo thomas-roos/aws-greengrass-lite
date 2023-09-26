@@ -4,6 +4,7 @@
 #include "handle_table.h"
 #include "string_table.h"
 #include "expire_time.h"
+#include <filesystem>
 
 namespace config {
     class Timestamp;
@@ -86,6 +87,9 @@ namespace config {
         explicit Element(Handle ord, const Timestamp& timestamp) :
             _nameOrd{ord}, _modtime{timestamp} {
         }
+        explicit Element(Handle ord, const Timestamp& timestamp, ValueType newVal) :
+                StructElement(std::move(newVal)), _nameOrd{ord}, _modtime{timestamp} {
+        }
         explicit Element(Handle ord, const Timestamp& timestamp, std::shared_ptr<Topics> topics);
         Element & operator=(const Element & other) = default;
         static const Element nullElement;
@@ -96,16 +100,18 @@ namespace config {
         Timestamp getModTime() {
             return _modtime;
         }
-        Element withOrd(Handle ord) {
-            Element copy {*this};
-            copy._nameOrd = ord;
-            return copy;
+        StructElement::ValueType & value() {
+            return _value;
         }
-        Element withName(Environment & env, std::string str);
-        Element withModTime(const Timestamp& modTime) {
-            Element copy {*this};
-            copy._modtime = modTime;
-            return copy;
+
+        Element & setOrd(Handle ord) {
+            _nameOrd = ord;
+            return *this;
+        }
+        Element & setName(Environment & env, const std::string & str);
+        Element & setModTime(const Timestamp& modTime) {
+            _modtime = modTime;
+            return *this;
         }
         [[nodiscard]] Handle getKey(Environment & env) const;
         static Handle getKey(Environment & env, Handle ord);
@@ -213,5 +219,6 @@ namespace config {
         std::shared_ptr<Topics> root() {
             return _root;
         }
+        void read(std::filesystem::path path);
     };
 }

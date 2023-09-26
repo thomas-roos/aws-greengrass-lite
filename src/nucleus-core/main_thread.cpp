@@ -4,7 +4,7 @@
 
 // Main blocking thread, called by containing process
 
-int ggapiMainThread() {
+int ggapiMainThread(int argc, char* argv[]) {
     Global & global = Global::self();
     auto threadTask = ggapi::ObjHandle::claimThread(); // assume long-running thread, this provides a long-running task handle
 
