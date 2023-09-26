@@ -1,5 +1,8 @@
 #include "../data/globals.h"
 #include <c_api.h>
+#include <util.h>
+
+using namespace data;
 
 uint32_t ggapiGetStringOrdinal(const char * bytes, size_t len) {
     Global & global = Global::self();
@@ -11,7 +14,7 @@ size_t ggapiGetOrdinalString(uint32_t ord, char * bytes, size_t len) {
     Handle ordH = Handle{ord};
     global.environment.stringTable.assertStringHandle(ordH);
     std::string s { global.environment.stringTable.getString(ordH) };
-    CheckedBuffer checked(bytes, len);
+    util::CheckedBuffer checked(bytes, len);
     return checked.copy(s);
 }
 
@@ -26,7 +29,7 @@ size_t ggapiGetOrdinalStringLen(uint32_t ord) {
 uint32_t ggapiCreateStruct(uint32_t anchorHandle) {
     Global & global = Global::self();
     if (anchorHandle == 0) {
-        anchorHandle = Task::getThreadSelf().asInt();
+        anchorHandle = tasks::Task::getThreadSelf().asInt();
     }
     auto ss {std::make_shared<SharedStruct>(global.environment)};
     auto owner {global.environment.handleTable.getObject<AnchoredWithRoots>(Handle{anchorHandle})};
@@ -139,14 +142,14 @@ size_t ggapiStructGetString(uint32_t structHandle, uint32_t ord, char * buffer, 
     auto ss {global.environment.handleTable.getObject<Structish>(Handle{structHandle})};
     Handle ordH = Handle{ord};
     std::string s = ss->get(ordH).getString();
-    CheckedBuffer checked(buffer, buflen);
+    util::CheckedBuffer checked(buffer, buflen);
     return checked.copy(s);
 }
 
 uint32_t ggapiAnchorHandle(uint32_t anchorHandle, uint32_t objectHandle) {
     Global & global = Global::self();
     if (anchorHandle == 0) {
-        anchorHandle = Task::getThreadSelf().asInt();
+        anchorHandle = tasks::Task::getThreadSelf().asInt();
     }
     auto ss {global.environment.handleTable.getObject<AnchoredObject>(Handle{objectHandle})};
     auto owner {global.environment.handleTable.getObject<AnchoredWithRoots>(Handle{anchorHandle})};

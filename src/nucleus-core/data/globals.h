@@ -3,19 +3,24 @@
 #include "../tasks/task.h"
 #include "../pubsub/local_topics.h"
 #include "../plugins/plugin_loader.h"
+#include "../pubsub/local_topics.h"
+#include "../tasks/task.h"
 
-struct Global {
-    Environment environment;
-    std::shared_ptr<TaskManager> taskManager {std::make_shared<TaskManager>(environment)};
-    std::shared_ptr<LocalTopics> lpcTopics {std::make_shared<LocalTopics>(environment)};
-    std::shared_ptr<PluginLoader> loader {std::make_shared<PluginLoader>(environment)};
+namespace data {
+    struct Global {
+        Environment environment;
+        std::shared_ptr<tasks::TaskManager> taskManager {std::make_shared<tasks::TaskManager>(environment)};
+        std::shared_ptr<pubsub::LocalTopics> lpcTopics {std::make_shared<pubsub::LocalTopics>(environment)};
+        std::shared_ptr<plugin::PluginLoader> loader {std::make_shared<plugin::PluginLoader>(environment)};
 
-    static Global & self() {
-        static Global global;
-        return global;
-    }
+        static Global & self() {
+            static Global global;
+            return global;
+        }
 
-    static Environment & env() {
-        return self().environment;
-    }
-};
+        static Environment & env() {
+            return self().environment;
+        }
+    };
+}
+

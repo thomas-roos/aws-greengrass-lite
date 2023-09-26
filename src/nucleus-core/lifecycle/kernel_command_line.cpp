@@ -1,12 +1,10 @@
 #include "kernel_command_line.h"
-#include "../data/shared_struct.h"
-#include "../data/globals.h"
 #include <c_api.h>
 #include <util.h>
 #include <optional>
 namespace fs = std::filesystem;
 
-void KernelCommandLine::parseArgs(int argc, char * argv[]) {
+void lifecycle::KernelCommandLine::parseArgs(int argc, char * argv[]) {
     std::vector<std::string> args;
     args.reserve(argc-1);
     if (argv[0]) {
@@ -20,7 +18,7 @@ void KernelCommandLine::parseArgs(int argc, char * argv[]) {
     parseArgs(args);
 }
 
-void KernelCommandLine::parseProgramName(std::string_view progName) {
+void lifecycle::KernelCommandLine::parseProgramName(std::string_view progName) {
     if (progName.empty()) {
         return;
     }
@@ -38,7 +36,7 @@ void KernelCommandLine::parseProgramName(std::string_view progName) {
     _programRootDir = root;
 }
 
-std::string KernelCommandLine::nextArg(const std::vector<std::string> & args, std::vector<std::string>::const_iterator & iter) {
+std::string lifecycle::KernelCommandLine::nextArg(const std::vector<std::string> & args, std::vector<std::string>::const_iterator & iter) {
     if (iter == args.end()) {
         throw std::runtime_error("Expecting argument");
     }
@@ -47,7 +45,7 @@ std::string KernelCommandLine::nextArg(const std::vector<std::string> & args, st
     return v;
 }
 
-void KernelCommandLine::parseHome(data::SysProperties &env) {
+void lifecycle::KernelCommandLine::parseHome(data::SysProperties &env) {
     std::unique_lock guard {_mutex};
     std::optional<std::string> homePath = env.get("HOME");
     if (homePath.has_value() && !homePath.value().empty()) {
@@ -74,11 +72,11 @@ void KernelCommandLine::parseHome(data::SysProperties &env) {
     }
 }
 
-void KernelCommandLine::parseEnv(data::SysProperties &env) {
+void lifecycle::KernelCommandLine::parseEnv(data::SysProperties &env) {
     parseHome(env);
 }
 
-void KernelCommandLine::parseArgs(const std::vector<std::string> & args) {
+void lifecycle::KernelCommandLine::parseArgs(const std::vector<std::string> & args) {
     std::unique_lock guard {_mutex};
     for (auto i = args.begin(); i != args.end(); ) {
         std::string op = nextArg(args, i);
@@ -128,15 +126,15 @@ void KernelCommandLine::parseArgs(const std::vector<std::string> & args) {
     //
 }
 
-fs::path KernelCommandLine::resolve(const fs::path & first, const fs::path & second) {
+fs::path lifecycle::KernelCommandLine::resolve(const fs::path & first, const fs::path & second) {
     return fs::absolute(first/second);
 }
 
-fs::path KernelCommandLine::resolve(const fs::path & first, std::string_view second) {
+fs::path lifecycle::KernelCommandLine::resolve(const fs::path & first, std::string_view second) {
     return fs::absolute(first/second);
 }
 
-fs::path KernelCommandLine::deTilde(std::string_view s) const {
+fs::path lifecycle::KernelCommandLine::deTilde(std::string_view s) const {
     // converts a string-form path into an OS path
     // replicates GG-Java
     // TODO: code tracks GG-Java, noting that '/' and '\\' should be interchangable for Windows
@@ -147,13 +145,13 @@ fs::path KernelCommandLine::deTilde(std::string_view s) const {
     return s;
 }
 
-int KernelCommandLine::main() {
-    Global & global = Global::self();
+int lifecycle::KernelCommandLine::main() {
+    data::Global & global = data::Global::self();
     auto threadTask = ggapiClaimThread(); // assume long-running thread, this provides a long-running task handle
 
     // This needs to be subsumed by the lifecyle management - not yet implemented, so current approach is hacky
     global.loader->discoverPlugins();
-    std::shared_ptr<Structish> emptyStruct {std::make_shared<SharedStruct>(global.environment)}; // TODO, empty for now
+    std::shared_ptr<data::Structish> emptyStruct {std::make_shared<data::SharedStruct>(global.environment)}; // TODO, empty for now
     global.loader->lifecycleBootstrap(emptyStruct);
     global.loader->lifecycleDiscover(emptyStruct);
     global.loader->lifecycleStart(emptyStruct);

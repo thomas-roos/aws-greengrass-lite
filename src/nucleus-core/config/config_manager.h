@@ -4,6 +4,7 @@
 #include "../data/handle_table.h"
 #include "../data/string_table.h"
 #include "../tasks/expire_time.h"
+#include "../data/safe_handle.h"
 #include <filesystem>
 
 namespace config {
@@ -68,50 +69,50 @@ namespace config {
 
     // Extend structure element to include name & time
     // not entirely parallels GG-Java "Topic"
-    class Element : public StructElement {
+    class Element : public data::StructElement {
     protected:
-        Handle _nameOrd;
+        data::Handle _nameOrd;
         Timestamp _modtime;
 
     public:
         Element() = default;
         Element(const Element & el) = default;
-        explicit Element(const StructElement & se) : StructElement(se) {
+        explicit Element(const StructElement & se) : data::StructElement(se) {
         }
-        explicit Element(Handle ord, const StructElement & se) : StructElement(se),
-            _nameOrd{ord} {
+        explicit Element(data::Handle ord, const StructElement & se) : data::StructElement(se),
+                                                                       _nameOrd{ord} {
         }
-        explicit Element(Handle ord, const Timestamp& timestamp) :
+        explicit Element(data::Handle ord, const Timestamp& timestamp) :
             _nameOrd{ord}, _modtime{timestamp} {
         }
-        explicit Element(Handle ord, const Timestamp& timestamp, ValueType newVal) :
+        explicit Element(data::Handle ord, const Timestamp& timestamp, ValueType newVal) :
                 StructElement(std::move(newVal)), _nameOrd{ord}, _modtime{timestamp} {
         }
-        explicit Element(Handle ord, const Timestamp& timestamp, std::shared_ptr<Topics> topics);
+        explicit Element(data::Handle ord, const Timestamp& timestamp, std::shared_ptr<Topics> topics);
         Element & operator=(const Element & other) = default;
         static const Element nullElement;
 
-        Handle getOrd() {
+        data::Handle getOrd() {
             return _nameOrd;
         }
         Timestamp getModTime() {
             return _modtime;
         }
-        StructElement::ValueType & value() {
+        data::StructElement::ValueType & value() {
             return _value;
         }
 
-        Element & setOrd(Handle ord) {
+        Element & setOrd(data::Handle ord) {
             _nameOrd = ord;
             return *this;
         }
-        Element & setName(Environment & env, const std::string & str);
+        Element & setName(data::Environment & env, const std::string & str);
         Element & setModTime(const Timestamp& modTime) {
             _modtime = modTime;
             return *this;
         }
-        [[nodiscard]] Handle getKey(Environment & env) const;
-        static Handle getKey(Environment & env, Handle ord);
+        [[nodiscard]] data::Handle getKey(data::Environment & env) const;
+        static data::Handle getKey(data::Environment & env, data::Handle ord);
 
         [[nodiscard]] StructElement slice() {
             return StructElement(_value);
@@ -160,44 +161,44 @@ namespace config {
 
     // Set of key/value pairs
     // not entirely parallels GG-Java "Topics"
-    class Topics : public Structish {
+    class Topics : public data::Structish {
     protected:
         std::weak_ptr<Topics> _parent;
-        std::map<Handle, Element, Handle::CompLess> _children;
+        std::map<data::Handle, Element, data::Handle::CompLess> _children;
         mutable std::shared_mutex _mutex;
-        bool putStruct(Handle key, const Element & element);
-        void rootsCheck(const Structish * target) const override;
+        bool putStruct(data::Handle key, const Element & element);
+        void rootsCheck(const data::Structish * target) const override;
 
     public:
-        explicit Topics(Environment & environment, const std::shared_ptr<Topics> & parent) :
-            Structish{environment}, _parent{parent} {
+        explicit Topics(data::Environment & environment, const std::shared_ptr<Topics> & parent) :
+                data::Structish{environment}, _parent{parent} {
         }
         std::shared_ptr<Topics> topics_shared_from_this() {
             return std::dynamic_pointer_cast<Topics>(shared_from_this());
         }
 
-        void put(Handle handle, const StructElement & element) override;
-        void put(std::string_view sv, const StructElement & element) override;
+        void put(data::Handle handle, const data::StructElement & element) override;
+        void put(std::string_view sv, const data::StructElement & element) override;
         void updateChild(const Element & element);
-        bool hasKey(Handle handle) override;
-        StructElement get(Handle handle) const override;
-        StructElement get(std::string_view name) const override;
-        std::shared_ptr<Structish> copy() const override;
-        Element createChild(Handle nameOrd, const std::function<Element(Handle)> & creator);
-        std::unique_ptr<Topic> createLeafChild(Handle nameOrd, const Timestamp & timestamp = Timestamp());
+        bool hasKey(data::Handle handle) override;
+        data::StructElement get(data::Handle handle) const override;
+        data::StructElement get(std::string_view name) const override;
+        std::shared_ptr<data::Structish> copy() const override;
+        Element createChild(data::Handle nameOrd, const std::function<Element(data::Handle)> & creator);
+        std::unique_ptr<Topic> createLeafChild(data::Handle nameOrd, const Timestamp & timestamp = Timestamp());
         std::unique_ptr<Topic> createLeafChild(std::string_view name, const Timestamp & timestamp = Timestamp());
-        std::shared_ptr<Topics> createInteriorChild(Handle nameOrd, const Timestamp & timestamp = Timestamp::now());
+        std::shared_ptr<Topics> createInteriorChild(data::Handle nameOrd, const Timestamp & timestamp = Timestamp::now());
         std::shared_ptr<Topics> createInteriorChild(std::string_view name, const Timestamp & timestamp = Timestamp::now());
-        Element getChild(Handle handle) const;
-        std::unique_ptr<Topic> findLeafChild(Handle handle);
+        Element getChild(data::Handle handle) const;
+        std::unique_ptr<Topic> findLeafChild(data::Handle handle);
         std::unique_ptr<Topic> findLeafChild(std::string_view name);
-        std::shared_ptr<Topics> findInteriorChild(Handle nameOrd);
+        std::shared_ptr<Topics> findInteriorChild(data::Handle nameOrd);
         std::shared_ptr<Topics> findInteriorChild(std::string_view name);
         size_t getSize() const;
     };
 
-    inline Element::Element(Handle ord, const config::Timestamp &timestamp, std::shared_ptr<Topics> topics) :
-            StructElement(std::static_pointer_cast<Structish>(topics)), _nameOrd(ord), _modtime(timestamp) {
+    inline Element::Element(data::Handle ord, const config::Timestamp &timestamp, std::shared_ptr<Topics> topics) :
+            data::StructElement(std::static_pointer_cast<data::Structish>(topics)), _nameOrd(ord), _modtime(timestamp) {
     }
 
     inline void Topic::update() {
@@ -206,10 +207,10 @@ namespace config {
 
     class Manager {
     private:
-        Environment & _environment;
+        data::Environment & _environment;
         std::shared_ptr<Topics> _root;
     public:
-        explicit Manager(Environment & environment) :
+        explicit Manager(data::Environment & environment) :
             _environment{environment},
             _root{std::make_shared<Topics>(environment, nullptr)} {
         }

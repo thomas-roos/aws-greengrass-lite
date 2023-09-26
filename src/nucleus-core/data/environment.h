@@ -28,15 +28,16 @@ namespace data {
 
         void remove(std::string_view name);
     };
+
+    struct Environment {
+        HandleTable handleTable;
+        StringTable stringTable;
+        config::Manager configManager {*this};
+        SysProperties sysProperties;
+        std::shared_mutex sharedLocalTopicsMutex;
+        std::mutex cycleCheckMutex;
+
+        virtual ExpireTime translateExpires(int32_t delta);
+    };
 }
 
-struct Environment {
-    HandleTable handleTable;
-    StringTable stringTable;
-    config::Manager configManager {*this};
-    data::SysProperties sysProperties;
-    std::shared_mutex sharedLocalTopicsMutex;
-    std::mutex cycleCheckMutex;
-
-    virtual ExpireTime translateExpires(int32_t delta);
-};

@@ -2,28 +2,28 @@
 #include <c_api.h>
 
 uint32_t ggapiClaimThread() {
-    Global & global = Global::self();
-    std::shared_ptr<FixedTaskThread> thread {std::make_shared<FixedTaskThread>(global.environment, global.taskManager)};
-    return Handle{thread->claimFixedThread()}.asInt();
+    data::Global & global = data::Global::self();
+    std::shared_ptr<tasks::FixedTaskThread> thread {std::make_shared<tasks::FixedTaskThread>(global.environment, global.taskManager)};
+    return data::Handle{thread->claimFixedThread()}.asInt();
 }
 
 void ggapiReleaseThread() {
-    std::shared_ptr<TaskThread> thread = FixedTaskThread::getThreadContext();
+    std::shared_ptr<tasks::TaskThread> thread = tasks::FixedTaskThread::getThreadContext();
     thread->releaseFixedThread();
 }
 
 uint32_t ggapiGetCurrentTask(void) {
-    return Task::getThreadSelf().asInt();
+    return tasks::Task::getThreadSelf().asInt();
 }
 
 uint32_t ggapiWaitForTaskCompleted(uint32_t asyncTask, int32_t timeout) {
-    Global & global = Global::self();
-    Handle parentTask { Task::getThreadSelf() };
-    std::shared_ptr<Task> parentTaskObj { global.environment.handleTable.getObject<Task>(parentTask) };
-    std::shared_ptr<Task> asyncTaskObj { global.environment.handleTable.getObject<Task>(Handle{asyncTask}) };
+    data::Global & global = data::Global::self();
+    data::Handle parentTask { tasks::Task::getThreadSelf() };
+    std::shared_ptr<tasks::Task> parentTaskObj { global.environment.handleTable.getObject<tasks::Task>(parentTask) };
+    std::shared_ptr<tasks::Task> asyncTaskObj { global.environment.handleTable.getObject<tasks::Task>(data::Handle{asyncTask}) };
     ExpireTime expireTime = global.environment.translateExpires(timeout);
     if (asyncTaskObj->waitForCompletion(expireTime)) {
-        return Handle { parentTaskObj->anchor(asyncTaskObj->getData().get())}.asInt();
+        return data::Handle { parentTaskObj->anchor(asyncTaskObj->getData().get())}.asInt();
     } else {
         return 0;
     }

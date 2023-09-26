@@ -3,11 +3,11 @@
 #include <c_api.h>
 
 int ggapiMainThread(int argc, char* argv[], char* envp[]) {
-    Global & global = Global::self();
+    data::Global & global = data::Global::self();
     if (envp != nullptr) {
         global.environment.sysProperties.parseEnv(envp);
     }
-    KernelCommandLine kernel {global};
+    lifecycle::KernelCommandLine kernel {global};
     kernel.parseEnv(global.environment.sysProperties);
     if (argc > 0 && argv != nullptr) {
         kernel.parseArgs(argc, argv);

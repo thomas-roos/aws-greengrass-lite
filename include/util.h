@@ -52,4 +52,27 @@ namespace util {
         std::transform(source.begin(), source.end(), target.begin(), lowerChar);
         return target;
     }
+
+    class CheckedBuffer {
+    private:
+        char * _buffer;
+        size_t _buflen;
+    public:
+        explicit CheckedBuffer(char * buffer, size_t buflen) :
+                _buffer{buffer},_buflen(buflen) {
+            if (_buffer + _buflen < _buffer) {
+                throw std::out_of_range("Buffer wraps");
+            }
+        }
+
+        size_t copy(const std::string & s) {
+            if (_buflen < 1 || s.length() >= _buflen) {
+                throw std::out_of_range("Buffer is too small");
+            }
+            s.copy(_buffer, _buflen-1);
+            _buffer[s.length()] = 0; // ok because of above length check
+            return s.length();
+        }
+    };
+
 }

@@ -1,7 +1,7 @@
 #include "handle_table.h"
 #include "environment.h"
 
-Handle::Handle(const std::shared_ptr<Anchored> & anchored) {
+data::Handle::Handle(const std::shared_ptr<data::Anchored> & anchored) {
     if (!anchored) {
         _asInt = 0;
     } else {
@@ -9,7 +9,7 @@ Handle::Handle(const std::shared_ptr<Anchored> & anchored) {
     }
 }
 
-Handle::Handle(Anchored * anchored) {
+data::Handle::Handle(data::Anchored * anchored) {
     if (!anchored) {
         _asInt = 0;
     } else {
@@ -17,11 +17,11 @@ Handle::Handle(Anchored * anchored) {
     }
 }
 
-Handle Anchored::getHandle() {
+data::Handle data::Anchored::getHandle() {
     return _environment.handleTable.getHandle(this);
 }
 
-void HandleTable::release(Anchored * anchored) {
+void data::HandleTable::release(Anchored * anchored) {
     if (!anchored) {
         return;
     }
@@ -33,7 +33,7 @@ void HandleTable::release(Anchored * anchored) {
     }
 }
 
-Handle HandleTable::getHandle(Anchored * anchored) {
+data::Handle data::HandleTable::getHandle(Anchored * anchored) {
     if (!anchored) {
         return Handle::nullHandle;
     }
@@ -65,11 +65,11 @@ Handle HandleTable::getHandle(Anchored * anchored) {
     }
 }
 
-Anchored::~Anchored() {
+data::Anchored::~Anchored() {
     _environment.handleTable.release(this);
 }
 
-std::shared_ptr<Anchored> AnchoredWithRoots::anchor(AnchoredObject *obj) {
+std::shared_ptr<data::Anchored> data::AnchoredWithRoots::anchor(AnchoredObject *obj) {
     if (!obj) {
         return nullptr;
     }
@@ -82,28 +82,28 @@ std::shared_ptr<Anchored> AnchoredWithRoots::anchor(AnchoredObject *obj) {
     return ptr;
 }
 
-std::shared_ptr<Anchored> AnchoredWithRoots::anchor(const std::shared_ptr<Anchored>& anchored) {
+std::shared_ptr<data::Anchored> data::AnchoredWithRoots::anchor(const std::shared_ptr<Anchored>& anchored) {
     if (!anchored) {
         return nullptr;
     }
     return anchor(anchored.get());
 }
 
-std::shared_ptr<Anchored> AnchoredWithRoots::anchor(Anchored *anchored) {
+std::shared_ptr<data::Anchored> data::AnchoredWithRoots::anchor(Anchored *anchored) {
     if (!anchored) {
         return nullptr;
     }
     return anchor(anchored->getObject<AnchoredObject>().get());
 }
 
-std::shared_ptr<Anchored> AnchoredWithRoots::anchor(Handle handle) {
+std::shared_ptr<data::Anchored> data::AnchoredWithRoots::anchor(Handle handle) {
     if (!handle) {
         return nullptr;
     }
     return anchor(_environment.handleTable.getObject<AnchoredObject>(handle).get());
 }
 
-bool AnchoredWithRoots::release(Handle handle) {
+bool data::AnchoredWithRoots::release(Handle handle) {
     if (!handle) {
         return false;
     }
@@ -111,19 +111,19 @@ bool AnchoredWithRoots::release(Handle handle) {
     return _roots.erase(handle) > 0;
 }
 
-bool Anchored::release() {
+bool data::Anchored::release() {
     std::shared_ptr<AnchoredWithRoots> owner {_owner};
     return owner->release(this);
 }
 
-bool AnchoredWithRoots::release(Anchored * anchored) {
+bool data::AnchoredWithRoots::release(Anchored * anchored) {
     if (!anchored) {
         return false;
     }
     return release(anchored->getHandle());
 }
 
-bool AnchoredWithRoots::release(std::shared_ptr<Anchored>& anchored) {
+bool data::AnchoredWithRoots::release(std::shared_ptr<Anchored>& anchored) {
     if (!anchored) {
         return false;
     }
