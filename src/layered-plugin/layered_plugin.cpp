@@ -2,14 +2,14 @@
 #include <thread>
 #include <iostream>
 
-// A layered plugin is permitted to add additional abstract plugins
+// A layered plugins is permitted to add additional abstract plugins
 
 const ggapi::StringOrd DISCOVER_PHASE {"discover"};
 
 void doDiscoverPhase(ggapi::ObjHandle moduleHandle, ggapi::Struct phaseData);
 
 extern "C" EXPORT void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) {
-    std::cout << "Running layered lifecycle plugin... " << ggapi::StringOrd{phase}.toString() << std::endl;
+    std::cout << "Running layered lifecycle plugins... " << ggapi::StringOrd{phase}.toString() << std::endl;
     ggapi::StringOrd phaseOrd{phase};
     if (phaseOrd == DISCOVER_PHASE) {
         doDiscoverPhase(ggapi::ObjHandle{moduleHandle}, ggapi::Struct{data});

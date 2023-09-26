@@ -17,9 +17,9 @@
 #include <windows.h>
 #endif
 
-namespace plugin {
+namespace plugins {
     //
-    // Abstract plugin also acts as a global anchor for the given plugin module
+    // Abstract plugins also acts as a global anchor for the given plugins module
     //
     class AbstractPlugin : public data::AnchoredWithRoots {
     protected:
@@ -35,7 +35,7 @@ namespace plugin {
     };
 
     //
-    // Delegate plugin is managed by a parent plugin
+    // Delegate plugins is managed by a parent plugins
     //
     class DelegatePlugin : public AbstractPlugin {
     private:

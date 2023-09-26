@@ -3,7 +3,7 @@
 
 namespace fs = std::filesystem;
 
-plugin::NativePlugin::~NativePlugin() {
+plugins::NativePlugin::~NativePlugin() {
 #if defined(USE_DLFCN)
     if (_handle) {
         ::dlclose(_handle);
@@ -17,7 +17,7 @@ plugin::NativePlugin::~NativePlugin() {
 #endif
 }
 
-void plugin::NativePlugin::load(const std::string & filePath) {
+void plugins::NativePlugin::load(const std::string & filePath) {
 #if defined(USE_DLFCN)
     nativeHandle_t handle = ::dlopen(filePath.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
     _handle = handle;
@@ -38,11 +38,11 @@ void plugin::NativePlugin::load(const std::string & filePath) {
 #endif
 }
 
-bool plugin::NativePlugin::isActive() {
+bool plugins::NativePlugin::isActive() {
     return _lifecycleFn;
 }
 
-void plugin::PluginLoader::lifecycle(data::Handle phase, const std::shared_ptr<data::Structish> & data) {
+void plugins::PluginLoader::lifecycle(data::Handle phase, const std::shared_ptr<data::Structish> & data) {
     // TODO: Run this inside of a task, right now we end up using calling threads task
     // However probably good to defer that until there's a basic lifecycle manager
     for (const auto &i : getPlugins()) {
@@ -53,7 +53,7 @@ void plugin::PluginLoader::lifecycle(data::Handle phase, const std::shared_ptr<d
     }
 }
 
-void plugin::NativePlugin::lifecycle(data::Handle pluginAnchor, data::Handle phase, const std::shared_ptr<data::Structish> & data) {
+void plugins::NativePlugin::lifecycle(data::Handle pluginAnchor, data::Handle phase, const std::shared_ptr<data::Structish> & data) {
     lifecycleFn_t lifecycleFn = _lifecycleFn;
     if (lifecycleFn != nullptr) {
         std::shared_ptr<data::Structish> copy = data->copy();
@@ -67,7 +67,7 @@ void plugin::NativePlugin::lifecycle(data::Handle pluginAnchor, data::Handle pha
     }
 }
 
-void plugin::DelegatePlugin::lifecycle(data::Handle pluginAnchor, data::Handle phase, const std::shared_ptr<data::Structish> & data) {
+void plugins::DelegatePlugin::lifecycle(data::Handle pluginAnchor, data::Handle phase, const std::shared_ptr<data::Structish> & data) {
     uintptr_t delegateContext;
     ggapiLifecycleCallback delegateLifecycle;
     {
@@ -88,7 +88,7 @@ void plugin::DelegatePlugin::lifecycle(data::Handle pluginAnchor, data::Handle p
     }
 }
 
-void plugin::PluginLoader::discoverPlugins() {
+void plugins::PluginLoader::discoverPlugins() {
     // two-layer iterator just to make testing easier
     fs::path root = fs::absolute(".");
     for (const auto & top : fs::directory_iterator(root)) {
@@ -104,7 +104,7 @@ void plugin::PluginLoader::discoverPlugins() {
     }
 }
 
-void plugin::PluginLoader::discoverPlugin(const fs::directory_entry &entry) {
+void plugins::PluginLoader::discoverPlugin(const fs::directory_entry &entry) {
     std::string name {entry.path().generic_string()};
 #if defined(NATIVE_SUFFIX)
     if (entry.path().extension().compare(NATIVE_SUFFIX) == 0) {
@@ -114,15 +114,15 @@ void plugin::PluginLoader::discoverPlugin(const fs::directory_entry &entry) {
 #endif
 }
 
-void plugin::PluginLoader::loadNativePlugin(const std::string &name) {
+void plugins::PluginLoader::loadNativePlugin(const std::string &name) {
     std::shared_ptr<NativePlugin> plugin {std::make_shared<NativePlugin>(_environment, name)};
     plugin->load(name);
-    // add the plugin to collection by "anchoring"
+    // add the plugins to collection by "anchoring"
     // which solves a number of interesting problems
     anchor(plugin.get());
 }
 
-std::vector<std::shared_ptr<data::Anchored>> plugin::PluginLoader::getPlugins() {
+std::vector<std::shared_ptr<data::Anchored>> plugins::PluginLoader::getPlugins() {
     std::shared_lock guard{_mutex};
     std::vector<std::shared_ptr<data::Anchored>> copy;
     copy.reserve(_roots.size());
@@ -132,27 +132,27 @@ std::vector<std::shared_ptr<data::Anchored>> plugin::PluginLoader::getPlugins() 
     return copy;
 }
 
-void plugin::PluginLoader::lifecycleBootstrap(const std::shared_ptr<data::Structish> & data) {
+void plugins::PluginLoader::lifecycleBootstrap(const std::shared_ptr<data::Structish> & data) {
     data::Handle key = _environment.stringTable.getOrCreateOrd("bootstrap");
     lifecycle(key, data);
 }
 
-void plugin::PluginLoader::lifecycleDiscover(const std::shared_ptr<data::Structish> & data) {
+void plugins::PluginLoader::lifecycleDiscover(const std::shared_ptr<data::Structish> & data) {
     data::Handle key = _environment.stringTable.getOrCreateOrd("discover");
     lifecycle(key, data);
 }
 
-void plugin::PluginLoader::lifecycleStart(const std::shared_ptr<data::Structish> & data) {
+void plugins::PluginLoader::lifecycleStart(const std::shared_ptr<data::Structish> & data) {
     data::Handle key = _environment.stringTable.getOrCreateOrd("start");
     lifecycle(key, data);
 }
 
-void plugin::PluginLoader::lifecycleRun(const std::shared_ptr<data::Structish> & data) {
+void plugins::PluginLoader::lifecycleRun(const std::shared_ptr<data::Structish> & data) {
     data::Handle key = _environment.stringTable.getOrCreateOrd("run");
     lifecycle(key, data);
 }
 
-void plugin::PluginLoader::lifecycleTerminate(const std::shared_ptr<data::Structish> & data) {
+void plugins::PluginLoader::lifecycleTerminate(const std::shared_ptr<data::Structish> & data) {
     data::Handle key = _environment.stringTable.getOrCreateOrd("run");
     lifecycle(key, data);
 }

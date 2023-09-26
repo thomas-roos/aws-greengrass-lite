@@ -11,7 +11,7 @@ namespace data {
         Environment environment;
         std::shared_ptr<tasks::TaskManager> taskManager {std::make_shared<tasks::TaskManager>(environment)};
         std::shared_ptr<pubsub::LocalTopics> lpcTopics {std::make_shared<pubsub::LocalTopics>(environment)};
-        std::shared_ptr<plugin::PluginLoader> loader {std::make_shared<plugin::PluginLoader>(environment)};
+        std::shared_ptr<plugins::PluginLoader> loader {std::make_shared<plugins::PluginLoader>(environment)};
 
         static Global & self() {
             static Global global;

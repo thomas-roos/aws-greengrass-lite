@@ -3,7 +3,7 @@
 #include "util.h"
 
 //
-// TODO: Decide if this belongs in Nucleus, or belongs in another plugin
+// TODO: Decide if this belongs in Nucleus, or belongs in another plugins
 // Note that config intake is case insensitive - config comes from
 // a settings file (YAML), transaction log (YAML), or cloud (JSON or YAML)
 // For optimization, this implementation assumes all config keys are stored lower-case

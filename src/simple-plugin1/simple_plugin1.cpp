@@ -43,7 +43,7 @@ void doRunPhase() {
 }
 
 extern "C" EXPORT void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) {
-    std::cout << "Running lifecycle plugin 1... " << ggapi::StringOrd{phase}.toString() << std::endl;
+    std::cout << "Running lifecycle plugins 1... " << ggapi::StringOrd{phase}.toString() << std::endl;
     const auto & keys = Keys::get();
 
     ggapi::StringOrd phaseOrd{phase};
