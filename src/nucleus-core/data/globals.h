@@ -1,8 +1,8 @@
 #pragma auto
 #include "environment.h"
-#include "task.h"
-#include "local_topics.h"
-#include "plugin_loader.h"
+#include "../tasks/task.h"
+#include "../pubsub/local_topics.h"
+#include "../plugins/plugin_loader.h"
 
 struct Global {
     Environment environment;

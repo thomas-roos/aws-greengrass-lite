@@ -1,9 +1,9 @@
 #pragma once
 
-#include "shared_struct.h"
-#include "handle_table.h"
-#include "string_table.h"
-#include "expire_time.h"
+#include "../data/shared_struct.h"
+#include "../data/handle_table.h"
+#include "../data/string_table.h"
+#include "../tasks/expire_time.h"
 #include <filesystem>
 
 namespace config {

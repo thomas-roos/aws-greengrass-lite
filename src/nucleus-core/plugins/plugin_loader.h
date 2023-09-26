@@ -5,9 +5,9 @@
 #include <shared_mutex>
 #include <mutex>
 #include <filesystem>
-#include <c_api.h>
-#include "environment.h"
-#include "handle_table.h"
+#include "c_api.h"
+#include "../data/environment.h"
+#include "../data/handle_table.h"
 #if defined(USE_DLFCN)
 #include <dlfcn.h>
 #elif defined(USE_WINDLL)

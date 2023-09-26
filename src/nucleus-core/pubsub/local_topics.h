@@ -3,8 +3,8 @@
 #include <string>
 #include <vector>
 #include <functional>
-#include "safe_handle.h"
-#include "handle_table.h"
+#include "../data/safe_handle.h"
+#include "../data/handle_table.h"
 
 class AbstractCallback {
 public:

@@ -1,8 +1,8 @@
 #pragma once
 #include "handle_table.h"
 #include "string_table.h"
-#include "config_manager.h"
-#include "expire_time.h"
+#include "../config/config_manager.h"
+#include "../tasks/expire_time.h"
 #include <shared_mutex>
 
 struct Environment {

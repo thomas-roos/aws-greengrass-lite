@@ -1,8 +1,8 @@
 #include "local_topics.h"
-#include "environment.h"
+#include "../data/environment.h"
 #include <shared_mutex>
-#include "task.h"
-#include "shared_struct.h"
+#include "../tasks/task.h"
+#include "../data/shared_struct.h"
 
 TopicReceiver::~TopicReceiver() {
     if (!_receivers.expired()) {

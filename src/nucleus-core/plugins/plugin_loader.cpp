@@ -1,6 +1,6 @@
 #include "plugin_loader.h"
-#include "shared_struct.h"
-#include "task.h"
+#include "../data/shared_struct.h"
+#include "../tasks/task.h"
 namespace fs = std::filesystem;
 
 NativePlugin::~NativePlugin() {

@@ -1,31 +1,8 @@
 #include "kernel_command_line.h"
-#include "shared_struct.h"
-#include "globals.h"
-#include <cpp_api.h>
+#include "../data/shared_struct.h"
+#include "../data/globals.h"
+#include "c_api.h"
 #include <optional>
-
-// Main blocking thread, called by containing process
-
-int ggapiMainThread(int argc, char* argv[]) {
-    KernelCommandLine kernel {Global::self()};
-    kernel.parseArgs(argc, argv);
-    return kernel.main(argc, argv);
-    Global & global = Global::self();
-    auto threadTask = ggapi::ObjHandle::claimThread(); // assume long-running thread, this provides a long-running task handle
-
-    // This needs to be subsumed by the lifecyle management - not yet implemented, so current approach is hacky
-    global.loader->discoverPlugins();
-    std::shared_ptr<Structish> emptyStruct {std::make_shared<SharedStruct>(global.environment)}; // TODO, empty for now
-    global.loader->lifecycleBootstrap(emptyStruct);
-    global.loader->lifecycleDiscover(emptyStruct);
-    global.loader->lifecycleStart(emptyStruct);
-    global.loader->lifecycleRun(emptyStruct);
-
-    (void)threadTask.waitForTaskCompleted(); // essentially blocks forever but allows main thread to do work
-    // TODO: This is currently crashing!
-    global.loader->lifecycleTerminate(emptyStruct);
-    return 0; // currently unreachable
-}
 
 void KernelCommandLine::parseArgs(int argc, char * argv[]) {
     std::vector<std::string> args;
@@ -42,7 +19,21 @@ void KernelCommandLine::parseArgs(int argc, char * argv[]) {
 }
 
 void KernelCommandLine::parseProgramName(std::string_view progName) {
-
+    if (progName.empty()) {
+        return;
+    }
+    std::filesystem::path progPath {progName};
+    progPath = absolute(progPath);
+    if (!exists(progPath)) {
+        // assume this is not usable for extracting directory information
+        return;
+    }
+    std::filesystem::path parent { progPath.parent_path() };
+    if (parent.filename().generic_string() == "bin") {
+        parent = parent.parent_path(); // strip the /bin
+    }
+    // TODO:
+    /* rootPath = parent; */
 }
 
 std::string KernelCommandLine::nextArg(const std::vector<std::string> & args, std::vector<std::string>::const_iterator & iter) {
@@ -55,7 +46,7 @@ std::string KernelCommandLine::nextArg(const std::vector<std::string> & args, st
 }
 
 void KernelCommandLine::parseArgs(const std::vector<std::string> & args) {
-    std::string rootAbsolutePath;
+    std::string rootAbsolutePath; // TODO: see parse filename
     for (auto i = args.begin(); i != args.end(); ) {
         std::string op = nextArg(args, i);
         // TODO: GG-Java ignores case
@@ -101,6 +92,19 @@ void KernelCommandLine::parseArgs(const std::vector<std::string> & args) {
     rootAbsolutePath = deTilde(rootAbsolutePath);
 }
 
-int KernelCommandLine::main(int argc, char * argv[]) {
+int KernelCommandLine::main() {
+    Global & global = Global::self();
+    auto threadTask = ggapiClaimThread(); // assume long-running thread, this provides a long-running task handle
 
+    // This needs to be subsumed by the lifecyle management - not yet implemented, so current approach is hacky
+    global.loader->discoverPlugins();
+    std::shared_ptr<Structish> emptyStruct {std::make_shared<SharedStruct>(global.environment)}; // TODO, empty for now
+    global.loader->lifecycleBootstrap(emptyStruct);
+    global.loader->lifecycleDiscover(emptyStruct);
+    global.loader->lifecycleStart(emptyStruct);
+    global.loader->lifecycleRun(emptyStruct);
+
+    (void)ggapiWaitForTaskCompleted(threadTask, -1); // essentially blocks forever but allows main thread to do work
+    global.loader->lifecycleTerminate(emptyStruct);
+    return 0; // currently unreachable
 }

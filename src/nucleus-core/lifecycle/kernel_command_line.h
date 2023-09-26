@@ -1,5 +1,5 @@
 #pragma once
-#include "globals.h"
+#include "../data/globals.h"
 #include <optional>
 
 class KernelCommandLine {
@@ -25,7 +25,7 @@ private:
 public:
     KernelCommandLine(Global & global) : _global{global} {
     }
-    static int main(int argc, char * argv[]);
+    int main();
     void parseArgs(int argc, char * argv[]);
     void parseArgs(const std::vector<std::string> & args);
     void parseProgramName(std::string_view progName);

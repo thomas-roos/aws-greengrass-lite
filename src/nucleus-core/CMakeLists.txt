@@ -8,18 +8,18 @@ add_compile_definitions(EXPORT_API)
 find_package(yaml-cpp REQUIRED)
 
 add_library(nucleus-core SHARED
-        c_api.cpp
-        config_manager.cpp config_manager.h
-        config_reader.cpp config_reader.h
-        environment.cpp environment.h
-        expire_time.h
-        handle_table.cpp handle_table.h
-        kernel_command_line.cpp kernel_command_line.h
-        local_topics.cpp local_topics.h
-        plugin_loader.cpp plugin_loader.h
-        shared_struct.cpp shared_struct.h
-        string_table.cpp string_table.h
-        task.cpp task.h
+        api/pubsub.cpp
+        config/config_manager.cpp config/config_manager.h
+        config/config_reader.cpp config/config_reader.h
+        data/environment.cpp data/environment.h
+        data/handle_table.cpp data/handle_table.h
+        data/shared_struct.cpp data/shared_struct.h
+        data/string_table.cpp data/string_table.h
+        lifecycle/kernel_command_line.cpp lifecycle/kernel_command_line.h
+        plugins/plugin_loader.cpp plugins/plugin_loader.h
+        pubsub/local_topics.cpp pubsub/local_topics.h
+        tasks/expire_time.h
+        tasks/task.cpp tasks/task.h
         )
 target_link_libraries(nucleus-core Threads::Threads ${CMAKE_DL_LIBS} ${YAML_CPP_LIBRARIES})
 target_link_directories(nucleus-core PUBLIC ${YAML_CPP_LIBRARY_DIR})
