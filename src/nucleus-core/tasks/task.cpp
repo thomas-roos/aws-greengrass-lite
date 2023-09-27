@@ -1,14 +1,14 @@
 #include "task.h"
 
 namespace tasks {
-    thread_local data::Handle Task::_threadTask{data::Handle::nullHandle()};
+    thread_local data::ObjHandle Task::_threadTask {};
 //thread_local std::weak_ptr<TaskThread> TaskThread::_threadContext;
     thread_local TaskThread *TaskThread::_threadContext;
 
-    std::shared_ptr<data::ObjectAnchor> TaskManager::createTask() {
+    data::ObjectAnchor TaskManager::createTask() {
         auto task{std::make_shared<Task>(_environment)};
-        auto taskAnchor{anchor(task.get())};
-        task->setSelf(taskAnchor->getHandle());
+        auto taskAnchor{anchor(task)};
+        task->setSelf(taskAnchor.getHandle());
         return taskAnchor;
     }
 
@@ -112,12 +112,12 @@ namespace tasks {
         }
     }
 
-    void FixedTaskThread::setDefaultTask(const std::shared_ptr<data::ObjectAnchor> &task) {
+    void FixedTaskThread::setDefaultTask(const data::ObjectAnchor &task) {
         std::unique_lock guard{_mutex};
         _defaultTask = task;
     }
 
-    std::shared_ptr<data::ObjectAnchor> FixedTaskThread::getDefaultTask() {
+    data::ObjectAnchor FixedTaskThread::getDefaultTask() {
         std::unique_lock guard{_mutex};
         return _defaultTask;
     }
@@ -132,10 +132,10 @@ namespace tasks {
         _protectThread = nullptr;
     }
 
-    void FixedTaskThread::bindThreadContext(const std::shared_ptr<data::ObjectAnchor> &task) {
+    void FixedTaskThread::bindThreadContext(const data::ObjectAnchor &task) {
         // Run on target thread
         setDefaultTask(task);
-        task->getObject<Task>()->getSetThreadSelf(data::Handle{task});
+        task.getObject<Task>()->getSetThreadSelf(task.getHandle());
         TaskThread::bindThreadContext();
     }
 
@@ -156,7 +156,7 @@ namespace tasks {
             if (task) {
                 task->runInThread();
             } else {
-                stall(task->getTimeout());
+                stall(ExpireTime::infinite());
             }
         }
     }
@@ -258,9 +258,9 @@ namespace tasks {
 
     class ThreadSelf {
     private:
-        data::Handle _oldHandle;
+        data::ObjHandle _oldHandle;
     public:
-        explicit ThreadSelf(data::Handle newHandle) {
+        explicit ThreadSelf(data::ObjHandle newHandle) {
             _oldHandle = Task::getSetThreadSelf(newHandle);
         }
 
@@ -368,9 +368,9 @@ namespace tasks {
         }
     }
 
-    std::shared_ptr<data::ObjectAnchor> FixedTaskThread::claimFixedThread() {
+    data::ObjectAnchor FixedTaskThread::claimFixedThread() {
         std::shared_ptr<TaskManager> mgr{_pool.lock()};
-        std::shared_ptr<data::ObjectAnchor> taskAnchor{mgr->createTask()};
+        data::ObjectAnchor taskAnchor{mgr->createTask()};
         bindThreadContext(taskAnchor);
         protect();
         return taskAnchor;

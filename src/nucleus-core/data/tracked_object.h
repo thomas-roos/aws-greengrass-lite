@@ -14,7 +14,13 @@ namespace data {
 
     class Environment;
     class HandleTable;
+    class TrackedObject;
     class TrackingScope;
+
+    //
+    // Handles for objects only
+    //
+    typedef Handle<TrackedObject> ObjHandle;
 
     //
     // Base class for all objects that can be tracked with one or more handles
@@ -35,44 +41,62 @@ namespace data {
     };
 
     //
-    // TODO: changing
+    // Copy-by-value class to track an association between a handle and a tracked object
+    // ObjectAnchor is inherently not thread safe - but can be made thread safe in containment
     //
-    class ObjectAnchor : public util::RefObject<ObjectAnchor> {
-        friend TrackingScope;
-    protected:
-        Environment & _environment;
-        std::weak_ptr<TrackingScope> _owner;
+    class ObjectAnchor {
     private:
-        Handle _handle {Handle::nullHandle()};
+        ObjHandle _handle {ObjHandle::nullHandle()};
         std::shared_ptr<TrackedObject> _object; // multiple anchors to one object
+        std::weak_ptr<TrackingScope> _owner; // owner container
     public:
-        friend class HandleTable;
-
-        explicit ObjectAnchor(Environment & environment, std::shared_ptr<TrackedObject> && obj)
-                : _environment {environment}, _object {obj} {
+        explicit ObjectAnchor(const std::shared_ptr<TrackedObject> & obj, const std::weak_ptr<TrackingScope> & owner)
+                : _object {obj}, _owner(owner) {
         }
-
-        explicit ObjectAnchor(Environment & environment, TrackedObject * obj)
-                : _environment {environment}, _object {obj->shared_from_this()} {
+        ObjectAnchor() = default;
+        ObjectAnchor(const ObjectAnchor &) = default;
+        ObjectAnchor(ObjectAnchor &&) noexcept = default;
+        ObjectAnchor & operator=(const ObjectAnchor &) = default;
+        ObjectAnchor & operator=(ObjectAnchor &&) = default;
+        virtual ~ObjectAnchor() = default;
+        explicit operator bool() const {
+            return static_cast<bool>(_object);
         }
-
-        virtual ~ObjectAnchor();
-        Handle getHandle();
-
         template<typename T>
-        std::shared_ptr<T> getObject() {
-            std::shared_ptr<T> ptr { std::dynamic_pointer_cast<T>(_object) };
-            if (!ptr) {
-                throw std::bad_cast();
+        [[nodiscard]] std::shared_ptr<T> getObject() const {
+            if (*this) {
+                return _object->ref<T>();
+            } else {
+                return {};
             }
-            return ptr;
+        }
+        [[nodiscard]] std::shared_ptr<TrackedObject> getBase() const {
+            if (*this) {
+                return _object->ref<TrackedObject>();
+            } else {
+                return {};
+            }
+        }
+        [[nodiscard]] std::shared_ptr<TrackingScope> getOwner() const {
+            if (*this) {
+                return _owner.lock();
+            } else {
+                return {};
+            }
+        }
+        [[nodiscard]] ObjHandle getHandle() const {
+            return _handle;
+        }
+        [[nodiscard]] ObjectAnchor withNewScope(const std::shared_ptr<TrackingScope> & owner) const {
+            return ObjectAnchor(_object, owner);
+        }
+        [[nodiscard]] ObjectAnchor withHandle(ObjHandle handle) const {
+            ObjectAnchor copy {*this};
+            copy._handle = handle;
+            return copy;
         }
 
-        std::shared_ptr<TrackingScope> getOwner() {
-            return _owner.lock();
-        }
-
-        virtual bool release();
+        void release();
     };
 
     //
@@ -80,20 +104,29 @@ namespace data {
     // ensuring all handles associated with that scope will be removed when that scope exits.
     //
     class TrackingScope : public TrackedObject {
+        friend class HandleTable;
     protected:
-        std::map<Handle, std::shared_ptr<ObjectAnchor>, Handle::CompLess> _roots;
+        std::map<ObjHandle, std::shared_ptr<TrackedObject>, ObjHandle::CompLess> _roots;
         mutable std::shared_mutex _mutex;
+        void removeRootHelper(const ObjectAnchor & anchor);
+        ObjectAnchor createRootHelper(const ObjectAnchor & anchor);
+        std::vector<ObjectAnchor> getRootsHelper(const std::weak_ptr<TrackingScope>& assumedOwner);
     public:
         explicit TrackingScope(Environment & environment) : TrackedObject{environment} {
         }
-
-        std::shared_ptr<ObjectAnchor> anchor(TrackedObject * obj);
-        std::shared_ptr<ObjectAnchor> anchor(ObjectAnchor * anchor);
-        std::shared_ptr<ObjectAnchor> anchor(Handle handle);
-        std::shared_ptr<ObjectAnchor> anchor(const std::shared_ptr<ObjectAnchor>& anchored);
-        bool release(ObjectAnchor * anchored);
-        bool release(Handle handle);
-        bool release(std::shared_ptr<ObjectAnchor> &anchored);
+        ~TrackingScope() override;
+        ObjectAnchor anchor(const std::shared_ptr<TrackedObject> & obj);
+        ObjectAnchor reanchor(const ObjectAnchor & anchor);
+        void remove(const ObjectAnchor & anchor);
+        std::shared_ptr<const TrackingScope> scopeRef() const {
+            return ref<TrackingScope>();
+        }
+        std::shared_ptr<TrackingScope> scopeRef() {
+            return ref<TrackingScope>();
+        }
+        std::vector<ObjectAnchor> getRoots() {
+            return getRootsHelper(scopeRef());
+        }
     };
 
 } // data

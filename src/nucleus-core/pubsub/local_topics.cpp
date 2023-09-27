@@ -9,7 +9,7 @@ pubsub::TopicReceiver::~TopicReceiver() {
     }
 }
 
-pubsub::TopicReceiver::TopicReceiver(data::Environment &environment, data::Handle topicOrd, pubsub::TopicReceivers * receivers, std::unique_ptr<pubsub::AbstractCallback> &callback) :
+pubsub::TopicReceiver::TopicReceiver(data::Environment &environment, data::StringOrd topicOrd, pubsub::TopicReceivers * receivers, std::unique_ptr<pubsub::AbstractCallback> &callback) :
     data::TrackedObject{environment},
     _topicOrd{topicOrd},
     _receivers{receivers->weak_from_this()},
@@ -17,7 +17,7 @@ pubsub::TopicReceiver::TopicReceiver(data::Environment &environment, data::Handl
 
 }
 
-pubsub::TopicReceivers::TopicReceivers(data::Environment &environment, data::Handle topicOrd, pubsub::LocalTopics *topics) :
+pubsub::TopicReceivers::TopicReceivers(data::Environment &environment, data::StringOrd topicOrd, pubsub::LocalTopics *topics) :
     _environment{environment}, _topicOrd{topicOrd}, _topics {topics->weak_from_this()} {
 }
 
@@ -52,7 +52,7 @@ std::shared_ptr<pubsub::TopicReceiver> pubsub::TopicReceivers::newReceiver(std::
     return receiver;
 }
 
-std::shared_ptr<pubsub::TopicReceivers> pubsub::LocalTopics::testAndGetReceivers(data::Handle topicOrd) {
+std::shared_ptr<pubsub::TopicReceivers> pubsub::LocalTopics::testAndGetReceivers(data::StringOrd topicOrd) {
     std::shared_lock guard{_environment.sharedLocalTopicsMutex};
     auto i = _topics.find(topicOrd);
     if (i == _topics.end()) {
@@ -62,7 +62,7 @@ std::shared_ptr<pubsub::TopicReceivers> pubsub::LocalTopics::testAndGetReceivers
     }
 }
 
-std::shared_ptr<pubsub::TopicReceivers> pubsub::LocalTopics::getOrCreateReceivers(data::Handle topicOrd) {
+std::shared_ptr<pubsub::TopicReceivers> pubsub::LocalTopics::getOrCreateReceivers(data::StringOrd topicOrd) {
     std::shared_ptr<pubsub::TopicReceivers> receivers = testAndGetReceivers(topicOrd);
     if (receivers) {
         return receivers;
@@ -78,14 +78,14 @@ std::shared_ptr<pubsub::TopicReceivers> pubsub::LocalTopics::getOrCreateReceiver
     return receivers;
 }
 
-std::shared_ptr<data::ObjectAnchor> pubsub::LocalTopics::subscribe(data::Handle anchor, data::Handle topicOrd, std::unique_ptr<pubsub::AbstractCallback> & callback) {
+data::ObjectAnchor pubsub::LocalTopics::subscribe(data::ObjHandle anchor, data::StringOrd topicOrd, std::unique_ptr<pubsub::AbstractCallback> & callback) {
     auto root = _environment.handleTable.getObject<data::TrackingScope>(anchor);
     std::shared_ptr<pubsub::TopicReceivers> receivers = getOrCreateReceivers(topicOrd);
     std::shared_ptr<pubsub::TopicReceiver> receiver = receivers->newReceiver(callback);
-    return root->anchor(receiver.get()); // if handle or root goes away, unsubscribe
+    return root->anchor(receiver); // if handle or root goes away, unsubscribe
 }
 
-void pubsub::LocalTopics::insertCallQueue(std::shared_ptr<tasks::Task> & task, data::Handle topicOrd) {
+void pubsub::LocalTopics::insertCallQueue(std::shared_ptr<tasks::Task> & task, data::StringOrd topicOrd) {
     std::shared_ptr<pubsub::TopicReceivers> receivers = testAndGetReceivers(topicOrd);
     if (receivers == nullptr || receivers->isEmpty()) {
         return;
@@ -131,8 +131,8 @@ std::shared_ptr<data::Structish> ReceiverSubTask::runInThread(const std::shared_
 }
 
 std::shared_ptr<data::Structish> pubsub::TopicReceiver::runInTaskThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::Structish> &dataIn) {
-    data::Handle dataHandle {task->anchor(dataIn.get()) };
-    data::Handle resp = _callback->operator()(task->getSelf(), _topicOrd, dataHandle);
+    data::ObjectAnchor anchor {task->anchor(dataIn) };
+    data::Handle resp = _callback->operator()(task->getSelf(), _topicOrd, anchor.getHandle());
     std::shared_ptr<data::Structish> respData;
     if (resp) {
         respData = _environment.handleTable.getObject<data::Structish>(resp);
@@ -143,10 +143,10 @@ std::shared_ptr<data::Structish> pubsub::TopicReceiver::runInTaskThread(const st
 class CompletionSubTask : public tasks::SubTask
 {
 private:
-    data::Handle _topicOrd;
+    data::StringOrd _topicOrd;
     std::unique_ptr<pubsub::AbstractCallback> _callback;
 public:
-    explicit CompletionSubTask(data::Handle topicOrd, std::unique_ptr<pubsub::AbstractCallback> &callback) :
+    explicit CompletionSubTask(data::StringOrd topicOrd, std::unique_ptr<pubsub::AbstractCallback> &callback) :
             _topicOrd{topicOrd},
             _callback{std::move(callback)} {
     }
@@ -154,12 +154,12 @@ public:
 };
 
 std::shared_ptr<data::Structish> CompletionSubTask::runInThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::Structish> &result) {
-    data::Handle dataHandle {task->anchor(result.get()) };
-    (void)_callback->operator()(task->getSelf(), _topicOrd, dataHandle);
+    data::ObjectAnchor anchor {task->anchor(result) };
+    (void)_callback->operator()(task->getSelf(), _topicOrd, anchor.getHandle());
     return nullptr;
 }
 
-void pubsub::LocalTopics::applyCompletion(std::shared_ptr<tasks::Task> &task, data::Handle topicOrd,
+void pubsub::LocalTopics::applyCompletion(std::shared_ptr<tasks::Task> &task, data::StringOrd topicOrd,
                                           std::unique_ptr<pubsub::AbstractCallback> &callback) {
     if (!callback) {
         return;

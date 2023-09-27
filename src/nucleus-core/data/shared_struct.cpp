@@ -2,7 +2,7 @@
 #include "environment.h"
 #include "safe_handle.h"
 
-bool data::SharedStruct::putStruct(const data::Handle handle, const data::StructElement &element) {
+bool data::SharedStruct::putStruct(const data::StringOrd handle, const data::StructElement &element) {
     if (!element.isStruct()) {
         return false; // not a structure
     }
@@ -51,7 +51,7 @@ std::shared_ptr<data::Structish> data::SharedStruct::copy() const {
     return newCopy;
 }
 
-void data::SharedStruct::put(const data::Handle handle, const data::StructElement & element) {
+void data::SharedStruct::put(const data::StringOrd handle, const data::StructElement & element) {
     _environment.stringTable.assertStringHandle(handle);
     if (!(element.isStruct() && putStruct(handle, element))) {
         std::unique_lock guard{_mutex};
@@ -64,7 +64,7 @@ void data::SharedStruct::put(const std::string_view sv, const data::StructElemen
     put(handle, element);
 }
 
-bool data::SharedStruct::hasKey(const data::Handle handle) {
+bool data::SharedStruct::hasKey(const data::StringOrd handle) {
     //_environment.stringTable.assertStringHandle(handle);
     std::shared_lock guard {_mutex};
     auto i = _elements.find(handle);
@@ -76,7 +76,7 @@ data::StructElement data::SharedStruct::get(const std::string_view sv) const {
     return get(handle);
 }
 
-data::StructElement data::SharedStruct::get(data::Handle handle) const {
+data::StructElement data::SharedStruct::get(data::StringOrd handle) const {
     //_environment.stringTable.assertStringHandle(handle);
     std::shared_lock guard {_mutex};
     auto i = _elements.find(handle);

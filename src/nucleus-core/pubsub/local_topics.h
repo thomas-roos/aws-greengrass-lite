@@ -24,17 +24,17 @@ namespace pubsub {
     class AbstractCallback {
     public:
         virtual ~AbstractCallback() = default;
-        virtual data::Handle operator()(data::Handle taskHandle, data::Handle topicOrd, data::Handle dataStruct) = 0;
+        virtual data::ObjHandle operator()(data::ObjHandle taskHandle, data::StringOrd topicOrd, data::ObjHandle dataStruct) = 0;
     };
 
     class TopicReceiver : public data::TrackedObject {
     private:
-        data::Handle _topicOrd;
+        data::StringOrd _topicOrd;
         std::weak_ptr<TopicReceivers> _receivers;
         std::unique_ptr<AbstractCallback> _callback;
 
     public:
-        explicit TopicReceiver(data::Environment & environment, data::Handle topicOrd, TopicReceivers * receivers, std::unique_ptr<AbstractCallback> & callback);
+        explicit TopicReceiver(data::Environment & environment, data::StringOrd topicOrd, TopicReceivers * receivers, std::unique_ptr<AbstractCallback> & callback);
         ~TopicReceiver() override;
         std::unique_ptr<tasks::SubTask> toSubTask(std::shared_ptr<tasks::Task> & task);
         std::shared_ptr<data::Structish> runInTaskThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::Structish> &dataIn);
@@ -43,11 +43,11 @@ namespace pubsub {
     class TopicReceivers : public std::enable_shared_from_this<TopicReceivers> {
     private:
         data::Environment & _environment;
-        data::Handle _topicOrd;
+        data::StringOrd _topicOrd;
         std::weak_ptr<LocalTopics> _topics;
         std::vector<std::weak_ptr<TopicReceiver>> _receivers;
     public:
-        TopicReceivers(data::Environment &environment, data::Handle topicOrd, LocalTopics *topics);
+        TopicReceivers(data::Environment &environment, data::StringOrd topicOrd, LocalTopics *topics);
         void cleanup();
         bool isEmpty() {
             return _receivers.empty();
@@ -59,16 +59,16 @@ namespace pubsub {
     class LocalTopics : public std::enable_shared_from_this<LocalTopics> {
     private:
         data::Environment & _environment;
-        std::map<data::Handle, std::shared_ptr<TopicReceivers>, data::Handle::CompLess> _topics;
+        std::map<data::StringOrd, std::shared_ptr<TopicReceivers>, data::StringOrd::CompLess> _topics;
     public:
         explicit LocalTopics(data::Environment & environment) : _environment{environment} {
         }
         void cleanup();
-        std::shared_ptr<TopicReceivers> testAndGetReceivers(data::Handle topicOrd);
-        std::shared_ptr<TopicReceivers> getOrCreateReceivers(data::Handle topicOrd);
-        std::shared_ptr<data::ObjectAnchor> subscribe(data::Handle anchor, data::Handle topicOrd, std::unique_ptr<AbstractCallback> & callback);
-        static void applyCompletion(std::shared_ptr<tasks::Task> & task, data::Handle topicOrd, std::unique_ptr<AbstractCallback> & callback);
-        void insertCallQueue(std::shared_ptr<tasks::Task> & task, data::Handle topicOrd);
+        std::shared_ptr<TopicReceivers> testAndGetReceivers(data::StringOrd topicOrd);
+        std::shared_ptr<TopicReceivers> getOrCreateReceivers(data::StringOrd topicOrd);
+        data::ObjectAnchor subscribe(data::ObjHandle anchor, data::StringOrd topicOrd, std::unique_ptr<AbstractCallback> & callback);
+        static void applyCompletion(std::shared_ptr<tasks::Task> & task, data::StringOrd topicOrd, std::unique_ptr<AbstractCallback> & callback);
+        void insertCallQueue(std::shared_ptr<tasks::Task> & task, data::StringOrd topicOrd);
     };
 }
 

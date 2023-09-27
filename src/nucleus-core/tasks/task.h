@@ -50,10 +50,10 @@ namespace tasks {
         std::unique_ptr<SubTask> _finalize;
         std::__cxx11::list<std::unique_ptr<SubTask>> _subtasks;
         std::__cxx11::list<std::shared_ptr<TaskThread>> _blockedThreads;
-        data::Handle _self;
+        data::ObjHandle _self;
         ExpireTime _timeout;
         Status _lastStatus {Running};
-        static thread_local data::Handle _threadTask;
+        static thread_local data::ObjHandle _threadTask;
 
     public:
 
@@ -64,11 +64,11 @@ namespace tasks {
         std::shared_ptr<Task> shared_from_this() {
             return std::static_pointer_cast<Task>(TrackingScope::shared_from_this());
         }
-        void setSelf(data::Handle self) {
+        void setSelf(data::ObjHandle self) {
             std::unique_lock guard{_mutex};
             _self = self;
         }
-        data::Handle getSelf() {
+        data::ObjHandle getSelf() {
             std::unique_lock guard{_mutex};
             return _self;
         }
@@ -82,10 +82,10 @@ namespace tasks {
         }
         std::shared_ptr<TaskThread> getThreadAffinity();
         void markTaskComplete();
-        static data::Handle getThreadSelf() {
+        static data::ObjHandle getThreadSelf() {
             return _threadTask;
         }
-        static data::Handle getSetThreadSelf(data::Handle h) {
+        static data::ObjHandle getSetThreadSelf(data::ObjHandle h) {
             data::Handle old = _threadTask;
             _threadTask = h;
             return old;
@@ -189,19 +189,19 @@ namespace tasks {
 
     class FixedTaskThread : public TaskThread {
     protected:
-        std::shared_ptr<data::ObjectAnchor> _defaultTask;
+        data::ObjectAnchor _defaultTask;
         std::shared_ptr<FixedTaskThread> _protectThread;
     public:
         explicit FixedTaskThread(data::Environment & environment, const std::shared_ptr<TaskManager> &pool) :
             TaskThread(environment, pool) {
         }
         // Call this on the native thread
-        void bindThreadContext(const std::shared_ptr<data::ObjectAnchor> & task);
-        void setDefaultTask(const std::shared_ptr<data::ObjectAnchor> & task);
-        std::shared_ptr<data::ObjectAnchor> getDefaultTask();
+        void bindThreadContext(const data::ObjectAnchor & task);
+        void setDefaultTask(const data::ObjectAnchor & task);
+        data::ObjectAnchor getDefaultTask();
         void protect();
         void unprotect();
-        std::shared_ptr<data::ObjectAnchor> claimFixedThread();
+        data::ObjectAnchor claimFixedThread();
         void releaseFixedThread() override;
         std::shared_ptr<FixedTaskThread> shared_from_this() {
             return std::static_pointer_cast<FixedTaskThread>(TaskThread::shared_from_this());
@@ -227,7 +227,7 @@ namespace tasks {
         explicit TaskManager(data::Environment & environment) : data::TrackingScope{environment} {
         }
 
-        std::shared_ptr<data::ObjectAnchor> createTask();
+        data::ObjectAnchor createTask();
         std::shared_ptr<Task> acquireTaskForWorker(TaskThread *worker);
         std::shared_ptr<Task> acquireTaskWhenStealing(TaskThread *worker, const std::shared_ptr<Task> & priorityTask);
         bool allocateNextWorker();

@@ -1,5 +1,4 @@
 #pragma once
-#include "safe_handle.h"
 #include "tracked_object.h"
 #include <util.h>
 #include <cstddef>
@@ -12,43 +11,66 @@
 #include <memory>
 
 namespace data {
+
+    //
+    // Track objects and owners with no reference counting. The scope owner maintains the reference count
+    //
+    class WeakObjectAnchor {
+    private:
+        std::weak_ptr<TrackedObject> _object; // multiple anchors to one object
+        std::weak_ptr<TrackingScope> _owner; // owner container
+    public:
+        explicit WeakObjectAnchor(const std::weak_ptr<TrackedObject> & obj, const std::weak_ptr<TrackingScope> & owner)
+                : _object {obj}, _owner(owner) {
+        }
+        explicit WeakObjectAnchor(const ObjectAnchor & anchor)
+                : _object {anchor.getBase()}, _owner(anchor.getOwner()) {
+        }
+        WeakObjectAnchor() = default;
+        WeakObjectAnchor(const WeakObjectAnchor &) = default;
+        WeakObjectAnchor(WeakObjectAnchor &&) noexcept = default;
+        WeakObjectAnchor & operator=(const WeakObjectAnchor &) = default;
+        WeakObjectAnchor & operator=(WeakObjectAnchor &&) = default;
+        virtual ~WeakObjectAnchor() = default;
+        explicit operator bool() const {
+            return ! (_object.expired() || _owner.expired());
+        }
+
+        [[nodiscard]] ObjectAnchor lock() const {
+            if (*this) {
+                return ObjectAnchor{_object.lock(), _owner.lock()};
+            } else {
+                return {};
+            }
+        }
+    };
+
+
     //
     // Handle tracking
     //
     class HandleTable {
-    private:
-        mutable std::shared_mutex _mutex; // shared_mutex would be better
-        uint32_t _counter {0};
-        std::unordered_map<Handle, std::weak_ptr<ObjectAnchor>, Handle::Hash, Handle::CompEq> _handles;
+        static const int PRIME_SALT {7};
+        static const int PRIME1 {11};
+        static const int PRIME2 {431};
+        static const int PRIME_INC {15299};
+        mutable std::shared_mutex _mutex;
+        uint32_t _salt {0};
+        std::unordered_map<ObjHandle, WeakObjectAnchor, ObjHandle::Hash, ObjHandle::CompEq> _handles;
 
     public:
-        Handle getExistingHandle(const ObjectAnchor * anchored) const {
-            std::shared_lock guard {_mutex};
-            return anchored->_handle;
-        }
-
-        Handle getHandle(ObjectAnchor * anchored);
-        void release(ObjectAnchor * anchored);
-
-        std::shared_ptr<ObjectAnchor> getAnchor(const Handle handle) {
-            std::shared_lock guard {_mutex};
-            auto i = _handles.find(handle);
-            if (i == _handles.end()) {
-                return nullptr;
-            }
-            return i->second.lock();
-        }
-
+        // Retrieve object, safe if handle does not exist
+        ObjectAnchor tryGet(ObjHandle handle) const;
+        // Retrieve object, handle is expected to exist
+        ObjectAnchor get(ObjHandle handle) const;
+        // Convenience function
         template<typename T>
-        std::shared_ptr<T> getObject(const Handle handle) {
-            std::shared_ptr<ObjectAnchor> obj {getAnchor(handle)};
-            if (obj) {
-                return obj->getObject<T>();
-            } else {
-                return nullptr;
-            }
+        std::shared_ptr<T> getObject(ObjHandle handle) const {
+            return get(handle).getObject<T>();
         }
-
+        // Creates a new handle, even if one exists
+        ObjectAnchor create(const ObjectAnchor & partial);
+        // remove a handle
+        void remove(const ObjectAnchor & anchor);
     };
 }
-

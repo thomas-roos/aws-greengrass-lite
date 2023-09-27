@@ -1,6 +1,6 @@
 #pragma once
+#include "string_table.h"
 #include "handle_table.h"
-#include "safe_handle.h"
 #include <vector>
 #include <mutex>
 #include <map>
@@ -128,10 +128,10 @@ namespace data {
         }
 
         virtual void rootsCheck(const Structish * target) const = 0;
-        virtual void put(Handle handle, const StructElement & element) = 0;
+        virtual void put(StringOrd handle, const StructElement & element) = 0;
         virtual void put(std::string_view sv, const StructElement & element) = 0;
-        virtual bool hasKey(Handle handle)  = 0;
-        virtual StructElement get(Handle handle) const = 0;
+        virtual bool hasKey(StringOrd handle)  = 0;
+        virtual StructElement get(StringOrd handle) const = 0;
         virtual StructElement get(std::string_view sv) const = 0;
         virtual std::shared_ptr<Structish> copy() const = 0;
     };
@@ -147,10 +147,10 @@ namespace data {
          */
     class SharedStruct : public Structish {
     protected:
-        std::map<Handle, StructElement, Handle::CompLess> _elements;
+        std::map<StringOrd, StructElement, StringOrd::CompLess> _elements;
         mutable std::shared_mutex _mutex;
 
-        bool putStruct(Handle handle, const StructElement & element);
+        bool putStruct(StringOrd handle, const StructElement & element);
 
         void rootsCheck(const Structish * target) const override;
 
@@ -161,10 +161,10 @@ namespace data {
             return std::dynamic_pointer_cast<SharedStruct>(shared_from_this());
         }
 
-        void put(Handle handle, const StructElement & element) override;
+        void put(StringOrd handle, const StructElement & element) override;
         void put(std::string_view sv, const StructElement & element) override;
-        bool hasKey(Handle handle) override;
-        StructElement get(Handle handle) const override;
+        bool hasKey(StringOrd handle) override;
+        StructElement get(StringOrd handle) const override;
         StructElement get(std::string_view sv) const override;
         std::shared_ptr<Structish> copy() const override;
     };

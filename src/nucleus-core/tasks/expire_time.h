@@ -3,8 +3,10 @@
 #include <ctime>
 #include <chrono>
 
+//
 // this class is used for timeouts, which depends on steady_clock rather than epoch
 // assumes conversion with milliseconds
+//
 class ExpireTime {
 private:
     std::chrono::time_point<std::chrono::steady_clock> _steadyTime;

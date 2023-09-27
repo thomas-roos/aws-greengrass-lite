@@ -11,10 +11,10 @@
 //
 namespace config {
 
-    data::Handle Element::getKey(data::Environment & env) const {
+    data::StringOrd Element::getKey(data::Environment & env) const {
         return getKey(env, _nameOrd);
     }
-    data::Handle Element::getKey(data::Environment & env, data::Handle nameOrd) {
+    data::StringOrd Element::getKey(data::Environment & env, data::StringOrd nameOrd) {
         if (!nameOrd) {
             return nameOrd;
         }
@@ -33,7 +33,7 @@ namespace config {
         return setOrd(env.stringTable.getOrCreateOrd(str));
     }
 
-    bool Topics::putStruct(data::Handle key, const Element &element) {
+    bool Topics::putStruct(data::StringOrd key, const Element &element) {
         if (!element.isStruct()) {
             return false; // not a structure
         }
@@ -53,7 +53,7 @@ namespace config {
     }
 
     void Topics::updateChild(const Element &element) {
-        data::Handle key = element.getKey(_environment);
+        data::StringOrd key = element.getKey(_environment);
         if (!(element.isStruct() && putStruct(key, element))) {
             std::unique_lock guard{_mutex};
             _children[key] = element;
@@ -91,25 +91,25 @@ namespace config {
         return newCopy;
     }
 
-    void Topics::put(const data::Handle handle, const data::StructElement &element) {
+    void Topics::put(const data::StringOrd handle, const data::StructElement &element) {
         updateChild(Element{handle, element});
     }
 
     void Topics::put(const std::string_view sv, const data::StructElement &element) {
-        data::Handle handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
+        data::StringOrd handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
         put(handle, element);
     }
 
-    bool Topics::hasKey(const data::Handle handle) {
+    bool Topics::hasKey(const data::StringOrd handle) {
         //_environment.stringTable.assertStringHandle(handle);
-        data::Handle key = Element::getKey(_environment, handle);
+        data::StringOrd key = Element::getKey(_environment, handle);
         std::shared_lock guard{_mutex};
         auto i = _children.find(key);
         return i != _children.end();
     }
 
-    Element Topics::createChild(data::Handle nameOrd, const std::function<Element(data::Handle)> & creator) {
-        data::Handle key = Element::getKey(_environment, nameOrd);
+    Element Topics::createChild(data::StringOrd nameOrd, const std::function<Element(data::StringOrd)> & creator) {
+        data::StringOrd key = Element::getKey(_environment, nameOrd);
         std::unique_lock guard{_mutex};
         auto i = _children.find(key);
         if (i != _children.end()) {
@@ -119,7 +119,7 @@ namespace config {
         }
     }
 
-    std::unique_ptr<Topic> Topics::createLeafChild(data::Handle nameOrd, const Timestamp & timestamp) {
+    std::unique_ptr<Topic> Topics::createLeafChild(data::StringOrd nameOrd, const Timestamp & timestamp) {
         Element leaf = createChild(nameOrd, [&](auto ord) {
             return Element(ord, timestamp);
         });
@@ -130,11 +130,11 @@ namespace config {
     }
 
     std::unique_ptr<Topic> Topics::createLeafChild(std::string_view sv, const Timestamp & timestamp) {
-        data::Handle handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
+        data::StringOrd handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
         return createLeafChild(handle, timestamp);
     }
 
-    std::shared_ptr<Topics> Topics::createInteriorChild(data::Handle nameOrd, const Timestamp & timestamp) {
+    std::shared_ptr<Topics> Topics::createInteriorChild(data::StringOrd nameOrd, const Timestamp & timestamp) {
         Element leaf = createChild(nameOrd, [this,&timestamp](auto ord) {
             std::shared_ptr<Topics> parent {topics_shared_from_this()};
             std::shared_ptr<Topics> nested {std::make_shared<Topics>(_environment, parent)};
@@ -144,13 +144,13 @@ namespace config {
     }
 
     std::shared_ptr<Topics> Topics::createInteriorChild(std::string_view sv, const Timestamp & timestamp) {
-        data::Handle handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
+        data::StringOrd handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
         return createInteriorChild(handle, timestamp);
     }
 
-    Element Topics::getChild(data::Handle handle) const {
+    Element Topics::getChild(data::StringOrd handle) const {
         //_environment.stringTable.assertStringHandle(handle);
-        data::Handle key = Element::getKey(_environment, handle);
+        data::StringOrd key = Element::getKey(_environment, handle);
         std::shared_lock guard{_mutex};
         auto i = _children.find(key);
         if (i != _children.end()) {
@@ -160,7 +160,7 @@ namespace config {
         }
     }
 
-    std::unique_ptr<Topic> Topics::findLeafChild(data::Handle handle) {
+    std::unique_ptr<Topic> Topics::findLeafChild(data::StringOrd handle) {
         Element leaf = getChild(handle);
         if (leaf && !leaf.isTopics()) {
             return std::make_unique<Topic>(topics_shared_from_this(), leaf);
@@ -170,11 +170,11 @@ namespace config {
     }
 
     std::unique_ptr<Topic> Topics::findLeafChild(std::string_view name) {
-        data::Handle handle = _environment.stringTable.getOrCreateOrd(std::string(name));
+        data::StringOrd handle = _environment.stringTable.getOrCreateOrd(std::string(name));
         return findLeafChild(handle);
     }
 
-    std::shared_ptr<Topics> Topics::findInteriorChild(data::Handle handle) const {
+    std::shared_ptr<Topics> Topics::findInteriorChild(data::StringOrd handle) const {
         Element leaf = getChild(handle);
         if (leaf && leaf.isTopics()) {
             return leaf.getTopicsRef();
@@ -184,16 +184,16 @@ namespace config {
     }
 
     std::shared_ptr<Topics> Topics::findInteriorChild(std::string_view name) {
-        data::Handle handle = _environment.stringTable.getOrCreateOrd(std::string(name));
+        data::StringOrd handle = _environment.stringTable.getOrCreateOrd(std::string(name));
         return findInteriorChild(handle);
     }
 
-    data::StructElement Topics::get(data::Handle handle) const {
+    data::StructElement Topics::get(data::StringOrd handle) const {
         return getChild(handle).slice();
     }
 
     data::StructElement Topics::get(const std::string_view sv) const {
-        data::Handle handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
+        data::StringOrd handle = _environment.stringTable.getOrCreateOrd(std::string(sv));
         return get(handle);
     }
 

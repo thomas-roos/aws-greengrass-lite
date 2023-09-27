@@ -1,111 +1,85 @@
 #include "handle_table.h"
 #include "environment.h"
 
-void data::HandleTable::release(ObjectAnchor * anchored) {
-    if (!anchored) {
-        return;
-    }
-    Handle h = getExistingHandle(anchored);
-    if (h) {
-        std::unique_lock guard{_mutex};
-        _handles.erase(h);
-        anchored->_handle = Handle::nullHandle();
-    }
-}
-
-data::Handle data::HandleTable::getHandle(ObjectAnchor * anchored) {
-    if (!anchored) {
-        return Handle::nullHandle();
-    }
-    Handle h = getExistingHandle(anchored);
-    if (!h) {
-        std::unique_lock guard {_mutex};
-        Handle cached = anchored->_handle;
-        if (!cached) {
-            Handle new_handle {++_counter};
-            for (;;) {
-                // typically once, but will keep repeating if there is a handle collision
-                // TODO: consider using RNG to provide initial handle value
-                auto i = _handles.find(new_handle);
-                if (i == _handles.end()) {
-                    anchored->_handle = new_handle;
-                    _handles[new_handle] = anchored->weak_from_this();
-                    return new_handle;
-                }
-                // here if handles wrapped
-                // prime number - assumes handles cluster
-                // we also assume we will eventually get a handle
-                new_handle = Handle{new_handle.asInt() + 1033};
-            }
-        } else {
-            return cached;
+namespace data {
+    ObjectAnchor HandleTable::tryGet(ObjHandle handle) const {
+        std::shared_lock guard {_mutex};
+        auto i = _handles.find(handle);
+        if (i == _handles.end()) {
+            return {};
         }
-    } else {
-        return h;
+        return i->second.lock().withHandle(handle);
     }
-}
 
-data::ObjectAnchor::~ObjectAnchor() {
-    _environment.handleTable.release(this);
-}
-
-std::shared_ptr<data::ObjectAnchor> data::TrackingScope::anchor(TrackedObject *obj) {
-    if (!obj) {
-        return nullptr;
+    ObjectAnchor HandleTable::get(ObjHandle handle) const {
+        ObjectAnchor anchor = tryGet(handle);
+        if (anchor) {
+            return anchor;
+        } else {
+            throw std::invalid_argument("Object handle is not valid");
+        }
     }
-    auto ptr { std::make_shared<ObjectAnchor>(_environment, obj)};
-    Handle h = ptr->getHandle();
-    std::unique_lock guard{_mutex};
-    _roots[h] = ptr;
-    auto self = std::dynamic_pointer_cast<TrackingScope>(shared_from_this());
-    ptr->_owner = self;
-    return ptr;
-}
 
-std::shared_ptr<data::ObjectAnchor> data::TrackingScope::anchor(const std::shared_ptr<ObjectAnchor>& anchored) {
-    if (!anchored) {
-        return nullptr;
+    //
+    // Create a new handle for the object, using the partial information in the provided ObjectAnchor structure.
+    // The handle IDs should appear almost random (yet with consistency run-to-run for debugging)
+    // which will allow catching handle ID bugs easier. "Stumbling" on an ID is rare. Stumbling on an ID that
+    // matches the same object type is even rarer. Two handles for the same object/owner pair should also
+    // result in a different ID to catch any release-then-create bugs. The handle system ensures that if a handle
+    // is returned, it points to a real object of the required type.
+    //
+    ObjectAnchor HandleTable::create(const ObjectAnchor & partial) {
+        if (!partial) {
+            return {}; // pass through null anchor
+        }
+        if (partial.getHandle()) {
+            return partial; // already created handle
+        }
+        std::shared_ptr<TrackingScope> scope {partial.getOwner()};
+        if (!scope) {
+            throw std::runtime_error("create handle with null scope");
+        }
+        std::unique_lock guard {_mutex};
+        std::hash<std::shared_ptr<TrackedObject>> hashFunc;
+        // 1/ don't create incrementing numbers - hashing used for this
+        // 2/ don't reuse numbers (help catch handle bugs) for the same pair - _salt used for this
+        size_t ptrHash = hashFunc(partial.getBase())*PRIME1 + hashFunc(partial.getOwner())*PRIME2;
+        _salt = _salt*PRIME_SALT + static_cast<uint32_t>(ptrHash);
+        for (;;) {
+            ObjHandle newHandle {_salt};
+            // typically once, but will keep repeating if there is a handle collision
+            auto i = _handles.find(newHandle);
+            if (i == _handles.end()) {
+                // unused value found - note nested lock scope here
+                // handle must be added to scope table before global table
+                ObjectAnchor withHandle { partial.withHandle(newHandle) };
+                scope->createRootHelper(withHandle);
+                // Only do this unless createRootHelper succeeds - mitigates resource leakage on error
+                _handles.emplace(newHandle, withHandle);
+                return withHandle;
+            }
+            // hash conflict, use 2nd algorithm to find an empty slot
+            _salt += PRIME_INC;
+        }
     }
-    return anchor(anchored.get());
-}
 
-std::shared_ptr<data::ObjectAnchor> data::TrackingScope::anchor(ObjectAnchor *anchored) {
-    if (!anchored) {
-        return nullptr;
+    //
+    // Removes typically come in via this path. It guarantees it's removed from global handle table before
+    // removed from scope table
+    //
+    void HandleTable::remove(const ObjectAnchor & anchor) {
+        ObjHandle h = anchor.getHandle();
+        if (!h) {
+            return;
+        }
+        std::shared_ptr<TrackingScope> scope {anchor.getOwner()};
+        std::unique_lock guard{_mutex};
+        // remove global first - mitigates resource leakage on error
+        _handles.erase(h);
+        guard.unlock();
+        if (scope) {
+            // scope can be unset if scope is in middle of being destroyed
+            scope->removeRootHelper(anchor);
+        }
     }
-    return anchor(anchored->getObject<TrackedObject>().get());
-}
-
-std::shared_ptr<data::ObjectAnchor> data::TrackingScope::anchor(Handle handle) {
-    if (!handle) {
-        return nullptr;
-    }
-    return anchor(_environment.handleTable.getObject<TrackedObject>(handle).get());
-}
-
-bool data::TrackingScope::release(Handle handle) {
-    if (!handle) {
-        return false;
-    }
-    std::unique_lock guard{_mutex};
-    return _roots.erase(handle) > 0;
-}
-
-bool data::ObjectAnchor::release() {
-    std::shared_ptr<TrackingScope> owner {_owner};
-    return owner->release(this);
-}
-
-bool data::TrackingScope::release(ObjectAnchor * anchored) {
-    if (!anchored) {
-        return false;
-    }
-    return release(anchored->getHandle());
-}
-
-bool data::TrackingScope::release(std::shared_ptr<ObjectAnchor>& anchored) {
-    if (!anchored) {
-        return false;
-    }
-    return release(anchored->getHandle());
 }

@@ -28,7 +28,7 @@ namespace plugins {
         explicit AbstractPlugin(data::Environment & environment, const std::string_view & name) :
                 TrackingScope(environment), _moduleName{name} {
         }
-        virtual void lifecycle(data::Handle pluginRoot, data::Handle phase, const std::shared_ptr<data::Structish> & data) = 0;
+        virtual void lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::Structish> & data) = 0;
         virtual bool isActive() {
             return true;
         }
@@ -55,7 +55,7 @@ namespace plugins {
         std::shared_ptr<DelegatePlugin> shared_from_this() {
             return std::static_pointer_cast<DelegatePlugin>(AbstractPlugin::shared_from_this());
         }
-        void lifecycle(data::Handle pluginRoot, data::Handle phase, const std::shared_ptr<data::Structish> & data) override;
+        void lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::Structish> & data) override;
     };
 
     //
@@ -84,7 +84,7 @@ namespace plugins {
         }
         ~NativePlugin() override;
         void load(const std::string & filePath);
-        void lifecycle(data::Handle pluginRoot, data::Handle phase, const std::shared_ptr<data::Structish> & data) override;
+        void lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::Structish> & data) override;
         bool isActive() override;
     };
 
@@ -92,14 +92,6 @@ namespace plugins {
     // Loader is responsible for handling all plugins
     //
     class PluginLoader : public data::TrackingScope {
-    private:
-        std::vector<std::shared_ptr<data::ObjectAnchor>> getPlugins();
-
-    protected:
-        std::shared_ptr<PluginLoader> shared_from_this() {
-            return std::static_pointer_cast<PluginLoader>(TrackingScope::shared_from_this());
-        }
-
     public:
         explicit PluginLoader(data::Environment & environment) : TrackingScope(environment) {
         }
@@ -114,7 +106,7 @@ namespace plugins {
         void lifecycleStart(const std::shared_ptr<data::Structish> & data);
         void lifecycleRun(const std::shared_ptr<data::Structish> & data);
         void lifecycleTerminate(const std::shared_ptr<data::Structish> & data);
-        void lifecycle(data::Handle phase, const std::shared_ptr<data::Structish> & data);
+        void lifecycle(data::StringOrd phase, const std::shared_ptr<data::Structish> & data);
     };
 }
 

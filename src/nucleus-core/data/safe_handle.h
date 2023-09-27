@@ -5,8 +5,9 @@ namespace data {
     class ObjectAnchor;
 
     //
-    // Base class for handles
+    // Templated class for handles
     //
+    template<typename T>
     class Handle {
     private:
         uint32_t _asInt;
@@ -27,47 +28,46 @@ namespace data {
             }
         };
 
-        constexpr Handle() : _asInt{0} {
+        constexpr Handle() noexcept : _asInt{0} {
         }
-        explicit constexpr Handle(const uint32_t i) : _asInt{i} {
+        explicit constexpr Handle(const uint32_t i) noexcept : _asInt{i} {
         }
-        constexpr Handle(const Handle &) = default;
-        constexpr Handle(Handle &&) = default;
-        ~Handle() = default;
-        explicit Handle(const std::shared_ptr<ObjectAnchor> & anchored);
-        explicit Handle(ObjectAnchor * anchored);
+        constexpr Handle(const Handle &) noexcept = default;
+        constexpr Handle(Handle &&) noexcept = default;
+        ~Handle() noexcept = default;
 
-        constexpr Handle & operator=(const Handle &) = default;
-        constexpr Handle & operator=(Handle &&) = default;
+        constexpr Handle & operator=(const Handle &) noexcept = default;
+        constexpr Handle & operator=(Handle &&) noexcept = default;
 
-        [[nodiscard]] uint32_t asInt() const {
+        [[nodiscard]] uint32_t asInt() const noexcept {
             return _asInt;
         }
 
-        [[nodiscard]] bool isNull() const {
+        [[nodiscard]] bool isNull() const noexcept {
             return _asInt == 0;
         }
 
-        explicit operator bool() const {
+        explicit operator bool() const noexcept {
             return _asInt != 0;
         }
 
-        bool operator !() const {
+        bool operator !() const noexcept {
             return _asInt == 0;
         }
 
-        bool operator==(Handle other) const {
+        bool operator==(Handle other) const noexcept {
             return _asInt == other._asInt;
         }
 
-        bool operator!=(Handle other) const {
+        bool operator!=(Handle other) const noexcept {
             return _asInt != other._asInt;
         }
 
-        static constexpr Handle nullHandle();
+        static constexpr Handle nullHandle() noexcept;
     };
 
-    inline constexpr Handle Handle::nullHandle() {
+    template<typename T>
+    inline constexpr Handle<T> Handle<T>::nullHandle() noexcept {
         return {};
     }
 }
