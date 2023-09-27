@@ -10,7 +10,7 @@ pubsub::TopicReceiver::~TopicReceiver() {
 }
 
 pubsub::TopicReceiver::TopicReceiver(data::Environment &environment, data::Handle topicOrd, pubsub::TopicReceivers * receivers, std::unique_ptr<pubsub::AbstractCallback> &callback) :
-    data::AnchoredObject{environment},
+    data::TrackedObject{environment},
     _topicOrd{topicOrd},
     _receivers{receivers->weak_from_this()},
     _callback{std::move(callback)} {
@@ -78,8 +78,8 @@ std::shared_ptr<pubsub::TopicReceivers> pubsub::LocalTopics::getOrCreateReceiver
     return receivers;
 }
 
-std::shared_ptr<data::Anchored> pubsub::LocalTopics::subscribe(data::Handle anchor, data::Handle topicOrd, std::unique_ptr<pubsub::AbstractCallback> & callback) {
-    auto root = _environment.handleTable.getObject<data::AnchoredWithRoots>(anchor);
+std::shared_ptr<data::ObjectAnchor> pubsub::LocalTopics::subscribe(data::Handle anchor, data::Handle topicOrd, std::unique_ptr<pubsub::AbstractCallback> & callback) {
+    auto root = _environment.handleTable.getObject<data::TrackingScope>(anchor);
     std::shared_ptr<pubsub::TopicReceivers> receivers = getOrCreateReceivers(topicOrd);
     std::shared_ptr<pubsub::TopicReceiver> receiver = receivers->newReceiver(callback);
     return root->anchor(receiver.get()); // if handle or root goes away, unsubscribe

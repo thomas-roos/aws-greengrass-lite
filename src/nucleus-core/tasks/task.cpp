@@ -1,11 +1,11 @@
 #include "task.h"
 
 namespace tasks {
-    thread_local data::Handle Task::_threadTask{data::Handle::nullHandle};
+    thread_local data::Handle Task::_threadTask{data::Handle::nullHandle()};
 //thread_local std::weak_ptr<TaskThread> TaskThread::_threadContext;
     thread_local TaskThread *TaskThread::_threadContext;
 
-    std::shared_ptr<data::Anchored> TaskManager::createTask() {
+    std::shared_ptr<data::ObjectAnchor> TaskManager::createTask() {
         auto task{std::make_shared<Task>(_environment)};
         auto taskAnchor{anchor(task.get())};
         task->setSelf(taskAnchor->getHandle());
@@ -112,12 +112,12 @@ namespace tasks {
         }
     }
 
-    void FixedTaskThread::setDefaultTask(const std::shared_ptr<data::Anchored> &task) {
+    void FixedTaskThread::setDefaultTask(const std::shared_ptr<data::ObjectAnchor> &task) {
         std::unique_lock guard{_mutex};
         _defaultTask = task;
     }
 
-    std::shared_ptr<data::Anchored> FixedTaskThread::getDefaultTask() {
+    std::shared_ptr<data::ObjectAnchor> FixedTaskThread::getDefaultTask() {
         std::unique_lock guard{_mutex};
         return _defaultTask;
     }
@@ -132,7 +132,7 @@ namespace tasks {
         _protectThread = nullptr;
     }
 
-    void FixedTaskThread::bindThreadContext(const std::shared_ptr<data::Anchored> &task) {
+    void FixedTaskThread::bindThreadContext(const std::shared_ptr<data::ObjectAnchor> &task) {
         // Run on target thread
         setDefaultTask(task);
         task->getObject<Task>()->getSetThreadSelf(data::Handle{task});
@@ -368,9 +368,9 @@ namespace tasks {
         }
     }
 
-    std::shared_ptr<data::Anchored> FixedTaskThread::claimFixedThread() {
+    std::shared_ptr<data::ObjectAnchor> FixedTaskThread::claimFixedThread() {
         std::shared_ptr<TaskManager> mgr{_pool.lock()};
-        std::shared_ptr<data::Anchored> taskAnchor{mgr->createTask()};
+        std::shared_ptr<data::ObjectAnchor> taskAnchor{mgr->createTask()};
         bindThreadContext(taskAnchor);
         protect();
         return taskAnchor;
@@ -381,7 +381,7 @@ namespace tasks {
     }
 
     void FixedTaskThread::releaseFixedThread() {
-//    std::shared_ptr<Anchored> defaultTask = FixedTaskThread::getDefaultTask();
+//    std::shared_ptr<ObjectAnchor> defaultTask = FixedTaskThread::getDefaultTask();
 //    Handle taskHandle {Task::getThreadSelf()};
 //    if ((!defaultTask) || defaultTask->getHandle() != taskHandle) {
 //        throw std::runtime_error("Thread associated with another task");

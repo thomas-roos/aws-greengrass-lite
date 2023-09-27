@@ -32,7 +32,7 @@ uint32_t ggapiCreateStruct(uint32_t anchorHandle) {
         anchorHandle = tasks::Task::getThreadSelf().asInt();
     }
     auto ss {std::make_shared<SharedStruct>(global.environment)};
-    auto owner {global.environment.handleTable.getObject<AnchoredWithRoots>(Handle{anchorHandle})};
+    auto owner {global.environment.handleTable.getObject<TrackingScope>(Handle{anchorHandle})};
     return owner->anchor(ss.get())->getHandle().asInt();
 }
 
@@ -122,8 +122,8 @@ double ggapiStructGetFloat64(uint32_t structHandle, uint32_t ord) {
 
 uint32_t ggapiStructGetStruct(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    std::shared_ptr<Anchored> ss_anchor {global.environment.handleTable.getAnchor(Handle{structHandle})};
-    std::shared_ptr<AnchoredWithRoots> ss_root { ss_anchor->getOwner()};
+    std::shared_ptr<ObjectAnchor> ss_anchor {global.environment.handleTable.getAnchor(Handle{structHandle})};
+    std::shared_ptr<TrackingScope> ss_root {ss_anchor->getOwner()};
     auto ss {ss_anchor->getObject<Structish>()};
     Handle ordH = Handle{ord};
     return ss_root->anchor(ss.get())->getHandle().asInt();
@@ -151,14 +151,14 @@ uint32_t ggapiAnchorHandle(uint32_t anchorHandle, uint32_t objectHandle) {
     if (anchorHandle == 0) {
         anchorHandle = tasks::Task::getThreadSelf().asInt();
     }
-    auto ss {global.environment.handleTable.getObject<AnchoredObject>(Handle{objectHandle})};
-    auto owner {global.environment.handleTable.getObject<AnchoredWithRoots>(Handle{anchorHandle})};
+    auto ss {global.environment.handleTable.getObject<TrackedObject>(Handle{objectHandle})};
+    auto owner {global.environment.handleTable.getObject<TrackingScope>(Handle{anchorHandle})};
     return owner->anchor(ss.get())->getHandle().asInt();
 }
 
 void ggapiReleaseHandle(uint32_t objectHandle) {
     Global & global = Global::self();
-    std::shared_ptr<Anchored> anchored {global.environment.handleTable.getAnchor(Handle{objectHandle})};
+    std::shared_ptr<ObjectAnchor> anchored {global.environment.handleTable.getAnchor(Handle{objectHandle})};
     // releasing a non-existing handle is a no-op as it may have been garbage collected
     if (anchored) {
         anchored->release();

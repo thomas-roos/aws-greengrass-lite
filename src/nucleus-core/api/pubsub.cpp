@@ -24,7 +24,7 @@ uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, int32_t timeou
     data::Global & global = data::Global::self();
     data::Handle parentTask {tasks::Task::getThreadSelf() };
     std::shared_ptr<tasks::Task> parentTaskObj {global.environment.handleTable.getObject<tasks::Task>(parentTask) };
-    std::shared_ptr<data::Anchored> taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context
+    std::shared_ptr<data::ObjectAnchor> taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context
     std::shared_ptr<tasks::Task> subTaskObj = taskAnchor->getObject<tasks::Task>();
     std::shared_ptr<data::Structish> callDataStruct {global.environment.handleTable.getObject<data::Structish>(
             data::Handle{callStruct}) };
@@ -43,7 +43,7 @@ uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, int32_t timeou
 
 uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopicCallback respCallback, uintptr_t context, int32_t timeout) {
     data::Global & global = data::Global::self();
-    std::shared_ptr<data::Anchored> taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context
+    std::shared_ptr<data::ObjectAnchor> taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context
     std::shared_ptr<tasks::Task> taskObject = taskAnchor->getObject<tasks::Task>();
     std::shared_ptr<data::Structish> callDataStruct {global.environment.handleTable.getObject<data::Structish>(
             data::Handle{callStruct}) };

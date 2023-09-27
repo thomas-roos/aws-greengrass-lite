@@ -17,15 +17,16 @@ add_library(nucleus-core SHARED
         config/config_reader.cpp config/config_reader.h
         data/environment.cpp data/environment.h
         data/handle_table.cpp data/handle_table.h
-        data/safe_handle.h
+        data/safe_handle.cpp data/safe_handle.h
         data/shared_struct.cpp data/shared_struct.h
         data/string_table.cpp data/string_table.h
+        data/tracked_object.cpp data/tracked_object.h
         lifecycle/kernel_command_line.cpp lifecycle/kernel_command_line.h
         plugins/plugin_loader.cpp plugins/plugin_loader.h
         pubsub/local_topics.cpp pubsub/local_topics.h
         tasks/expire_time.h
         tasks/task.cpp tasks/task.h
-        )
+        data/safe_handle.cpp)
 target_link_libraries(nucleus-core Threads::Threads ${CMAKE_DL_LIBS} ${YAML_CPP_LIBRARIES})
 target_link_directories(nucleus-core PUBLIC ${YAML_CPP_LIBRARY_DIR})
 target_include_directories(nucleus-core PUBLIC ${YAML_CPP_INCLUDE_DIR})

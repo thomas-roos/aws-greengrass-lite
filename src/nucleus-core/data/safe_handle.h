@@ -2,8 +2,11 @@
 #include <memory>
 
 namespace data {
-    class Anchored;
+    class ObjectAnchor;
 
+    //
+    // Base class for handles
+    //
     class Handle {
     private:
         uint32_t _asInt;
@@ -24,18 +27,18 @@ namespace data {
             }
         };
 
-        Handle() : _asInt{0} {
+        constexpr Handle() : _asInt{0} {
         }
-        explicit Handle(const uint32_t i) : _asInt{i} {
+        explicit constexpr Handle(const uint32_t i) : _asInt{i} {
         }
-        Handle(const Handle &) = default;
-        Handle(Handle &&) = default;
+        constexpr Handle(const Handle &) = default;
+        constexpr Handle(Handle &&) = default;
         ~Handle() = default;
-        explicit Handle(const std::shared_ptr<Anchored> & anchored);
-        explicit Handle(Anchored * anchored);
+        explicit Handle(const std::shared_ptr<ObjectAnchor> & anchored);
+        explicit Handle(ObjectAnchor * anchored);
 
-        Handle & operator=(const Handle &) = default;
-        Handle & operator=(Handle &&) = default;
+        constexpr Handle & operator=(const Handle &) = default;
+        constexpr Handle & operator=(Handle &&) = default;
 
         [[nodiscard]] uint32_t asInt() const {
             return _asInt;
@@ -61,8 +64,10 @@ namespace data {
             return _asInt != other._asInt;
         }
 
-        static const Handle nullHandle;
+        static constexpr Handle nullHandle();
     };
 
-    inline const Handle Handle::nullHandle{};
+    inline constexpr Handle Handle::nullHandle() {
+        return {};
+    }
 }

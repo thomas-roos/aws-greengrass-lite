@@ -21,12 +21,12 @@ namespace plugins {
     //
     // Abstract plugins also acts as a global anchor for the given plugins module
     //
-    class AbstractPlugin : public data::AnchoredWithRoots {
+    class AbstractPlugin : public data::TrackingScope {
     protected:
         std::string _moduleName;
     public:
         explicit AbstractPlugin(data::Environment & environment, const std::string_view & name) :
-            AnchoredWithRoots(environment), _moduleName{name} {
+                TrackingScope(environment), _moduleName{name} {
         }
         virtual void lifecycle(data::Handle pluginRoot, data::Handle phase, const std::shared_ptr<data::Structish> & data) = 0;
         virtual bool isActive() {
@@ -91,17 +91,17 @@ namespace plugins {
     //
     // Loader is responsible for handling all plugins
     //
-    class PluginLoader : public data::AnchoredWithRoots {
+    class PluginLoader : public data::TrackingScope {
     private:
-        std::vector<std::shared_ptr<data::Anchored>> getPlugins();
+        std::vector<std::shared_ptr<data::ObjectAnchor>> getPlugins();
 
     protected:
         std::shared_ptr<PluginLoader> shared_from_this() {
-            return std::static_pointer_cast<PluginLoader>(AnchoredWithRoots::shared_from_this());
+            return std::static_pointer_cast<PluginLoader>(TrackingScope::shared_from_this());
         }
 
     public:
-        explicit PluginLoader(data::Environment & environment) : AnchoredWithRoots(environment) {
+        explicit PluginLoader(data::Environment & environment) : TrackingScope(environment) {
         }
 
         void discoverPlugins();

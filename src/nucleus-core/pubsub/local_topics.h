@@ -27,7 +27,7 @@ namespace pubsub {
         virtual data::Handle operator()(data::Handle taskHandle, data::Handle topicOrd, data::Handle dataStruct) = 0;
     };
 
-    class TopicReceiver : public data::AnchoredObject {
+    class TopicReceiver : public data::TrackedObject {
     private:
         data::Handle _topicOrd;
         std::weak_ptr<TopicReceivers> _receivers;
@@ -66,7 +66,7 @@ namespace pubsub {
         void cleanup();
         std::shared_ptr<TopicReceivers> testAndGetReceivers(data::Handle topicOrd);
         std::shared_ptr<TopicReceivers> getOrCreateReceivers(data::Handle topicOrd);
-        std::shared_ptr<data::Anchored> subscribe(data::Handle anchor, data::Handle topicOrd, std::unique_ptr<AbstractCallback> & callback);
+        std::shared_ptr<data::ObjectAnchor> subscribe(data::Handle anchor, data::Handle topicOrd, std::unique_ptr<AbstractCallback> & callback);
         static void applyCompletion(std::shared_ptr<tasks::Task> & task, data::Handle topicOrd, std::unique_ptr<AbstractCallback> & callback);
         void insertCallQueue(std::shared_ptr<tasks::Task> & task, data::Handle topicOrd);
     };

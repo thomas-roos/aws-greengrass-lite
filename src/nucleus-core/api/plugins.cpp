@@ -10,6 +10,6 @@ uint32_t ggapiRegisterPlugin(uint32_t moduleHandle, uint32_t componentName, ggap
             parentModule,
             lifecycleCallback,
             callbackContext)};
-    std::shared_ptr<data::Anchored> anchor = global.loader->anchor(delegate.get()); // TODO: schedule bootstrap cycle
+    std::shared_ptr<data::ObjectAnchor> anchor = global.loader->anchor(delegate.get()); // TODO: schedule bootstrap cycle
     return data::Handle{anchor}.asInt();
 }

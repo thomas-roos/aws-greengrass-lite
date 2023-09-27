@@ -118,10 +118,10 @@ namespace data {
     //
     // Base class for classes that behave like a structure - relevant for config
     //
-    class Structish : public data::AnchoredObject {
+    class Structish : public data::TrackedObject {
     public:
         friend class StructElement;
-        explicit Structish(Environment & environment) : AnchoredObject{environment} {
+        explicit Structish(Environment & environment) : TrackedObject{environment} {
         }
         std::shared_ptr<Structish> structish_shared_from_this() {
             return std::dynamic_pointer_cast<Structish>(shared_from_this());

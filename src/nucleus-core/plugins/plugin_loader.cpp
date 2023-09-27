@@ -60,7 +60,7 @@ void plugins::NativePlugin::lifecycle(data::Handle pluginAnchor, data::Handle ph
     if (lifecycleFn != nullptr) {
         std::shared_ptr<data::Structish> copy = data->copy();
         std::shared_ptr<tasks::Task> threadTask = _environment.handleTable.getObject<tasks::Task>(tasks::Task::getThreadSelf());
-        std::shared_ptr<data::Anchored> dataAnchor = threadTask->anchor(copy.get());
+        std::shared_ptr<data::ObjectAnchor> dataAnchor = threadTask->anchor(copy.get());
         lifecycleFn(
                 pluginAnchor.asInt(),
                 phase.asInt(),
@@ -80,7 +80,7 @@ void plugins::DelegatePlugin::lifecycle(data::Handle pluginAnchor, data::Handle 
     if (delegateLifecycle != nullptr) {
         std::shared_ptr<data::Structish> copy = data->copy();
         std::shared_ptr<tasks::Task> threadTask = _environment.handleTable.getObject<tasks::Task>(tasks::Task::getThreadSelf());
-        std::shared_ptr<data::Anchored> dataAnchor = threadTask->anchor(copy.get());
+        std::shared_ptr<data::ObjectAnchor> dataAnchor = threadTask->anchor(copy.get());
         delegateLifecycle(
                 delegateContext,
                 pluginAnchor.asInt(),
@@ -124,9 +124,9 @@ void plugins::PluginLoader::loadNativePlugin(const std::string &name) {
     anchor(plugin.get());
 }
 
-std::vector<std::shared_ptr<data::Anchored>> plugins::PluginLoader::getPlugins() {
+std::vector<std::shared_ptr<data::ObjectAnchor>> plugins::PluginLoader::getPlugins() {
     std::shared_lock guard{_mutex};
-    std::vector<std::shared_ptr<data::Anchored>> copy;
+    std::vector<std::shared_ptr<data::ObjectAnchor>> copy;
     copy.reserve(_roots.size());
     for (const auto &i : _roots) {
         copy.emplace_back(i.second);

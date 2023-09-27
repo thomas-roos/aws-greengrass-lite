@@ -21,7 +21,7 @@ namespace data {
             std::shared_lock guard {_mutex};
             auto i = _interned.find(str);
             if (i == _interned.end()) {
-                return Handle::nullHandle;
+                return Handle::nullHandle();
             } else {
                 return i->second;
             }

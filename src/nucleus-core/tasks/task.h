@@ -35,7 +35,7 @@ namespace tasks {
         std::shared_ptr<TaskThread> getAffinity();
     };
 
-    class Task : public data::AnchoredWithRoots {
+    class Task : public data::TrackingScope {
     public:
         enum Status {
             Running,
@@ -58,11 +58,11 @@ namespace tasks {
     public:
 
         explicit Task(data::Environment & environment) :
-            AnchoredWithRoots {environment},
-            _timeout{ ExpireTime::fromNow(-1)} {
+                TrackingScope {environment},
+                _timeout{ ExpireTime::fromNow(-1)} {
         }
         std::shared_ptr<Task> shared_from_this() {
-            return std::static_pointer_cast<Task>(AnchoredWithRoots::shared_from_this());
+            return std::static_pointer_cast<Task>(TrackingScope::shared_from_this());
         }
         void setSelf(data::Handle self) {
             std::unique_lock guard{_mutex};
@@ -189,19 +189,19 @@ namespace tasks {
 
     class FixedTaskThread : public TaskThread {
     protected:
-        std::shared_ptr<data::Anchored> _defaultTask;
+        std::shared_ptr<data::ObjectAnchor> _defaultTask;
         std::shared_ptr<FixedTaskThread> _protectThread;
     public:
         explicit FixedTaskThread(data::Environment & environment, const std::shared_ptr<TaskManager> &pool) :
             TaskThread(environment, pool) {
         }
         // Call this on the native thread
-        void bindThreadContext(const std::shared_ptr<data::Anchored> & task);
-        void setDefaultTask(const std::shared_ptr<data::Anchored> & task);
-        std::shared_ptr<data::Anchored> getDefaultTask();
+        void bindThreadContext(const std::shared_ptr<data::ObjectAnchor> & task);
+        void setDefaultTask(const std::shared_ptr<data::ObjectAnchor> & task);
+        std::shared_ptr<data::ObjectAnchor> getDefaultTask();
         void protect();
         void unprotect();
-        std::shared_ptr<data::Anchored> claimFixedThread();
+        std::shared_ptr<data::ObjectAnchor> claimFixedThread();
         void releaseFixedThread() override;
         std::shared_ptr<FixedTaskThread> shared_from_this() {
             return std::static_pointer_cast<FixedTaskThread>(TaskThread::shared_from_this());
@@ -216,7 +216,7 @@ namespace tasks {
         return _threadAffinity;
     }
 
-    class TaskManager : public data::AnchoredWithRoots {
+    class TaskManager : public data::TrackingScope {
     private:
         std::list<std::shared_ptr<TaskPoolWorker>> _busyWorkers; // assumes small pool, else std::set
         std::list<std::shared_ptr<TaskPoolWorker>> _idleWorkers; // LIFO
@@ -224,10 +224,10 @@ namespace tasks {
         int _maxWorkers {5}; // TODO, from configuration
 
     public:
-        explicit TaskManager(data::Environment & environment) : data::AnchoredWithRoots{environment} {
+        explicit TaskManager(data::Environment & environment) : data::TrackingScope{environment} {
         }
 
-        std::shared_ptr<data::Anchored> createTask();
+        std::shared_ptr<data::ObjectAnchor> createTask();
         std::shared_ptr<Task> acquireTaskForWorker(TaskThread *worker);
         std::shared_ptr<Task> acquireTaskWhenStealing(TaskThread *worker, const std::shared_ptr<Task> & priorityTask);
         bool allocateNextWorker();

@@ -1,27 +1,7 @@
 #include "handle_table.h"
 #include "environment.h"
 
-data::Handle::Handle(const std::shared_ptr<data::Anchored> & anchored) {
-    if (!anchored) {
-        _asInt = 0;
-    } else {
-        _asInt = anchored->getHandle()._asInt;
-    }
-}
-
-data::Handle::Handle(data::Anchored * anchored) {
-    if (!anchored) {
-        _asInt = 0;
-    } else {
-        _asInt = anchored->getHandle()._asInt;
-    }
-}
-
-data::Handle data::Anchored::getHandle() {
-    return _environment.handleTable.getHandle(this);
-}
-
-void data::HandleTable::release(Anchored * anchored) {
+void data::HandleTable::release(ObjectAnchor * anchored) {
     if (!anchored) {
         return;
     }
@@ -29,13 +9,13 @@ void data::HandleTable::release(Anchored * anchored) {
     if (h) {
         std::unique_lock guard{_mutex};
         _handles.erase(h);
-        anchored->_handle = Handle::nullHandle;
+        anchored->_handle = Handle::nullHandle();
     }
 }
 
-data::Handle data::HandleTable::getHandle(Anchored * anchored) {
+data::Handle data::HandleTable::getHandle(ObjectAnchor * anchored) {
     if (!anchored) {
-        return Handle::nullHandle;
+        return Handle::nullHandle();
     }
     Handle h = getExistingHandle(anchored);
     if (!h) {
@@ -65,45 +45,45 @@ data::Handle data::HandleTable::getHandle(Anchored * anchored) {
     }
 }
 
-data::Anchored::~Anchored() {
+data::ObjectAnchor::~ObjectAnchor() {
     _environment.handleTable.release(this);
 }
 
-std::shared_ptr<data::Anchored> data::AnchoredWithRoots::anchor(AnchoredObject *obj) {
+std::shared_ptr<data::ObjectAnchor> data::TrackingScope::anchor(TrackedObject *obj) {
     if (!obj) {
         return nullptr;
     }
-    auto ptr { std::make_shared<Anchored>(_environment, obj)};
+    auto ptr { std::make_shared<ObjectAnchor>(_environment, obj)};
     Handle h = ptr->getHandle();
     std::unique_lock guard{_mutex};
     _roots[h] = ptr;
-    auto self = std::dynamic_pointer_cast<AnchoredWithRoots>(shared_from_this());
+    auto self = std::dynamic_pointer_cast<TrackingScope>(shared_from_this());
     ptr->_owner = self;
     return ptr;
 }
 
-std::shared_ptr<data::Anchored> data::AnchoredWithRoots::anchor(const std::shared_ptr<Anchored>& anchored) {
+std::shared_ptr<data::ObjectAnchor> data::TrackingScope::anchor(const std::shared_ptr<ObjectAnchor>& anchored) {
     if (!anchored) {
         return nullptr;
     }
     return anchor(anchored.get());
 }
 
-std::shared_ptr<data::Anchored> data::AnchoredWithRoots::anchor(Anchored *anchored) {
+std::shared_ptr<data::ObjectAnchor> data::TrackingScope::anchor(ObjectAnchor *anchored) {
     if (!anchored) {
         return nullptr;
     }
-    return anchor(anchored->getObject<AnchoredObject>().get());
+    return anchor(anchored->getObject<TrackedObject>().get());
 }
 
-std::shared_ptr<data::Anchored> data::AnchoredWithRoots::anchor(Handle handle) {
+std::shared_ptr<data::ObjectAnchor> data::TrackingScope::anchor(Handle handle) {
     if (!handle) {
         return nullptr;
     }
-    return anchor(_environment.handleTable.getObject<AnchoredObject>(handle).get());
+    return anchor(_environment.handleTable.getObject<TrackedObject>(handle).get());
 }
 
-bool data::AnchoredWithRoots::release(Handle handle) {
+bool data::TrackingScope::release(Handle handle) {
     if (!handle) {
         return false;
     }
@@ -111,19 +91,19 @@ bool data::AnchoredWithRoots::release(Handle handle) {
     return _roots.erase(handle) > 0;
 }
 
-bool data::Anchored::release() {
-    std::shared_ptr<AnchoredWithRoots> owner {_owner};
+bool data::ObjectAnchor::release() {
+    std::shared_ptr<TrackingScope> owner {_owner};
     return owner->release(this);
 }
 
-bool data::AnchoredWithRoots::release(Anchored * anchored) {
+bool data::TrackingScope::release(ObjectAnchor * anchored) {
     if (!anchored) {
         return false;
     }
     return release(anchored->getHandle());
 }
 
-bool data::AnchoredWithRoots::release(std::shared_ptr<Anchored>& anchored) {
+bool data::TrackingScope::release(std::shared_ptr<ObjectAnchor>& anchored) {
     if (!anchored) {
         return false;
     }

@@ -1,7 +1,9 @@
 #pragma once
 #include <memory>
 #include <string>
+#include <stdexcept>
 #include <functional>
+#include <type_traits>
 
 namespace util {
     inline bool startsWith(std::string_view target, std::string_view prefix) {
@@ -60,6 +62,7 @@ namespace util {
     public:
         explicit CheckedBuffer(char * buffer, size_t buflen) :
                 _buffer{buffer},_buflen(buflen) {
+            // NOLINTNEXTLINE(*-pointer-arithmetic)
             if (_buffer + _buflen < _buffer) {
                 throw std::out_of_range("Buffer wraps");
             }
@@ -70,9 +73,53 @@ namespace util {
                 throw std::out_of_range("Buffer is too small");
             }
             s.copy(_buffer, _buflen-1);
+            // NOLINTNEXTLINE(*-pointer-arithmetic)
             _buffer[s.length()] = 0; // ok because of above length check
             return s.length();
         }
     };
 
+    //
+    // Base class for all "by-reference-only" objects
+    //
+    template<typename T>
+    class RefObject : public std::enable_shared_from_this<T> {
+    public:
+        ~RefObject() = default;
+        RefObject();
+        RefObject(const RefObject&) = delete;
+        RefObject(RefObject&&)  noexcept = default;
+        RefObject& operator=(const RefObject&) = delete;
+        RefObject& operator=(RefObject&&)  noexcept = delete;
+        std::shared_ptr<T> baseRef() {
+            return std::enable_shared_from_this<T>::shared_from_this();
+        }
+        template<typename S>
+        std::shared_ptr<S> tryRef();
+        template<typename S>
+        std::shared_ptr<S> ref();
+    };
+    template<typename T>
+    RefObject<T>::RefObject() {
+        static_assert(std::is_base_of_v<RefObject,T>);
+    }
+    template<typename T>
+    template<typename S>
+    std::shared_ptr<S> RefObject<T>::tryRef() {
+        static_assert(std::is_base_of_v<T,S>);
+        if constexpr (std::is_same_v<T,S>) {
+            return baseRef();
+        } else {
+            return std::dynamic_pointer_cast<S>(baseRef());
+        }
+    }
+    template<typename T>
+    template<typename S>
+    std::shared_ptr<S> RefObject<T>::ref() {
+        std::shared_ptr<S> ptr {tryRef()};
+        if (!ptr) {
+            throw std::bad_cast();
+        }
+        return ptr;
+    }
 }
