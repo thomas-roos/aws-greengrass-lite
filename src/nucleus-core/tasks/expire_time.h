@@ -3,14 +3,17 @@
 #include <ctime>
 #include <chrono>
 
-// this class is used for timeouts, which depends on steady_clock rather then epoch
+// this class is used for timeouts, which depends on steady_clock rather than epoch
 // assumes conversion with milliseconds
 class ExpireTime {
 private:
     std::chrono::time_point<std::chrono::steady_clock> _steadyTime;
 public:
-    ExpireTime(const ExpireTime & time) : _steadyTime{time._steadyTime} {
-    }
+    ExpireTime(const ExpireTime &) = default;
+    ExpireTime(ExpireTime &&) = default;
+    ~ExpireTime() = default;
+    ExpireTime & operator=(const ExpireTime &) = default;
+    ExpireTime & operator=(ExpireTime &&) = default;
     explicit ExpireTime(std::chrono::time_point<std::chrono::steady_clock> time) : _steadyTime{time} {
     }
     explicit operator std::chrono::time_point<std::chrono::steady_clock>() const {

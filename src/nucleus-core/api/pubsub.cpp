@@ -1,8 +1,4 @@
-#include "../data/globals.h"
-#include "../data/handle_table.h"
-#include "../data/safe_handle.h"
-#include "../data/shared_struct.h"
-#include "../pubsub/local_topics.h"
+#include "data/globals.h"
 #include <c_api.h>
 
 class NativeCallback : public pubsub::AbstractCallback {

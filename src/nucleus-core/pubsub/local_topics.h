@@ -1,8 +1,8 @@
 #pragma once
-#include "../data/safe_handle.h"
-#include "../data/handle_table.h"
-#include "../data/environment.h"
-#include "../data/shared_struct.h"
+#include "data/safe_handle.h"
+#include "data/handle_table.h"
+#include "data/environment.h"
+#include "data/shared_struct.h"
 #include <map>
 #include <string>
 #include <vector>

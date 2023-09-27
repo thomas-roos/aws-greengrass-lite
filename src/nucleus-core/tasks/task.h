@@ -1,11 +1,11 @@
 #pragma once
-#include "../data/environment.h"
-#include "../data/handle_table.h"
-#include "../pubsub/local_topics.h"
+#include "data/environment.h"
+#include "data/handle_table.h"
+#include "pubsub/local_topics.h"
+#include "data/safe_handle.h"
+#include "data/shared_struct.h"
+#include "pubsub/local_topics.h"
 #include "expire_time.h"
-#include "../data/safe_handle.h"
-#include "../data/shared_struct.h"
-#include "../pubsub/local_topics.h"
 #include <vector>
 #include <mutex>
 #include <list>
@@ -24,6 +24,11 @@ namespace tasks {
     protected:
         std::shared_ptr<TaskThread> _threadAffinity;
     public:
+        SubTask() = default;
+        SubTask(const SubTask&) = delete;
+        SubTask(SubTask&&) = delete;
+        SubTask& operator=(const SubTask&) = delete;
+        SubTask& operator=(SubTask&&) = delete;
         virtual ~SubTask() = default;
         virtual std::shared_ptr<data::Structish> runInThread(const std::shared_ptr<Task> &task, const std::shared_ptr<data::Structish> &dataIn) = 0;
         void setAffinity(const std::shared_ptr<TaskThread> & affinity);
@@ -127,6 +132,11 @@ namespace tasks {
         void bindThreadContext();
     public:
         explicit TaskThread(data::Environment & environment, const std::shared_ptr<TaskManager> &pool);
+        TaskThread(const TaskThread &) = delete;
+        TaskThread(TaskThread &&) = delete;
+        TaskThread & operator=(const TaskThread &) = delete;
+        TaskThread & operator=(TaskThread &&) = delete;
+        virtual ~TaskThread() = default;
         void queueTask(const std::shared_ptr<Task> & task);
         std::shared_ptr<Task> pickupAffinitizedTask();
         std::shared_ptr<Task> pickupPoolTask();
@@ -211,7 +221,7 @@ namespace tasks {
         std::list<std::shared_ptr<TaskPoolWorker>> _busyWorkers; // assumes small pool, else std::set
         std::list<std::shared_ptr<TaskPoolWorker>> _idleWorkers; // LIFO
         std::list<std::shared_ptr<Task>> _backlog; // tasks with no thread affinity (assumed async)
-        const int _maxWorkers {5}; // TODO, from configuration
+        int _maxWorkers {5}; // TODO, from configuration
 
     public:
         explicit TaskManager(data::Environment & environment) : data::AnchoredWithRoots{environment} {

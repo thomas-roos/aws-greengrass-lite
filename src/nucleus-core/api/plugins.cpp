@@ -1,5 +1,4 @@
-#include "../data/globals.h"
-#include "../plugins/plugin_loader.h"
+#include "data/globals.h"
 #include <c_api.h>
 
 uint32_t ggapiRegisterPlugin(uint32_t moduleHandle, uint32_t componentName, ggapiLifecycleCallback lifecycleCallback, uintptr_t callbackContext) {

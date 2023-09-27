@@ -2,19 +2,19 @@
 #include <iostream>
 
 struct Keys {
-    const ggapi::StringOrd start { "start"};
-    const ggapi::StringOrd run { "run"};
-    const ggapi::StringOrd publishToIoTCoreTopic {"aws.greengrass.PublishToIoTCore"};
-    const ggapi::StringOrd topicName {"topicName"};
-    const ggapi::StringOrd qos {"qos"};
-    const ggapi::StringOrd payload {"payload"};
-    const ggapi::StringOrd retain {"retain"};
-    const ggapi::StringOrd userProperties {"userProperties"};
-    const ggapi::StringOrd messageExpiryIntervalSeconds {"messageExpiryIntervalSeconds"};
-    const ggapi::StringOrd correlationData {"correlationData"};
-    const ggapi::StringOrd responseTopic {"responseTopic"};
-    const ggapi::StringOrd payloadFormat {"payloadFormat"};
-    const ggapi::StringOrd contentType {"contentType"};
+    ggapi::StringOrd start { "start"};
+    ggapi::StringOrd run { "run"};
+    ggapi::StringOrd publishToIoTCoreTopic {"aws.greengrass.PublishToIoTCore"};
+    ggapi::StringOrd topicName {"topicName"};
+    ggapi::StringOrd qos {"qos"};
+    ggapi::StringOrd payload {"payload"};
+    ggapi::StringOrd retain {"retain"};
+    ggapi::StringOrd userProperties {"userProperties"};
+    ggapi::StringOrd messageExpiryIntervalSeconds {"messageExpiryIntervalSeconds"};
+    ggapi::StringOrd correlationData {"correlationData"};
+    ggapi::StringOrd responseTopic {"responseTopic"};
+    ggapi::StringOrd payloadFormat {"payloadFormat"};
+    ggapi::StringOrd contentType {"contentType"};
 
     static const Keys & get() {
         static std::unique_ptr<Keys> keyRef;
@@ -42,7 +42,7 @@ void doRunPhase() {
 
 }
 
-extern "C" EXPORT void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) {
+extern "C" void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) {
     std::cout << "Running lifecycle plugins 1... " << ggapi::StringOrd{phase}.toString() << std::endl;
     const auto & keys = Keys::get();
 

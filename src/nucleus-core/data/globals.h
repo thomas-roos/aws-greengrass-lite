@@ -1,10 +1,10 @@
 #pragma once
 #include "environment.h"
-#include "../tasks/task.h"
-#include "../pubsub/local_topics.h"
-#include "../plugins/plugin_loader.h"
-#include "../pubsub/local_topics.h"
-#include "../tasks/task.h"
+#include "tasks/task.h"
+#include "pubsub/local_topics.h"
+#include "plugins/plugin_loader.h"
+#include "pubsub/local_topics.h"
+#include "tasks/task.h"
 
 namespace data {
     struct Global {

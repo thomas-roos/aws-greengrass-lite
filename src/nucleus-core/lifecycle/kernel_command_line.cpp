@@ -4,16 +4,16 @@
 #include <optional>
 namespace fs = std::filesystem;
 
-void lifecycle::KernelCommandLine::parseArgs(int argc, char * argv[]) {
+void lifecycle::KernelCommandLine::parseArgs(int argc, char * argv[]) { // NOLINT(*-avoid-c-arrays)
     std::vector<std::string> args;
     args.reserve(argc-1);
-    if (argv[0]) {
-        parseProgramName(argv[0]);
+    if (argv[0]) { // NOLINT(*-pointer-arithmetic)
+        parseProgramName(argv[0]); // NOLINT(*-pointer-arithmetic)
     } else {
         throw std::runtime_error("Handle nullptr");
     }
     for (int i = 1; i < argc; i++) {
-        args.emplace_back(argv[i]);
+        args.emplace_back(argv[i]); // NOLINT(*-pointer-arithmetic)
     }
     parseArgs(args);
 }

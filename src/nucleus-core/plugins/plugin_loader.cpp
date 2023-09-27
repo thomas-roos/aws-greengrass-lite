@@ -1,5 +1,5 @@
 #include "plugin_loader.h"
-#include "../tasks/task.h"
+#include "tasks/task.h"
 
 namespace fs = std::filesystem;
 
@@ -25,6 +25,7 @@ void plugins::NativePlugin::load(const std::string & filePath) {
         std::string error {dlerror()};
         throw std::runtime_error(std::string("Cannot load shared object: ")+filePath + std::string(" ") + error);
     }
+    // NOLINTNEXTLINE(*-reinterpret-cast)
     _lifecycleFn = reinterpret_cast<lifecycleFn_t>(::dlsym(_handle, "greengrass_lifecycle"));
 #elif defined(USE_WINDLL)
     nativeHandle_t handle = ::LoadLibraryEx(filePath.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
@@ -34,6 +35,7 @@ void plugins::NativePlugin::load(const std::string & filePath) {
         // TODO: use FormatMessage
         throw std::runtime_error(std::string("Cannot load DLL: ")+filePath + std::string(" ") + std::to_string(lastError));
     }
+    // NOLINTNEXTLINE(*-reinterpret-cast)
     _lifecycleFn = reinterpret_cast<lifecycleFn_t>(::GetProcAddress(_handle, "greengrass_lifecycle"));
 #endif
 }
@@ -68,8 +70,8 @@ void plugins::NativePlugin::lifecycle(data::Handle pluginAnchor, data::Handle ph
 }
 
 void plugins::DelegatePlugin::lifecycle(data::Handle pluginAnchor, data::Handle phase, const std::shared_ptr<data::Structish> & data) {
-    uintptr_t delegateContext;
-    ggapiLifecycleCallback delegateLifecycle;
+    uintptr_t delegateContext = 0;
+    ggapiLifecycleCallback delegateLifecycle = nullptr;
     {
         std::shared_lock guard{_mutex};
         delegateContext = _delegateContext;

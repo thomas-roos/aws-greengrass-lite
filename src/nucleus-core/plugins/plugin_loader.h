@@ -1,15 +1,15 @@
 #pragma once
+#include "data/environment.h"
+#include "data/handle_table.h"
+#include "data/safe_handle.h"
+#include "data/shared_struct.h"
+#include <c_api.h>
 #include <memory>
 #include <string>
 #include <list>
 #include <shared_mutex>
 #include <mutex>
 #include <filesystem>
-#include "c_api.h"
-#include "../data/environment.h"
-#include "../data/handle_table.h"
-#include "../data/safe_handle.h"
-#include "../data/shared_struct.h"
 
 #if defined(USE_DLFCN)
 #include <dlfcn.h>
@@ -85,7 +85,7 @@ namespace plugins {
         ~NativePlugin() override;
         void load(const std::string & filePath);
         void lifecycle(data::Handle pluginRoot, data::Handle phase, const std::shared_ptr<data::Structish> & data) override;
-        bool isActive();
+        bool isActive() override;
     };
 
     //

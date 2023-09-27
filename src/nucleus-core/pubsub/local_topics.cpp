@@ -1,7 +1,5 @@
 #include "local_topics.h"
-#include "../data/environment.h"
-#include "../data/shared_struct.h"
-#include "../tasks/task.h"
+#include "tasks/task.h"
 #include <shared_mutex>
 
 pubsub::TopicReceiver::~TopicReceiver() {

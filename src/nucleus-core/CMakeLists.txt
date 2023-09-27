@@ -29,6 +29,7 @@ add_library(nucleus-core SHARED
 target_link_libraries(nucleus-core Threads::Threads ${CMAKE_DL_LIBS} ${YAML_CPP_LIBRARIES})
 target_link_directories(nucleus-core PUBLIC ${YAML_CPP_LIBRARY_DIR})
 target_include_directories(nucleus-core PUBLIC ${YAML_CPP_INCLUDE_DIR})
+target_include_directories(nucleus-core PRIVATE .)
 
 add_custom_command(TARGET nucleus-core
         POST_BUILD

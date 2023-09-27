@@ -8,3 +8,4 @@ add_subdirectory(layered-plugin)
 
 add_executable(greengrass-lite main.cpp)
 target_link_libraries(greengrass-lite Threads::Threads ${CMAKE_DL_LIBS} nucleus-core)
+target_include_directories(greengrass-lite PRIVATE .)

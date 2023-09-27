@@ -1,5 +1,5 @@
 #include "config_manager.h"
-#include "../data/environment.h"
+#include "data/environment.h"
 #include "util.h"
 
 //
@@ -135,7 +135,7 @@ namespace config {
     }
 
     std::shared_ptr<Topics> Topics::createInteriorChild(data::Handle nameOrd, const Timestamp & timestamp) {
-        Element leaf = createChild(nameOrd, [&](auto ord) {
+        Element leaf = createChild(nameOrd, [this,&timestamp](auto ord) {
             std::shared_ptr<Topics> parent {topics_shared_from_this()};
             std::shared_ptr<Topics> nested {std::make_shared<Topics>(_environment, parent)};
             return Element(ord, timestamp, nested);
@@ -174,7 +174,7 @@ namespace config {
         return findLeafChild(handle);
     }
 
-    std::shared_ptr<Topics> Topics::findInteriorChild(data::Handle handle) {
+    std::shared_ptr<Topics> Topics::findInteriorChild(data::Handle handle) const {
         Element leaf = getChild(handle);
         if (leaf && leaf.isTopics()) {
             return leaf.getTopicsRef();

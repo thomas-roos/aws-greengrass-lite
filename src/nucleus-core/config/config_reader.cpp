@@ -1,6 +1,5 @@
 #include "config_reader.h"
-#include "../data/environment.h"
-#include <iostream>
+#include "data/environment.h"
 #include <fstream>
 #include <memory>
 #include <filesystem>

@@ -28,12 +28,14 @@ namespace data {
         }
         explicit Handle(const uint32_t i) : _asInt{i} {
         }
-
-        Handle(const Handle & other) = default;
+        Handle(const Handle &) = default;
+        Handle(Handle &&) = default;
+        ~Handle() = default;
         explicit Handle(const std::shared_ptr<Anchored> & anchored);
         explicit Handle(Anchored * anchored);
 
-        Handle & operator=(const Handle & other) = default;
+        Handle & operator=(const Handle &) = default;
+        Handle & operator=(Handle &&) = default;
 
         [[nodiscard]] uint32_t asInt() const {
             return _asInt;

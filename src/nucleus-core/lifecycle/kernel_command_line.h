@@ -35,12 +35,12 @@ namespace lifecycle {
         static std::filesystem::path resolve(const std::filesystem::path & first, std::string_view second);
 
     public:
-        KernelCommandLine(data::Global & global) : _global{global} {
+        explicit KernelCommandLine(data::Global & global) : _global{global} {
         }
         int main();
         void parseEnv(data::SysProperties & sysProperties);
         void parseHome(data::SysProperties & sysProperties);
-        void parseArgs(int argc, char * argv[]);
+        void parseArgs(int argc, char * argv[]); // NOLINT(*-avoid-c-arrays)
         void parseArgs(const std::vector<std::string> & args);
         void parseProgramName(std::string_view progName);
     };

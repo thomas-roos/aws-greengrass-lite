@@ -1,11 +1,12 @@
 #pragma once
 
-#include "../data/shared_struct.h"
-#include "../data/handle_table.h"
-#include "../data/string_table.h"
-#include "../tasks/expire_time.h"
-#include "../data/safe_handle.h"
+#include "data/shared_struct.h"
+#include "data/handle_table.h"
+#include "data/string_table.h"
+#include "tasks/expire_time.h"
+#include "data/safe_handle.h"
 #include <filesystem>
+#include <utility>
 
 namespace config {
     class Timestamp;
@@ -22,18 +23,19 @@ namespace config {
     private:
         int64_t _time; // since epoch
     public:
+        constexpr Timestamp(const Timestamp &time) = default;
+        constexpr Timestamp(Timestamp &&time) = default;
         constexpr Timestamp() : _time{0} {
         }
-
         explicit constexpr Timestamp(int64_t timeMillis) : _time{timeMillis} {
         }
-
-        constexpr Timestamp(const Timestamp &time) : _time{time._time} {
-        }
-
         explicit constexpr Timestamp(const std::chrono::time_point<std::chrono::system_clock> time) :
                 _time(static_cast<int64_t>(std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch()).count())) {
         }
+        ~Timestamp() = default;
+
+
+
 
         static Timestamp now() {
             return Timestamp{std::chrono::system_clock::now()};
@@ -47,10 +49,8 @@ namespace config {
             return _time == other._time;
         }
 
-        constexpr Timestamp &operator=(const Timestamp &time) {
-            _time = time._time;
-            return *this;
-        }
+        constexpr Timestamp &operator=(const Timestamp &time) = default;
+        constexpr Timestamp &operator=(Timestamp &&time) = default;
 
         static constexpr Timestamp never();
         static constexpr Timestamp dawn();
@@ -77,6 +77,7 @@ namespace config {
     public:
         Element() = default;
         Element(const Element & el) = default;
+        Element(Element && el) = default;
         explicit Element(const StructElement & se) : data::StructElement(se) {
         }
         explicit Element(data::Handle ord, const StructElement & se) : data::StructElement(se),
@@ -88,8 +89,10 @@ namespace config {
         explicit Element(data::Handle ord, const Timestamp& timestamp, ValueType newVal) :
                 StructElement(std::move(newVal)), _nameOrd{ord}, _modtime{timestamp} {
         }
-        explicit Element(data::Handle ord, const Timestamp& timestamp, std::shared_ptr<Topics> topics);
+        explicit Element(data::Handle ord, const Timestamp& timestamp, const std::shared_ptr<Topics>& topics);
+        ~Element() = default;
         Element & operator=(const Element & other) = default;
+        Element & operator=(Element && other) = default;
         static const Element nullElement;
 
         data::Handle getOrd() {
@@ -133,7 +136,7 @@ namespace config {
         }
     };
 
-    inline const Element Element::nullElement {};
+    inline const Element Element::nullElement {}; // NOLINT(cert-err58-cpp)
 
     //
     // Proxy to achieve a pattern similar to GG-Java "Topic"
@@ -144,15 +147,17 @@ namespace config {
         Element _element;
         std::shared_ptr<Topics> _owner;
     public:
-        Topic(const Topic & other) :
-                _owner(other._owner), _element(other._element) {
-        }
+        Topic(const Topic & other) = default;
+        Topic(Topic && other) = default;
         explicit Topic(Topic * other) :
                 _owner(other->_owner), _element(other->_element) {
         }
-        Topic(std::shared_ptr<Topics> owner, const Element & element) :
-                _owner(std::move(owner)), _element(element) {
+        Topic(std::shared_ptr<Topics> owner, Element  element) :
+                _owner(std::move(owner)), _element(std::move(element)) {
         }
+        ~Topic() = default;
+        Topic & operator=(const Topic &) = default;
+        Topic & operator=(Topic &&) = default;
         Element & get() {
             return _element;
         }
@@ -192,12 +197,12 @@ namespace config {
         Element getChild(data::Handle handle) const;
         std::unique_ptr<Topic> findLeafChild(data::Handle handle);
         std::unique_ptr<Topic> findLeafChild(std::string_view name);
-        std::shared_ptr<Topics> findInteriorChild(data::Handle nameOrd);
+        std::shared_ptr<Topics> findInteriorChild(data::Handle nameOrd) const;
         std::shared_ptr<Topics> findInteriorChild(std::string_view name);
         size_t getSize() const;
     };
 
-    inline Element::Element(data::Handle ord, const config::Timestamp &timestamp, std::shared_ptr<Topics> topics) :
+    inline Element::Element(data::Handle ord, const config::Timestamp &timestamp, const std::shared_ptr<Topics>& topics) :
             data::StructElement(std::static_pointer_cast<data::Structish>(topics)), _nameOrd(ord), _modtime(timestamp) {
     }
 

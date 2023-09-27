@@ -3,26 +3,26 @@
 #include <iostream>
 
 struct Keys {
-    const ggapi::StringOrd start { "start"};
-    const ggapi::StringOrd run { "run"};
-    const ggapi::StringOrd publishToIoTCoreTopic {"aws.greengrass.PublishToIoTCore"};
-    const ggapi::StringOrd topicName {"topicName"};
-    const ggapi::StringOrd qos {"qos"};
-    const ggapi::StringOrd payload {"payload"};
-    const ggapi::StringOrd retain {"retain"};
-    const ggapi::StringOrd userProperties {"userProperties"};
-    const ggapi::StringOrd messageExpiryIntervalSeconds {"messageExpiryIntervalSeconds"};
-    const ggapi::StringOrd correlationData {"correlationData"};
-    const ggapi::StringOrd responseTopic {"responseTopic"};
-    const ggapi::StringOrd payloadFormat {"payloadFormat"};
-    const ggapi::StringOrd contentType {"contentType"};
+    ggapi::StringOrd start { "start"};
+    ggapi::StringOrd run { "run"};
+    ggapi::StringOrd publishToIoTCoreTopic {"aws.greengrass.PublishToIoTCore"};
+    ggapi::StringOrd topicName {"topicName"};
+    ggapi::StringOrd qos {"qos"};
+    ggapi::StringOrd payload {"payload"};
+    ggapi::StringOrd retain {"retain"};
+    ggapi::StringOrd userProperties {"userProperties"};
+    ggapi::StringOrd messageExpiryIntervalSeconds {"messageExpiryIntervalSeconds"};
+    ggapi::StringOrd correlationData {"correlationData"};
+    ggapi::StringOrd responseTopic {"responseTopic"};
+    ggapi::StringOrd payloadFormat {"payloadFormat"};
+    ggapi::StringOrd contentType {"contentType"};
 };
-Keys keys;
+const Keys keys;
 std::thread asyncThread;
 
 void asyncThreadFn();
 
-extern "C" EXPORT void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) {
+extern "C" [[maybe_unused]] EXPORT void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) {
     std::cout << "Running lifecycle plugins 2... " << ggapi::StringOrd{phase}.toString() << std::endl;
     ggapi::StringOrd phaseOrd{phase};
     if (phaseOrd == keys.run) {
@@ -34,7 +34,7 @@ extern "C" EXPORT void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phas
 ggapi::Struct publishToIoTCoreListener(ggapi::ObjHandle task, ggapi::StringOrd topic, ggapi::Struct callData) {
     // real work
     std::string destTopic { callData.getString(keys.topicName)};
-    int qos { (int)callData.getInt32(keys.qos)};
+    int qos { static_cast<int>(callData.getInt32(keys.qos))};
     ggapi::Struct payload {callData.getStruct(keys.payload)};
     // ...
     // construct response
@@ -65,7 +65,7 @@ void asyncThreadFn() {
             .put(keys.payload, threadTask.createStruct().put("Foo", 1U));
 
     // Async style
-    ggapi::ObjHandle newTask = threadTask.sendToTopicAsync(keys.publishToIoTCoreTopic, request, publishToIoTCoreResponder, 0);
+    ggapi::ObjHandle newTask = threadTask.sendToTopicAsync(keys.publishToIoTCoreTopic, request, publishToIoTCoreResponder, -1);
     ggapi::Struct respData = newTask.waitForTaskCompleted();
     uint32_t status { respData.getInt32("status") };
 
