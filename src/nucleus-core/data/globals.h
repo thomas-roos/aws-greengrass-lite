@@ -10,7 +10,7 @@ namespace data {
     struct Global {
         Environment environment;
         std::shared_ptr<tasks::TaskManager> taskManager {std::make_shared<tasks::TaskManager>(environment)};
-        std::shared_ptr<pubsub::LocalTopics> lpcTopics {std::make_shared<pubsub::LocalTopics>(environment)};
+        std::shared_ptr<pubsub::PubSubManager> lpcTopics {std::make_shared<pubsub::PubSubManager>(environment)};
         std::shared_ptr<plugins::PluginLoader> loader {std::make_shared<plugins::PluginLoader>(environment)};
 
         static Global & self() {

@@ -20,21 +20,6 @@ namespace tasks {
     class Task;
     class TaskManager;
 
-    class SubTask : public std::enable_shared_from_this<SubTask> {
-    protected:
-        std::shared_ptr<TaskThread> _threadAffinity;
-    public:
-        SubTask() = default;
-        SubTask(const SubTask&) = delete;
-        SubTask(SubTask&&) = delete;
-        SubTask& operator=(const SubTask&) = delete;
-        SubTask& operator=(SubTask&&) = delete;
-        virtual ~SubTask() = default;
-        virtual std::shared_ptr<data::StructModelBase> runInThread(const std::shared_ptr<Task> &task, const std::shared_ptr<data::StructModelBase> &dataIn) = 0;
-        void setAffinity(const std::shared_ptr<TaskThread> & affinity);
-        std::shared_ptr<TaskThread> getAffinity();
-    };
-
     class Task : public data::TrackingScope {
     public:
         enum Status {
@@ -53,16 +38,13 @@ namespace tasks {
         data::ObjHandle _self;
         ExpireTime _timeout;
         Status _lastStatus {Running};
-        static thread_local data::ObjHandle _threadTask;
+        static thread_local data::ObjHandle _threadTask; // NOLINT(*-non-const-global-variables)
 
     public:
 
         explicit Task(data::Environment & environment) :
                 TrackingScope {environment},
                 _timeout{ ExpireTime::fromNow(-1)} {
-        }
-        std::shared_ptr<Task> shared_from_this() {
-            return std::static_pointer_cast<Task>(TrackingScope::shared_from_this());
         }
         void setSelf(data::ObjHandle self) {
             std::unique_lock guard{_mutex};
@@ -93,7 +75,7 @@ namespace tasks {
 
         Status removeSubtask(std::unique_ptr<SubTask> & subTask);
         void addSubtask(std::unique_ptr<SubTask> subTask);
-        void setCompletion(std::unique_ptr<SubTask> & finalize) {
+        void setCompletion(std::unique_ptr<SubTask> finalize) {
             std::unique_lock guard{_mutex};
             _finalize = std::move(finalize);
         }
@@ -118,7 +100,7 @@ namespace tasks {
         Status finalizeTask(const std::shared_ptr<data::StructModelBase> &data);
     };
 
-    class TaskThread : public std::enable_shared_from_this<TaskThread> {
+    class TaskThread : public util::RefObject<TaskThread> {
         // mix-in representing either a worker thread or fixed thread
     protected:
         data::Environment & _environment;
@@ -128,7 +110,7 @@ namespace tasks {
         std::condition_variable _wake;
         bool _shutdown {false};
     //    static thread_local std::weak_ptr<TaskThread> _threadContext;
-        static thread_local TaskThread * _threadContext;
+        static thread_local TaskThread * _threadContext; // NOLINT(*-non-const-global-variables)
         void bindThreadContext();
     public:
         explicit TaskThread(data::Environment & environment, const std::shared_ptr<TaskManager> &pool);
@@ -182,9 +164,6 @@ namespace tasks {
     public:
         explicit TaskPoolWorker(data::Environment & environment, const std::shared_ptr<TaskManager> &pool);
         void runner();
-        std::shared_ptr<TaskPoolWorker> shared_from_this() {
-            return std::static_pointer_cast<TaskPoolWorker>(TaskThread::shared_from_this());
-        }
     };
 
     class FixedTaskThread : public TaskThread {
@@ -203,9 +182,6 @@ namespace tasks {
         void unprotect();
         data::ObjectAnchor claimFixedThread();
         void releaseFixedThread() override;
-        std::shared_ptr<FixedTaskThread> shared_from_this() {
-            return std::static_pointer_cast<FixedTaskThread>(TaskThread::shared_from_this());
-        }
     };
 
     inline void SubTask::setAffinity(const std::shared_ptr<TaskThread> & affinity) {

@@ -26,6 +26,7 @@ add_library(nucleus-core SHARED
         plugins/plugin_loader.cpp plugins/plugin_loader.h
         pubsub/local_topics.cpp pubsub/local_topics.h
         tasks/expire_time.h
+        tasks/sub_task.h
         tasks/task.cpp tasks/task.h
         )
 target_link_libraries(nucleus-core Threads::Threads ${CMAKE_DL_LIBS} ${YAML_CPP_LIBRARIES})

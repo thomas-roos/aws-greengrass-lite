@@ -35,7 +35,7 @@ namespace plugins {
     };
 
     //
-    // Delegate plugins is managed by a parent plugins
+    // Delegate plugins is managed by a parent (typically native) plugins
     //
     class DelegatePlugin : public AbstractPlugin {
     private:
@@ -52,9 +52,6 @@ namespace plugins {
             _delegateLifecycle{delegateLifecycle},
             _delegateContext{delegateContext} {
         }
-        std::shared_ptr<DelegatePlugin> shared_from_this() {
-            return std::static_pointer_cast<DelegatePlugin>(AbstractPlugin::shared_from_this());
-        }
         void lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) override;
     };
 
@@ -65,7 +62,7 @@ namespace plugins {
     private:
     #if defined(USE_DLFCN)
         typedef void * nativeHandle_t;
-        typedef uint32_t (*lifecycleFn_t)(uint32_t moduleHandle, uint32_t phase, uint32_t data);
+        typedef void (*lifecycleFn_t)(uint32_t moduleHandle, uint32_t phase, uint32_t data);
     #elif defined(USE_WINDLL)
         typedef HINSTANCE nativeHandle_t;
         typedef void (WINAPI *lifecycleFn_t)(uint32_t globalHandle, uint32_t phase, uint32_t data);
@@ -73,15 +70,14 @@ namespace plugins {
         volatile nativeHandle_t _handle { nullptr };
         volatile lifecycleFn_t _lifecycleFn { nullptr };
 
-    protected:
-        std::shared_ptr<NativePlugin> shared_from_this() {
-            return std::static_pointer_cast<NativePlugin>(AbstractPlugin::shared_from_this());
-        }
-
     public:
         explicit NativePlugin(data::Environment & environment, std::string_view name) :
             AbstractPlugin(environment, name) {
         }
+        NativePlugin(const NativePlugin&) = delete;
+        NativePlugin(NativePlugin&&) noexcept = delete;
+        NativePlugin & operator=(const NativePlugin&) = delete;
+        NativePlugin & operator=(NativePlugin&&) noexcept = delete;
         ~NativePlugin() override;
         void load(const std::string & filePath);
         void lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) override;

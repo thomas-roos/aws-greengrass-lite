@@ -1,9 +1,8 @@
 #include "task.h"
 
 namespace tasks {
-    thread_local data::ObjHandle Task::_threadTask {};
-//thread_local std::weak_ptr<TaskThread> TaskThread::_threadContext;
-    thread_local TaskThread *TaskThread::_threadContext;
+    thread_local data::ObjHandle Task::_threadTask {}; // NOLINT(*-non-const-global-variables)
+    thread_local TaskThread *TaskThread::_threadContext {nullptr}; // NOLINT(*-non-const-global-variables)
 
     data::ObjectAnchor TaskManager::createTask() {
         auto task{std::make_shared<Task>(_environment)};
@@ -124,7 +123,7 @@ namespace tasks {
 
     void FixedTaskThread::protect() {
         std::unique_lock guard{_mutex};
-        _protectThread = shared_from_this();
+        _protectThread = ref<FixedTaskThread>();
     }
 
     void FixedTaskThread::unprotect() {
@@ -242,7 +241,7 @@ namespace tasks {
         return _lastStatus == Running && _subtasks.empty();
     }
 
-    Task::Status Task::removeSubtask(std::unique_ptr<SubTask> &subTask) {
+    Task::Status Task::removeSubtask(std::unique_ptr<SubTask> & subTask) {
         std::unique_lock guard{_mutex};
         if (_subtasks.empty()) {
             return NoSubTasks;
@@ -260,10 +259,13 @@ namespace tasks {
     private:
         data::ObjHandle _oldHandle;
     public:
+        ThreadSelf(const ThreadSelf &) = delete;
+        ThreadSelf(ThreadSelf &&) = delete;
+        ThreadSelf & operator=(const ThreadSelf &) = delete;
+        ThreadSelf & operator=(ThreadSelf &&) = delete;
         explicit ThreadSelf(data::ObjHandle newHandle) {
             _oldHandle = Task::getSetThreadSelf(newHandle);
         }
-
         ~ThreadSelf() {
             Task::getSetThreadSelf(_oldHandle);
         }
@@ -330,6 +332,10 @@ namespace tasks {
         const std::shared_ptr<Task> &_task;
         const std::shared_ptr<TaskThread> &_thread;
     public:
+        BlockedThreadScope(const BlockedThreadScope &) = delete;
+        BlockedThreadScope(BlockedThreadScope &&) = delete;
+        BlockedThreadScope& operator=(const BlockedThreadScope &) = delete;
+        BlockedThreadScope& operator=(BlockedThreadScope &&) = delete;
         explicit BlockedThreadScope(const std::shared_ptr<Task> &task,
                                     const std::shared_ptr<TaskThread> &thread) :
                 _task(task), _thread(thread) {
@@ -347,7 +353,7 @@ namespace tasks {
 
     bool Task::waitForCompletion(const ExpireTime &expireTime) {
         // TODO: Timeout
-        BlockedThreadScope scope{shared_from_this(), TaskThread::getThreadContext()};
+        BlockedThreadScope scope{ref<Task>(), TaskThread::getThreadContext()};
         scope.taskStealing(expireTime); // exception safe
         return isCompleted();
     }
@@ -381,15 +387,15 @@ namespace tasks {
     }
 
     void FixedTaskThread::releaseFixedThread() {
-//    std::shared_ptr<ObjectAnchor> defaultTask = FixedTaskThread::getDefaultTask();
-//    Handle taskHandle {Task::getThreadSelf()};
-//    if ((!defaultTask) || defaultTask->getHandle() != taskHandle) {
-//        throw std::runtime_error("Thread associated with another task");
-//    }
-//    setDefaultTask(nullptr);
-//    defaultTask->release();
-//    Task::getSetThreadSelf(Handle::nullHandle);
-//    unprotect();
-//    _threadContext.reset();
+        data::ObjectAnchor defaultTask = FixedTaskThread::getDefaultTask();
+        data::ObjHandle taskHandle {Task::getThreadSelf()};
+        if ((!defaultTask) || defaultTask.getHandle() != taskHandle) {
+            throw std::runtime_error("Thread associated with another task");
+        }
+        setDefaultTask({});
+        defaultTask.release();
+        Task::getSetThreadSelf({});
+        unprotect();
+        _threadContext = nullptr;
     }
 }

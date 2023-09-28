@@ -1,4 +1,5 @@
 #include "data/globals.h"
+#include "pubsub/local_topics.h"
 #include <c_api.h>
 
 class NativeCallback : public pubsub::AbstractCallback {
@@ -49,7 +50,9 @@ uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopi
             data::ObjHandle{callStruct}) };
     if (respCallback) {
         std::unique_ptr<pubsub::AbstractCallback> callback{new NativeCallback(respCallback, context)};
-        global.lpcTopics->applyCompletion(taskObject, data::StringOrd{topicOrd}, callback);
+        taskObject->setCompletion(
+                pubsub::CompletionSubTask::of(data::StringOrd{topicOrd}, std::move(callback))
+                );
     }
     ExpireTime expireTime = global.environment.translateExpires(timeout);
     taskObject->setTimeout(expireTime);

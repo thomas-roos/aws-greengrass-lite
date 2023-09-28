@@ -10,7 +10,7 @@
 namespace data {
     class StructModelBase;
 
-    typedef std::variant<std::monostate, uint64_t, double, std::shared_ptr<StructModelBase>, std::string> ValueType;
+    typedef std::variant<std::monostate, uint64_t, double, std::string, std::shared_ptr<StructModelBase>> ValueType;
 
     //
     // Data storage element with implicit type conversion

@@ -114,6 +114,10 @@ namespace data {
     public:
         explicit TrackingScope(Environment & environment) : TrackedObject{environment} {
         }
+        TrackingScope(const TrackingScope&) = delete;
+        TrackingScope(TrackingScope&&) noexcept = delete;
+        TrackingScope & operator=(const TrackingScope&) = delete;
+        TrackingScope & operator=(TrackingScope&&) noexcept = delete;
         ~TrackingScope() override;
         ObjectAnchor anchor(const std::shared_ptr<TrackedObject> & obj);
         ObjectAnchor reanchor(const ObjectAnchor & anchor);

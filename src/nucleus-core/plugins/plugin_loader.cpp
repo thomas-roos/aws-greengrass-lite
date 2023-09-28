@@ -70,8 +70,8 @@ void plugins::NativePlugin::lifecycle(data::ObjHandle pluginAnchor, data::String
 }
 
 void plugins::DelegatePlugin::lifecycle(data::ObjHandle pluginAnchor, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) {
-    uintptr_t delegateContext = 0;
-    ggapiLifecycleCallback delegateLifecycle = nullptr;
+    uintptr_t delegateContext;
+    ggapiLifecycleCallback delegateLifecycle;
     {
         std::shared_lock guard{_mutex};
         delegateContext = _delegateContext;
