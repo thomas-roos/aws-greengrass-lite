@@ -38,7 +38,7 @@ uint32_t ggapiCreateStruct(uint32_t anchorHandle) {
 
 void ggapiStructPutInt32(uint32_t structHandle, uint32_t ord, uint32_t value) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     StructElement newElement {static_cast<uint64_t>(value)};
     ss->put(ordH, newElement);
@@ -46,7 +46,7 @@ void ggapiStructPutInt32(uint32_t structHandle, uint32_t ord, uint32_t value) {
 
 void ggapiStructPutInt64(uint32_t structHandle, uint32_t ord, uint64_t value) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     StructElement newElement {value};
     ss->put(ordH, newElement);
@@ -54,7 +54,7 @@ void ggapiStructPutInt64(uint32_t structHandle, uint32_t ord, uint64_t value) {
 
 void ggapiStructPutFloat32(uint32_t structHandle, uint32_t ord, float value) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     StructElement newElement {value};
     ss->put(ordH, newElement);
@@ -62,7 +62,7 @@ void ggapiStructPutFloat32(uint32_t structHandle, uint32_t ord, float value) {
 
 void ggapiStructPutFloat64(uint32_t structHandle, uint32_t ord, double value) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     StructElement newElement {value};
     ss->put(ordH, newElement);
@@ -70,7 +70,7 @@ void ggapiStructPutFloat64(uint32_t structHandle, uint32_t ord, double value) {
 
 void ggapiStructPutString(uint32_t structHandle, uint32_t ord, const char * bytes, size_t len) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     StructElement newElement { std::string(bytes, len)};
     ss->put(ordH, newElement);
@@ -78,8 +78,8 @@ void ggapiStructPutString(uint32_t structHandle, uint32_t ord, const char * byte
 
 void ggapiStructPutStruct(uint32_t structHandle, uint32_t ord, uint32_t nestedHandle) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
-    auto s2 {global.environment.handleTable.getObject<Structish>(ObjHandle{nestedHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
+    auto s2 {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{nestedHandle})};
     StringOrd ordH = StringOrd{ord};
     StructElement newElement {s2};
     ss->put(ordH, newElement);
@@ -87,35 +87,35 @@ void ggapiStructPutStruct(uint32_t structHandle, uint32_t ord, uint32_t nestedHa
 
 bool ggapiStructHasKey(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     return ss->hasKey(ordH);
 }
 
 uint32_t ggapiStructGetInt32(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     return static_cast<uint32_t >(ss->get(ordH));
 }
 
 uint64_t ggapiStructGetInt64(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     return static_cast<uint64_t >(ss->get(ordH));
 }
 
 float ggapiStructGetFloat32(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     return static_cast<float>(ss->get(ordH));
 }
 
 double ggapiStructGetFloat64(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     return static_cast<double>(ss->get(ordH));
 }
@@ -124,13 +124,13 @@ uint32_t ggapiStructGetStruct(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
     ObjectAnchor ss_anchor {global.environment.handleTable.get(ObjHandle{structHandle})};
     std::shared_ptr<TrackingScope> ss_root {ss_anchor.getOwner()};
-    auto ss {ss_anchor.getObject<Structish>()};
+    auto ss {ss_anchor.getObject<StructModelBase>()};
     return ss_root->anchor(ss).getHandle().asInt();
 }
 
 size_t ggapiStructGetStringLen(uint32_t structHandle, uint32_t ord) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     std::string s = ss->get(ordH).getString();
     return s.length();
@@ -138,7 +138,7 @@ size_t ggapiStructGetStringLen(uint32_t structHandle, uint32_t ord) {
 
 size_t ggapiStructGetString(uint32_t structHandle, uint32_t ord, char * buffer, size_t buflen) {
     Global & global = Global::self();
-    auto ss {global.environment.handleTable.getObject<Structish>(ObjHandle{structHandle})};
+    auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
     StringOrd ordH = StringOrd{ord};
     std::string s = ss->get(ordH).getString();
     util::CheckedBuffer checked(buffer, buflen);

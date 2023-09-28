@@ -6,7 +6,7 @@ bool data::SharedStruct::putStruct(const data::StringOrd handle, const data::Str
     if (!element.isStruct()) {
         return false; // not a structure
     }
-    std::shared_ptr<data::Structish> otherStruct = element.getStructRef();
+    std::shared_ptr<data::StructModelBase> otherStruct = element.getStructRef();
     if (!otherStruct) {
         return false; // structure is null handle
     }
@@ -21,16 +21,16 @@ bool data::SharedStruct::putStruct(const data::StringOrd handle, const data::Str
     return true;
 }
 
-void data::SharedStruct::rootsCheck(const data::Structish *target) const { // NOLINT(*-no-recursion)
+void data::SharedStruct::rootsCheck(const data::StructModelBase *target) const { // NOLINT(*-no-recursion)
     if (this == target) {
         throw std::runtime_error("Recursive reference of structure");
     }
     // we don't want to keep nesting locks else we will deadlock
     std::shared_lock guard {_mutex };
-    std::vector<std::shared_ptr<data::Structish>> structs;
+    std::vector<std::shared_ptr<data::StructModelBase>> structs;
     for (auto const & i : _elements) {
         if (i.second.isStruct()) {
-            std::shared_ptr<data::Structish> otherStruct = i.second.getStructRef();
+            std::shared_ptr<data::StructModelBase> otherStruct = i.second.getStructRef();
             if (otherStruct) {
                 structs.emplace_back(otherStruct);
             }
@@ -42,8 +42,8 @@ void data::SharedStruct::rootsCheck(const data::Structish *target) const { // NO
     }
 }
 
-std::shared_ptr<data::Structish> data::SharedStruct::copy() const {
-    std::shared_ptr<data::Structish> newCopy {std::make_shared<data::SharedStruct>(_environment)};
+std::shared_ptr<data::StructModelBase> data::SharedStruct::copy() const {
+    std::shared_ptr<data::StructModelBase> newCopy {std::make_shared<data::SharedStruct>(_environment)};
     std::shared_lock guard {_mutex}; // for source
     for (auto const & i : _elements) {
         newCopy->put(i.first, i.second);
@@ -81,7 +81,7 @@ data::StructElement data::SharedStruct::get(data::StringOrd handle) const {
     std::shared_lock guard {_mutex};
     auto i = _elements.find(handle);
     if (i == _elements.end()) {
-        return data::StructElement::nullElement;
+        return {};
     } else {
         return i->second;
     }

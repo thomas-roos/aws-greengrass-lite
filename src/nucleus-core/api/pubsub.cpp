@@ -26,7 +26,7 @@ uint32_t ggapiSendToTopic(uint32_t topicOrd, uint32_t callStruct, int32_t timeou
     std::shared_ptr<tasks::Task> parentTaskObj {global.environment.handleTable.getObject<tasks::Task>(parentTask) };
     data::ObjectAnchor taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context
     std::shared_ptr<tasks::Task> subTaskObj = taskAnchor.getObject<tasks::Task>();
-    std::shared_ptr<data::Structish> callDataStruct {global.environment.handleTable.getObject<data::Structish>(
+    std::shared_ptr<data::StructModelBase> callDataStruct {global.environment.handleTable.getObject<data::StructModelBase>(
             data::ObjHandle{callStruct}) };
     ExpireTime expireTime = global.environment.translateExpires(timeout);
     subTaskObj->setTimeout(expireTime);
@@ -45,7 +45,7 @@ uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopi
     data::Global & global = data::Global::self();
     data::ObjectAnchor taskAnchor {global.taskManager->createTask()}; // task is the anchor / return handle / context
     std::shared_ptr<tasks::Task> taskObject = taskAnchor.getObject<tasks::Task>();
-    std::shared_ptr<data::Structish> callDataStruct {global.environment.handleTable.getObject<data::Structish>(
+    std::shared_ptr<data::StructModelBase> callDataStruct {global.environment.handleTable.getObject<data::StructModelBase>(
             data::ObjHandle{callStruct}) };
     if (respCallback) {
         std::unique_ptr<pubsub::AbstractCallback> callback{new NativeCallback(respCallback, context)};
@@ -67,12 +67,12 @@ uint32_t ggapiSendToTopicAsync(uint32_t topicOrd, uint32_t callStruct, ggapiTopi
 //    }
 //    auto taskObj { global.environment.handleTable.getObject<Task>(taskHandle)};
 //    if (dataStruct) {
-//        auto dataObj {global.environment.handleTable.getObject<Structish>(Handle{dataStruct})};
+//        auto dataObj {global.environment.handleTable.getObject<StructModelBase>(Handle{dataStruct})};
 //        taskObj->setData(dataObj);
 //    }
 //    // task is permitted to run everything up to but not including finalization
 //    // and transition control back to this function
-//    std::shared_ptr<Structish> dataIn { taskObj->getData() };
-//    std::shared_ptr<Structish> dataOut { taskObj->runInThreadCallNext(taskObj, dataIn) };
+//    std::shared_ptr<StructModelBase> dataIn { taskObj->getData() };
+//    std::shared_ptr<StructModelBase> dataOut { taskObj->runInThreadCallNext(taskObj, dataIn) };
 //    return Handle{taskObj->anchor(dataOut.get())}.asInt();
 //}

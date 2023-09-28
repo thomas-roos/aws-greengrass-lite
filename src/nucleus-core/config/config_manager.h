@@ -86,7 +86,7 @@ namespace config {
         explicit Element(data::StringOrd ord, const Timestamp& timestamp) :
             _nameOrd{ord}, _modtime{timestamp} {
         }
-        explicit Element(data::StringOrd ord, const Timestamp& timestamp, ValueType newVal) :
+        explicit Element(data::StringOrd ord, const Timestamp& timestamp, data::ValueType newVal) :
                 StructElement(std::move(newVal)), _nameOrd{ord}, _modtime{timestamp} {
         }
         explicit Element(data::StringOrd ord, const Timestamp& timestamp, const std::shared_ptr<Topics>& topics);
@@ -101,7 +101,7 @@ namespace config {
         Timestamp getModTime() {
             return _modtime;
         }
-        data::StructElement::ValueType & value() {
+        data::ValueType & value() {
             return _value;
         }
 
@@ -166,17 +166,17 @@ namespace config {
 
     // Set of key/value pairs
     // not entirely parallels GG-Java "Topics"
-    class Topics : public data::Structish {
+    class Topics : public data::StructModelBase {
     protected:
         std::weak_ptr<Topics> _parent;
         std::map<data::StringOrd, Element, data::StringOrd::CompLess> _children;
         mutable std::shared_mutex _mutex;
         bool putStruct(data::StringOrd key, const Element & element);
-        void rootsCheck(const data::Structish * target) const override;
+        void rootsCheck(const data::StructModelBase * target) const override;
 
     public:
         explicit Topics(data::Environment & environment, const std::shared_ptr<Topics> & parent) :
-                data::Structish{environment}, _parent{parent} {
+                data::StructModelBase{environment}, _parent{parent} {
         }
         std::shared_ptr<Topics> topics_shared_from_this() {
             return std::dynamic_pointer_cast<Topics>(shared_from_this());
@@ -188,7 +188,7 @@ namespace config {
         bool hasKey(data::StringOrd handle) override;
         data::StructElement get(data::StringOrd handle) const override;
         data::StructElement get(std::string_view name) const override;
-        std::shared_ptr<data::Structish> copy() const override;
+        std::shared_ptr<data::StructModelBase> copy() const override;
         Element createChild(data::StringOrd nameOrd, const std::function<Element(data::StringOrd)> & creator);
         std::unique_ptr<Topic> createLeafChild(data::StringOrd nameOrd, const Timestamp & timestamp = Timestamp());
         std::unique_ptr<Topic> createLeafChild(std::string_view name, const Timestamp & timestamp = Timestamp());
@@ -203,7 +203,7 @@ namespace config {
     };
 
     inline Element::Element(data::StringOrd ord, const config::Timestamp &timestamp, const std::shared_ptr<Topics>& topics) :
-            data::StructElement(std::static_pointer_cast<data::Structish>(topics)), _nameOrd(ord), _modtime(timestamp) {
+            data::StructElement(std::static_pointer_cast<data::StructModelBase>(topics)), _nameOrd(ord), _modtime(timestamp) {
     }
 
     inline void Topic::update() {

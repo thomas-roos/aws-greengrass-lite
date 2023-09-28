@@ -281,8 +281,8 @@ namespace tasks {
     Task::Status Task::runInThread() {
         std::shared_ptr<Task> taskObj{std::static_pointer_cast<Task>(shared_from_this())};
         ThreadSelf threadSelf(getSelf());
-        std::shared_ptr<data::Structish> dataIn{getData()};
-        std::shared_ptr<data::Structish> dataOut;
+        std::shared_ptr<data::StructModelBase> dataIn{getData()};
+        std::shared_ptr<data::StructModelBase> dataOut;
         Status status = runInThreadCallNext(taskObj, dataIn, dataOut);
         while (status == NoSubTasks) {
             status = finalizeTask(dataOut);
@@ -298,7 +298,7 @@ namespace tasks {
         return status;
     }
 
-    Task::Status Task::finalizeTask(const std::shared_ptr<data::Structish> &data) {
+    Task::Status Task::finalizeTask(const std::shared_ptr<data::StructModelBase> &data) {
         std::unique_lock guard{_mutex};
         if (_lastStatus == Finalizing) {
             if (_subtasks.empty()) {
@@ -353,8 +353,8 @@ namespace tasks {
     }
 
     Task::Status Task::runInThreadCallNext(const std::shared_ptr<Task> &task,
-                                                           const std::shared_ptr<data::Structish> &dataIn,
-                                                           std::shared_ptr<data::Structish> &dataOut) {
+                                                           const std::shared_ptr<data::StructModelBase> &dataIn,
+                                                           std::shared_ptr<data::StructModelBase> &dataOut) {
         for (;;) {
             std::unique_ptr<SubTask> subTask;
             Status status = removeSubtask(subTask);

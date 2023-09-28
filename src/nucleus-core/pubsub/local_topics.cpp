@@ -116,7 +116,7 @@ public:
     explicit ReceiverSubTask(std::shared_ptr<pubsub::TopicReceiver> & receiver) :
         _receiver{receiver} {
     }
-    std::shared_ptr<data::Structish> runInThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::Structish> &dataIn) override;
+    std::shared_ptr<data::StructModelBase> runInThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::StructModelBase> &dataIn) override;
 };
 
 std::unique_ptr<tasks::SubTask> pubsub::TopicReceiver::toSubTask(std::shared_ptr<tasks::Task> & task) {
@@ -126,16 +126,16 @@ std::unique_ptr<tasks::SubTask> pubsub::TopicReceiver::toSubTask(std::shared_ptr
     return subTask;
 }
 
-std::shared_ptr<data::Structish> ReceiverSubTask::runInThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::Structish> &dataIn) {
+std::shared_ptr<data::StructModelBase> ReceiverSubTask::runInThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::StructModelBase> &dataIn) {
     return _receiver->runInTaskThread(task, dataIn);
 }
 
-std::shared_ptr<data::Structish> pubsub::TopicReceiver::runInTaskThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::Structish> &dataIn) {
+std::shared_ptr<data::StructModelBase> pubsub::TopicReceiver::runInTaskThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::StructModelBase> &dataIn) {
     data::ObjectAnchor anchor {task->anchor(dataIn) };
     data::Handle resp = _callback->operator()(task->getSelf(), _topicOrd, anchor.getHandle());
-    std::shared_ptr<data::Structish> respData;
+    std::shared_ptr<data::StructModelBase> respData;
     if (resp) {
-        respData = _environment.handleTable.getObject<data::Structish>(resp);
+        respData = _environment.handleTable.getObject<data::StructModelBase>(resp);
     }
     return respData;
 }
@@ -150,10 +150,10 @@ public:
             _topicOrd{topicOrd},
             _callback{std::move(callback)} {
     }
-    std::shared_ptr<data::Structish> runInThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::Structish> &result) override;
+    std::shared_ptr<data::StructModelBase> runInThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::StructModelBase> &result) override;
 };
 
-std::shared_ptr<data::Structish> CompletionSubTask::runInThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::Structish> &result) {
+std::shared_ptr<data::StructModelBase> CompletionSubTask::runInThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::StructModelBase> &result) {
     data::ObjectAnchor anchor {task->anchor(result) };
     (void)_callback->operator()(task->getSelf(), _topicOrd, anchor.getHandle());
     return nullptr;

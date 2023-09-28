@@ -30,7 +30,7 @@ namespace tasks {
         SubTask& operator=(const SubTask&) = delete;
         SubTask& operator=(SubTask&&) = delete;
         virtual ~SubTask() = default;
-        virtual std::shared_ptr<data::Structish> runInThread(const std::shared_ptr<Task> &task, const std::shared_ptr<data::Structish> &dataIn) = 0;
+        virtual std::shared_ptr<data::StructModelBase> runInThread(const std::shared_ptr<Task> &task, const std::shared_ptr<data::StructModelBase> &dataIn) = 0;
         void setAffinity(const std::shared_ptr<TaskThread> & affinity);
         std::shared_ptr<TaskThread> getAffinity();
     };
@@ -46,7 +46,7 @@ namespace tasks {
         };
         friend class TaskManager;
     private:
-        std::shared_ptr<data::Structish> _data;
+        std::shared_ptr<data::StructModelBase> _data;
         std::unique_ptr<SubTask> _finalize;
         std::__cxx11::list<std::unique_ptr<SubTask>> _subtasks;
         std::__cxx11::list<std::shared_ptr<TaskThread>> _blockedThreads;
@@ -72,11 +72,11 @@ namespace tasks {
             std::unique_lock guard{_mutex};
             return _self;
         }
-        std::shared_ptr<data::Structish> getData() {
+        std::shared_ptr<data::StructModelBase> getData() {
             std::unique_lock guard{_mutex};
             return _data;
         }
-        void setData(const std::shared_ptr<data::Structish> &newData) {
+        void setData(const std::shared_ptr<data::StructModelBase> &newData) {
             std::unique_lock guard{_mutex};
             _data = newData;
         }
@@ -107,7 +107,7 @@ namespace tasks {
         }
         Status runInThread();
         bool waitForCompletion(const ExpireTime & terminateTime);
-        Status runInThreadCallNext(const std::shared_ptr<Task> & task, const std::shared_ptr<data::Structish> & dataIn, std::shared_ptr<data::Structish> & dataOut);
+        Status runInThreadCallNext(const std::shared_ptr<Task> & task, const std::shared_ptr<data::StructModelBase> & dataIn, std::shared_ptr<data::StructModelBase> & dataOut);
 
         void addBlockedThread(const std::shared_ptr<TaskThread> &blockedThread);
         void removeBlockedThread(const std::shared_ptr<TaskThread> &blockedThread);
@@ -115,7 +115,7 @@ namespace tasks {
         bool isCompleted();
         bool willNeverComplete();
 
-        Status finalizeTask(const std::shared_ptr<data::Structish> &data);
+        Status finalizeTask(const std::shared_ptr<data::StructModelBase> &data);
     };
 
     class TaskThread : public std::enable_shared_from_this<TaskThread> {

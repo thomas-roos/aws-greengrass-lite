@@ -151,7 +151,7 @@ int lifecycle::KernelCommandLine::main() {
 
     // This needs to be subsumed by the lifecyle management - not yet implemented, so current approach is hacky
     global.loader->discoverPlugins();
-    std::shared_ptr<data::Structish> emptyStruct {std::make_shared<data::SharedStruct>(global.environment)}; // TODO, empty for now
+    std::shared_ptr<data::StructModelBase> emptyStruct {std::make_shared<data::SharedStruct>(global.environment)}; // TODO, empty for now
     global.loader->lifecycleBootstrap(emptyStruct);
     global.loader->lifecycleDiscover(emptyStruct);
     global.loader->lifecycleStart(emptyStruct);

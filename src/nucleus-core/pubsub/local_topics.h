@@ -14,7 +14,7 @@ namespace tasks {
 }
 
 namespace data {
-    class Structish;
+    class StructModelBase;
 }
 
 namespace pubsub {
@@ -37,7 +37,7 @@ namespace pubsub {
         explicit TopicReceiver(data::Environment & environment, data::StringOrd topicOrd, TopicReceivers * receivers, std::unique_ptr<AbstractCallback> & callback);
         ~TopicReceiver() override;
         std::unique_ptr<tasks::SubTask> toSubTask(std::shared_ptr<tasks::Task> & task);
-        std::shared_ptr<data::Structish> runInTaskThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::Structish> &dataIn);
+        std::shared_ptr<data::StructModelBase> runInTaskThread(const std::shared_ptr<tasks::Task> &task, const std::shared_ptr<data::StructModelBase> &dataIn);
     };
 
     class TopicReceivers : public std::enable_shared_from_this<TopicReceivers> {
