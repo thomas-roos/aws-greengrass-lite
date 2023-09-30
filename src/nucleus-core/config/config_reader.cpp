@@ -17,6 +17,7 @@ namespace config {
         inplaceMap(_target, root);
     }
 
+    // NOLINTNEXTLINE(*-no-recursion)
     void YamlReader::inplaceMap(const std::shared_ptr<Topics> & topics, YAML::Node & node) {
         if (!node.IsMap()) {
             throw std::runtime_error("Expecting a map");
@@ -27,6 +28,7 @@ namespace config {
         }
     }
 
+    // NOLINTNEXTLINE(*-no-recursion)
     void YamlReader::inplaceValue(const std::shared_ptr<Topics> & topics, const std::string & key, YAML::Node & node) {
         switch (node.Type()) {
             case YAML::NodeType::Map:
@@ -48,20 +50,21 @@ namespace config {
     }
 
     void YamlReader::inplaceNullValue(const std::shared_ptr<Topics> & topics, const std::string & key) {
-        topics->createLeafChild(key, _timestamp);
+        topics->createChild(key, _timestamp);
     }
 
     void YamlReader::inplaceScalarValue(const std::shared_ptr<Topics> & topics, const std::string & key, YAML::Node & node) {
-        std::unique_ptr<Topic> topic = topics->createLeafChild(key, _timestamp);
-        topic->get().setModTime(_timestamp).value() = node.as<std::string>();
-        topic->update();
+        Topic topic = topics->createChild(key, _timestamp);
+        topic.withNewerValue(_timestamp, node.as<std::string>());
     }
 
+    // NOLINTNEXTLINE(*-no-recursion)
     void YamlReader::nestedMapValue(const std::shared_ptr<Topics> &topics, const std::string &key, YAML::Node &node) {
         std::shared_ptr<Topics> nested = topics->createInteriorChild(key, _timestamp);
         inplaceMap(nested, node);
     }
 
+    // NOLINTNEXTLINE(*-no-recursion)
     void YamlReader::inplaceSequenceValue(const std::shared_ptr<Topics> &topics, const std::string &key,
                                         YAML::Node &node) {
         throw std::runtime_error("Cannot handle sequences yet");

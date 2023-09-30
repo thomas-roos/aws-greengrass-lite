@@ -4,30 +4,46 @@
 namespace data {
 
     /**
-         * Typical implementation of StructModelBase
-         */
+     * Typical implementation of StructModelBase
+     */
     class SharedStruct : public StructModelBase {
     protected:
         std::map<StringOrd, StructElement, StringOrd::CompLess> _elements;
         mutable std::shared_mutex _mutex;
 
-        bool putStruct(StringOrd handle, const StructElement & element);
-
-        void rootsCheck(const StructModelBase * target) const override;
+        void rootsCheck(const ContainerModelBase * target) const override;
 
     public:
         explicit SharedStruct(Environment & environment) : StructModelBase{environment} {
         }
-        std::shared_ptr<SharedStruct> struct_shared_from_this() {
-            return std::dynamic_pointer_cast<SharedStruct>(shared_from_this());
-        }
 
         void put(StringOrd handle, const StructElement & element) override;
         void put(std::string_view sv, const StructElement & element) override;
-        bool hasKey(StringOrd handle) override;
+        bool hasKey(StringOrd handle) const override;
         StructElement get(StringOrd handle) const override;
         StructElement get(std::string_view sv) const override;
         std::shared_ptr<StructModelBase> copy() const override;
+    };
+
+    /**
+     * Typical implementation of ListModelBase
+     */
+    class SharedList : public ListModelBase {
+    protected:
+        std::vector<StructElement> _elements;
+        mutable std::shared_mutex _mutex;
+
+        void rootsCheck(const ContainerModelBase * target) const override;
+
+    public:
+        explicit SharedList(Environment & environment) : ListModelBase{environment} {
+        }
+
+        void put(int32_t idx, const StructElement & element) override;
+        void insert(int32_t idx, const StructElement & element) override;
+        uint32_t length() const override;
+        StructElement get(int idx) const override;
+        std::shared_ptr<ListModelBase> copy() const override;
     };
 }
 

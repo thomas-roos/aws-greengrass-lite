@@ -8,25 +8,37 @@
 #include <variant>
 
 namespace data {
+    class ContainerModelBase;
     class StructModelBase;
+    class ListModelBase;
 
-    typedef std::variant<std::monostate, uint64_t, double, std::string, std::shared_ptr<StructModelBase>> ValueType;
+    typedef std::variant<
+        std::monostate, // Always first (NONE)
+        // types in same order as type consts in ValueTypes below
+        uint64_t, // INT
+        double, // DOUBLE
+        std::string, // STRING
+        std::shared_ptr<ContainerModelBase> // CONTAINER
+        > ValueType;
+
+    // enum class ValueTypes would seem to be better, but we need to compare int to int, so this is easier
+    struct ValueTypes {
+        static constexpr auto NONE {0};
+        static constexpr auto INT {1};
+        static constexpr auto DOUBLE {2};
+        static constexpr auto STRING {3};
+        static constexpr auto CONTAINER {4};
+    };
 
     //
     // Data storage element with implicit type conversion
     //
-    class StructElement {
+    class StructElement : public ValueTypes {
         friend class StructModelBase;
     protected:
         // size of variant is prob ~ 32 bytes or so, because of std::string
         // in theory, can be optimized, but is it worth it?
         ValueType _value;
-        static constexpr int NONE = 0;
-        static constexpr int INT = 1;
-        static constexpr int DOUBLE = 2;
-        static constexpr int STRING = 3;
-        static constexpr int STRUCT = 4;
-        static constexpr int ARRAY = 5;
 
     public:
         StructElement() : _value{} {
@@ -37,7 +49,7 @@ namespace data {
         }
         explicit StructElement(const double v) : _value{v} {
         }
-        explicit StructElement(std::shared_ptr<StructModelBase> p);
+        explicit StructElement(std::shared_ptr<ContainerModelBase> p);
         explicit StructElement(const std::string & str) : _value{str} {
         }
         StructElement(const StructElement &) = default;
@@ -52,8 +64,19 @@ namespace data {
         bool operator!() const {
             return _value.index() == NONE;
         }
-        [[nodiscard]] bool isStruct() const {
-            return _value.index() == STRUCT;
+        ValueType get() {
+            return _value;
+        }
+        StructElement & set(ValueType value) {
+            // assumes detached element and not worried about cycles until this is inserted into a list or struct
+            _value = std::move(value);
+            return *this;
+        }
+        [[nodiscard]] bool isContainer() const {
+            return _value.index() == CONTAINER;
+        }
+        [[nodiscard]] bool isScalar() const {
+            return !isContainer();
         }
         [[nodiscard]] uint64_t getInt() const {
             switch (_value.index()) {
@@ -91,13 +114,28 @@ namespace data {
                     throw std::runtime_error("Unsupported type conversion to string");
             }
         }
-        [[nodiscard]] std::shared_ptr<StructModelBase> getStructRef() const {
+        [[nodiscard]] std::shared_ptr<ContainerModelBase> getContainer() const {
             switch (_value.index()) {
-                case STRUCT:
-                    return std::get<std::shared_ptr<StructModelBase>>(_value);
+                case CONTAINER:
+                    return std::get<std::shared_ptr<ContainerModelBase>>(_value);
                 default:
                     throw std::runtime_error("Unsupported type conversion to object");
             }
+        }
+        template<typename T>
+        [[nodiscard]] bool isType() const {
+            static_assert(std::is_base_of_v<ContainerModelBase,T>);
+            std::shared_ptr<T> p = std::dynamic_pointer_cast<T>(getContainer());
+            return static_cast<bool>(p);
+        }
+        template<typename T>
+        [[nodiscard]] std::shared_ptr<T> castContainer() const {
+            static_assert(std::is_base_of_v<ContainerModelBase,T>);
+            std::shared_ptr<T> p = std::dynamic_pointer_cast<T>(getContainer());
+            if (p) {
+                return p;
+            }
+            throw std::bad_cast();
         }
 
         explicit operator uint64_t() const {
@@ -118,24 +156,49 @@ namespace data {
     };
 
     //
-    // Base class for classes that behave like a structure - common between shared structures and config
+    // Base class for classes that behave like a container - ie lists and structures
     //
-    class StructModelBase : public TrackedObject {
+    class ContainerModelBase : public TrackedObject {
     public:
-        friend class StructElement;
-        explicit StructModelBase(Environment & environment) : TrackedObject{environment} {
+        explicit ContainerModelBase(Environment & environment) : TrackedObject{environment} {
         }
 
-        virtual void rootsCheck(const StructModelBase * target) const = 0;
+        virtual void rootsCheck(const ContainerModelBase * target) const = 0;
+        void checkedPut(const StructElement & element, const std::function<void(const StructElement &)>& putAction);
+    };
+
+    //
+    // Base class for containers that behave like a structure - common between shared structures and config
+    //
+    class StructModelBase : public ContainerModelBase {
+    public:
+        explicit StructModelBase(Environment & environment) : ContainerModelBase{environment} {
+        }
+
         virtual void put(StringOrd handle, const StructElement & element) = 0;
         virtual void put(std::string_view sv, const StructElement & element) = 0;
-        virtual bool hasKey(StringOrd handle)  = 0;
+        virtual bool hasKey(StringOrd handle) const = 0;
         virtual StructElement get(StringOrd handle) const = 0;
         virtual StructElement get(std::string_view sv) const = 0;
         virtual std::shared_ptr<StructModelBase> copy() const = 0;
     };
 
-    inline StructElement::StructElement(std::shared_ptr<StructModelBase> p) : _value{p} {
+    //
+    // Base class for containers that behave like a list - common between shared structures and config
+    //
+    class ListModelBase : public ContainerModelBase {
+    public:
+        explicit ListModelBase(Environment & environment) : ContainerModelBase{environment} {
+        }
+
+        virtual void put(int32_t idx, const StructElement & element) = 0;
+        virtual void insert(int32_t idx, const StructElement & element) = 0;
+        virtual uint32_t length() const = 0;
+        virtual StructElement get(int idx) const = 0;
+        virtual std::shared_ptr<ListModelBase> copy() const = 0;
+    };
+
+    inline StructElement::StructElement(std::shared_ptr<ContainerModelBase> p) : _value{p} {
     }
 
 }

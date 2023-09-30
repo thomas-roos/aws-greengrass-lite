@@ -79,7 +79,7 @@ void ggapiStructPutString(uint32_t structHandle, uint32_t ord, const char * byte
 void ggapiStructPutStruct(uint32_t structHandle, uint32_t ord, uint32_t nestedHandle) {
     Global & global = Global::self();
     auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
-    auto s2 {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{nestedHandle})};
+    auto s2 {global.environment.handleTable.getObject<ContainerModelBase>(ObjHandle{nestedHandle})};
     StringOrd ordH = StringOrd{ord};
     StructElement newElement {s2};
     ss->put(ordH, newElement);
