@@ -9,6 +9,7 @@ find_package(yaml-cpp REQUIRED)
 
 add_library(nucleus-core SHARED
         api/data.cpp
+        api/error.cpp
         api/main.cpp
         api/plugins.cpp
         api/pubsub.cpp
@@ -28,7 +29,7 @@ add_library(nucleus-core SHARED
         tasks/expire_time.h
         tasks/sub_task.h
         tasks/task.cpp tasks/task.h
-        )
+        api/error.cpp)
 target_link_libraries(nucleus-core Threads::Threads ${CMAKE_DL_LIBS} ${YAML_CPP_LIBRARIES})
 target_link_directories(nucleus-core PUBLIC ${YAML_CPP_LIBRARY_DIR})
 target_include_directories(nucleus-core PUBLIC ${YAML_CPP_INCLUDE_DIR})

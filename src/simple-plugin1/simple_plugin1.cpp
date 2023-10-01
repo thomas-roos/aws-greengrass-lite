@@ -26,8 +26,8 @@ struct Keys {
 };
 
 
-ggapi::Struct testListener(ggapi::ObjHandle task, ggapi::StringOrd topic, ggapi::Struct callData) {
-    std::string pingMessage { callData.getString("ping")};
+ggapi::Struct testListener(ggapi::Scope task, ggapi::StringOrd topic, ggapi::Struct callData) {
+    std::string pingMessage { callData.get<std::string>("ping")};
     ggapi::Struct response = task.createStruct();
     response.put("pong", pingMessage);
     return response;
@@ -35,14 +35,14 @@ ggapi::Struct testListener(ggapi::ObjHandle task, ggapi::StringOrd topic, ggapi:
 
 
 void doStartPhase() {
-    (void)ggapi::ObjHandle::thisTask().subscribeToTopic(ggapi::StringOrd{"test"}, testListener);
+    (void)ggapi::Scope::thisTask().subscribeToTopic(ggapi::StringOrd{"test"}, testListener);
 }
 
 void doRunPhase() {
 
 }
 
-extern "C" void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) {
+extern "C" bool greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) noexcept {
     std::cout << "Running lifecycle plugins 1... " << ggapi::StringOrd{phase}.toString() << std::endl;
     const auto & keys = Keys::get();
 
@@ -52,4 +52,5 @@ extern "C" void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint
     } else if (phaseOrd == keys.run) {
         doRunPhase();
     }
+    return true;
 }

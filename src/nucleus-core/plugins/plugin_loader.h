@@ -9,6 +9,7 @@
 #include <list>
 #include <shared_mutex>
 #include <mutex>
+#include <atomic>
 #include <filesystem>
 
 #if defined(USE_DLFCN)
@@ -28,8 +29,8 @@ namespace plugins {
         explicit AbstractPlugin(data::Environment & environment, const std::string_view & name) :
                 TrackingScope(environment), _moduleName{name} {
         }
-        virtual void lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) = 0;
-        virtual bool isActive() {
+        virtual bool lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) = 0;
+        virtual bool isActive() noexcept {
             return true;
         }
     };
@@ -52,7 +53,7 @@ namespace plugins {
             _delegateLifecycle{delegateLifecycle},
             _delegateContext{delegateContext} {
         }
-        void lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) override;
+        bool lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) override;
     };
 
     //
@@ -62,13 +63,13 @@ namespace plugins {
     private:
     #if defined(USE_DLFCN)
         typedef void * nativeHandle_t;
-        typedef void (*lifecycleFn_t)(uint32_t moduleHandle, uint32_t phase, uint32_t data);
+        typedef bool (*lifecycleFn_t)(uint32_t moduleHandle, uint32_t phase, uint32_t data);
     #elif defined(USE_WINDLL)
         typedef HINSTANCE nativeHandle_t;
-        typedef void (WINAPI *lifecycleFn_t)(uint32_t globalHandle, uint32_t phase, uint32_t data);
+        typedef bool (WINAPI *lifecycleFn_t)(uint32_t globalHandle, uint32_t phase, uint32_t data);
     #endif
-        volatile nativeHandle_t _handle { nullptr };
-        volatile lifecycleFn_t _lifecycleFn { nullptr };
+        std::atomic<nativeHandle_t> _handle { nullptr };
+        std::atomic<lifecycleFn_t> _lifecycleFn { nullptr };
 
     public:
         explicit NativePlugin(data::Environment & environment, std::string_view name) :
@@ -80,8 +81,8 @@ namespace plugins {
         NativePlugin & operator=(NativePlugin&&) noexcept = delete;
         ~NativePlugin() override;
         void load(const std::string & filePath);
-        void lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) override;
-        bool isActive() override;
+        bool lifecycle(data::ObjHandle pluginRoot, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) override;
+        bool isActive() noexcept override;
     };
 
     //

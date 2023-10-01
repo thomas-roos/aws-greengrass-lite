@@ -1,5 +1,6 @@
 #pragma once
 #include "data/safe_handle.h"
+#include "data/string_table.h"
 #include "data/handle_table.h"
 #include "data/environment.h"
 #include "data/shared_struct.h"
@@ -21,6 +22,23 @@ namespace data {
 namespace pubsub {
     class Listeners;
     class PubSubManager;
+
+    //
+    // Translated callback exception
+    //
+    class CallbackError : public std::exception {
+        data::StringOrd _ord;
+    public:
+        constexpr CallbackError(const CallbackError&) noexcept = default;
+        constexpr CallbackError(CallbackError&&) noexcept = default;
+        CallbackError& operator=(const CallbackError&) noexcept = default;
+        CallbackError& operator=(CallbackError&&) noexcept = default;
+        explicit CallbackError(const data::StringOrd & ord) noexcept : _ord{ord} {}
+        ~CallbackError() override = default;
+        [[nodiscard]] constexpr data::StringOrd get() const {
+            return _ord;
+        }
+    };
 
     //
     // Encapsulates callbacks

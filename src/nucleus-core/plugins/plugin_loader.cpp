@@ -4,44 +4,43 @@
 namespace fs = std::filesystem;
 
 plugins::NativePlugin::~NativePlugin() {
+    nativeHandle_t h = _handle.load();
+    _handle.store(nullptr);
+    if (!h) {
+        return;
+    }
 #if defined(USE_DLFCN)
-    if (_handle) {
-        ::dlclose(_handle);
-        _handle = nullptr;
-    }
+    ::dlclose(_handle);
 #elif defined(USE_WINDLL)
-    if (_handle) {
-        ::FreeLibrary(_handle);
-        _handle = nullptr;
-    }
+    ::FreeLibrary(_handle);
 #endif
 }
 
 void plugins::NativePlugin::load(const std::string & filePath) {
 #if defined(USE_DLFCN)
     nativeHandle_t handle = ::dlopen(filePath.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
-    _handle = handle;
+    _handle.store(handle);
     if (handle == nullptr) {
         std::string error {dlerror()};
         throw std::runtime_error(std::string("Cannot load shared object: ")+filePath + std::string(" ") + error);
     }
     // NOLINTNEXTLINE(*-reinterpret-cast)
-    _lifecycleFn = reinterpret_cast<lifecycleFn_t>(::dlsym(_handle, "greengrass_lifecycle"));
+    _lifecycleFn.store(reinterpret_cast<lifecycleFn_t>(::dlsym(_handle, "greengrass_lifecycle")));
 #elif defined(USE_WINDLL)
     nativeHandle_t handle = ::LoadLibraryEx(filePath.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
-    _handle = handle;
+    _handle.store(handle);
     if (handle == nullptr) {
         uint32_t lastError = ::GetLastError();
         // TODO: use FormatMessage
         throw std::runtime_error(std::string("Cannot load DLL: ")+filePath + std::string(" ") + std::to_string(lastError));
     }
     // NOLINTNEXTLINE(*-reinterpret-cast)
-    _lifecycleFn = reinterpret_cast<lifecycleFn_t>(::GetProcAddress(_handle, "greengrass_lifecycle"));
+    _lifecycleFn.store(reinterpret_cast<lifecycleFn_t>(::GetProcAddress(_handle.load(), "greengrass_lifecycle")));
 #endif
 }
 
-bool plugins::NativePlugin::isActive() {
-    return _lifecycleFn;
+bool plugins::NativePlugin::isActive() noexcept {
+    return _lifecycleFn.load() != nullptr;
 }
 
 void plugins::PluginLoader::lifecycle(data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) {
@@ -50,26 +49,36 @@ void plugins::PluginLoader::lifecycle(data::StringOrd phase, const std::shared_p
     for (const auto &i : getRoots()) {
         std::shared_ptr<AbstractPlugin> plugin {i.getObject<AbstractPlugin>()};
         if (plugin->isActive()) {
-            plugin->lifecycle(i.getHandle(), phase, data);
+            ::ggapiSetError(0);
+            if (!plugin->lifecycle(i.getHandle(), phase, data)) {
+                // TODO: errors should not break lifecycle
+                data::StringOrd lastError{::ggapiGetError()};
+                if (lastError) {
+                    throw pubsub::CallbackError(lastError);
+                } else {
+                    throw std::runtime_error("Unspecified lifecycle error");
+                }
+            }
         }
     }
 }
 
-void plugins::NativePlugin::lifecycle(data::ObjHandle pluginAnchor, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) {
-    lifecycleFn_t lifecycleFn = _lifecycleFn;
+bool plugins::NativePlugin::lifecycle(data::ObjHandle pluginAnchor, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) {
+    lifecycleFn_t lifecycleFn = _lifecycleFn.load();
     if (lifecycleFn != nullptr) {
         std::shared_ptr<data::StructModelBase> copy = data->copy();
         std::shared_ptr<tasks::Task> threadTask = _environment.handleTable.getObject<tasks::Task>(tasks::Task::getThreadSelf());
         data::ObjectAnchor dataAnchor = threadTask->anchor(copy);
-        lifecycleFn(
+        return lifecycleFn(
                 pluginAnchor.asInt(),
                 phase.asInt(),
                 dataAnchor.getHandle().asInt()
                 );
     }
+    return true; // no error
 }
 
-void plugins::DelegatePlugin::lifecycle(data::ObjHandle pluginAnchor, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) {
+bool plugins::DelegatePlugin::lifecycle(data::ObjHandle pluginAnchor, data::StringOrd phase, const std::shared_ptr<data::StructModelBase> & data) {
     uintptr_t delegateContext;
     ggapiLifecycleCallback delegateLifecycle;
     {
@@ -81,13 +90,14 @@ void plugins::DelegatePlugin::lifecycle(data::ObjHandle pluginAnchor, data::Stri
         std::shared_ptr<data::StructModelBase> copy = data->copy();
         std::shared_ptr<tasks::Task> threadTask = _environment.handleTable.getObject<tasks::Task>(tasks::Task::getThreadSelf());
         data::ObjectAnchor dataAnchor = threadTask->anchor(copy);
-        delegateLifecycle(
+        return delegateLifecycle(
                 delegateContext,
                 pluginAnchor.asInt(),
                 phase.asInt(),
                 dataAnchor.getHandle().asInt()
         );
     }
+    return true;
 }
 
 void plugins::PluginLoader::discoverPlugins() {

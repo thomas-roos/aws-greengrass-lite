@@ -22,20 +22,21 @@ std::thread asyncThread;
 
 void asyncThreadFn();
 
-extern "C" [[maybe_unused]] EXPORT void greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) {
+extern "C" [[maybe_unused]] EXPORT bool greengrass_lifecycle(uint32_t moduleHandle, uint32_t phase, uint32_t data) noexcept {
     std::cout << "Running lifecycle plugins 2... " << ggapi::StringOrd{phase}.toString() << std::endl;
     ggapi::StringOrd phaseOrd{phase};
     if (phaseOrd == keys.run) {
         asyncThread = std::thread{asyncThreadFn};
         asyncThread.detach();
     }
+    return true;
 }
 
-ggapi::Struct publishToIoTCoreListener(ggapi::ObjHandle task, ggapi::StringOrd topic, ggapi::Struct callData) {
+ggapi::Struct publishToIoTCoreListener(ggapi::Scope task, ggapi::StringOrd topic, ggapi::Struct callData) {
     // real work
-    std::string destTopic { callData.getString(keys.topicName)};
-    int qos { static_cast<int>(callData.getInt32(keys.qos))};
-    ggapi::Struct payload {callData.getStruct(keys.payload)};
+    std::string destTopic { callData.get<std::string>(keys.topicName)};
+    int qos { callData.get<int>(keys.qos)};
+    ggapi::Struct payload {callData.get<ggapi::Struct>(keys.payload)};
     // ...
     // construct response
     ggapi::Struct response = task.createStruct();
@@ -44,42 +45,40 @@ ggapi::Struct publishToIoTCoreListener(ggapi::ObjHandle task, ggapi::StringOrd t
     return response;
 }
 
-ggapi::Struct publishToIoTCoreResponder(ggapi::ObjHandle task, ggapi::StringOrd topic, ggapi::Struct respData) {
+ggapi::Struct publishToIoTCoreResponder(ggapi::Scope task, ggapi::StringOrd topic, ggapi::Struct respData) {
     if (!respData) {
         // unhandled
         return respData;
     }
-    uint32_t status { respData.getInt32("status") };
+    uint32_t status { respData.get<uint32_t>("status") };
     return respData;
 }
 
 void asyncThreadFn() {
     std::cout << "Running async plugins 2..." << std::endl;
-    auto threadTask = ggapi::ObjHandle::claimThread(); // assume long-running thread, this provides a long-running task handle
+    auto threadScope = ggapi::ThreadScope::claimThread(); // assume long-running thread, this provides a long-running task handle
 
-    ggapi::ObjHandle publishToIoTCoreListenerHandle {threadTask.subscribeToTopic(keys.publishToIoTCoreTopic, publishToIoTCoreListener)};
+    ggapi::ObjHandle publishToIoTCoreListenerHandle {threadScope.subscribeToTopic(keys.publishToIoTCoreTopic, publishToIoTCoreListener)};
 
-    auto request {threadTask.createStruct() };
+    auto request {threadScope.createStruct() };
     request.put(keys.topicName, "some-cloud-topic")
             .put(keys.qos, "1") // string gets converted to int later
-            .put(keys.payload, threadTask.createStruct().put("Foo", 1U));
+            .put(keys.payload, threadScope.createStruct().put("Foo", 1U));
 
     // Async style
-    ggapi::ObjHandle newTask = threadTask.sendToTopicAsync(keys.publishToIoTCoreTopic, request, publishToIoTCoreResponder, -1);
+    ggapi::Scope newTask = threadScope.sendToTopicAsync(keys.publishToIoTCoreTopic, request, publishToIoTCoreResponder, -1);
     ggapi::Struct respData = newTask.waitForTaskCompleted();
-    uint32_t status { respData.getInt32("status") };
+    uint32_t status { respData.get<uint32_t>("status") };
 
     // Sync style
-    ggapi::Struct syncRespData = threadTask.sendToTopic(keys.publishToIoTCoreTopic, request);
-    uint32_t syncStatus { syncRespData.getInt32("status") };
+    ggapi::Struct syncRespData = threadScope.sendToTopic(keys.publishToIoTCoreTopic, request);
+    uint32_t syncStatus { syncRespData.get<uint32_t>("status") };
 
     std::cout << "Ping..." << std::endl;
 
-    ggapi::Struct pingData = threadTask.createStruct().put("ping", "abcde");
-    ggapi::Struct pongData = threadTask.sendToTopic(ggapi::StringOrd{"test"}, pingData);
-    std::string pongString = pongData.getString("pong");
+    ggapi::Struct pingData = threadScope.createStruct().put("ping", "abcde");
+    ggapi::Struct pongData = threadScope.sendToTopic(ggapi::StringOrd{"test"}, pingData);
+    auto pongString = pongData.get<std::string>("pong");
 
     std::cout << "Pong..." << pongString << std::endl;
-
-    ggapi::ObjHandle::releaseThread();
 }
