@@ -33,8 +33,8 @@ namespace tasks {
     private:
         std::shared_ptr<data::StructModelBase> _data;
         std::unique_ptr<SubTask> _finalize;
-        std::__cxx11::list<std::unique_ptr<SubTask>> _subtasks;
-        std::__cxx11::list<std::shared_ptr<TaskThread>> _blockedThreads;
+        std::list<std::unique_ptr<SubTask>> _subtasks;
+        std::list<std::shared_ptr<TaskThread>> _blockedThreads;
         data::ObjHandle _self;
         ExpireTime _timeout;
         Status _lastStatus {Running};
