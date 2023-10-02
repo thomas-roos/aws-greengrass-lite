@@ -18,7 +18,7 @@ plugins::NativePlugin::~NativePlugin() {
 
 void plugins::NativePlugin::load(const std::string & filePath) {
 #if defined(USE_DLFCN)
-    nativeHandle_t handle = ::dlopen(filePath.c_str(), RTLD_NOW | RTLD_LOCAL | RTLD_DEEPBIND);
+    nativeHandle_t handle = ::dlopen(filePath.c_str(), RTLD_NOW | RTLD_LOCAL );
     _handle.store(handle);
     if (handle == nullptr) {
         std::string error {dlerror()};
