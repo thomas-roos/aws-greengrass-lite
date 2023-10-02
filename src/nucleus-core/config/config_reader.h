@@ -1,5 +1,4 @@
 #pragma once
-#define YAML_CPP_STATIC_DEFINE
 #include "config_manager.h"
 #include <yaml-cpp/yaml.h>
 
