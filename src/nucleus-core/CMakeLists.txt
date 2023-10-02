@@ -5,7 +5,18 @@ set(CMAKE_CXX_STANDARD 17)
 
 add_compile_definitions(EXPORT_API)
 
-find_package(yaml-cpp REQUIRED)
+include(FetchContent)
+
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG f7320141120f720aecc4c32be25586e7da9eb978)
+
+FetchContent_GetProperties(yaml-cpp)
+if(NOT yaml-cpp_POPULATED)
+  FetchContent_Populate(yaml-cpp)
+  add_subdirectory(${yaml-cpp_SOURCE_DIR} ${yaml-cpp_BINARY_DIR} EXCLUDE_FROM_ALL)
+endif()
 
 add_library(nucleus-core SHARED
         api/data.cpp
@@ -32,9 +43,7 @@ add_library(nucleus-core SHARED
         tasks/sub_task.h
         tasks/task.cpp tasks/task.h
         )
-target_link_libraries(nucleus-core Threads::Threads ${CMAKE_DL_LIBS} ${YAML_CPP_LIBRARIES})
-target_link_directories(nucleus-core PUBLIC ${YAML_CPP_LIBRARY_DIR})
-target_include_directories(nucleus-core PUBLIC ${YAML_CPP_INCLUDE_DIR})
+target_link_libraries(nucleus-core Threads::Threads ${CMAKE_DL_LIBS} yaml-cpp)
 target_include_directories(nucleus-core PRIVATE .)
 
 add_custom_command(TARGET nucleus-core

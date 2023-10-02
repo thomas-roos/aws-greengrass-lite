@@ -12,7 +12,6 @@ set(THREADS_PREFER_PTHREAD_FLAG ON)
 #set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS_DEBUG} -fsanitize=thread")
 
 find_package(Threads REQUIRED)
-find_package(yaml-cpp REQUIRED)
 
 if(UNIX)
     add_compile_definitions(USE_DLFCN NATIVE_SUFFIX=".so")
