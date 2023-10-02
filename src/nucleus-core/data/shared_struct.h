@@ -17,6 +17,7 @@ namespace data {
         explicit SharedStruct(Environment & environment) : StructModelBase{environment} {
         }
 
+        uint32_t size() const override;
         void put(StringOrd handle, const StructElement & element) override;
         void put(std::string_view sv, const StructElement & element) override;
         bool hasKey(StringOrd handle) const override;
@@ -25,25 +26,5 @@ namespace data {
         std::shared_ptr<StructModelBase> copy() const override;
     };
 
-    /**
-     * Typical implementation of ListModelBase
-     */
-    class SharedList : public ListModelBase {
-    protected:
-        std::vector<StructElement> _elements;
-        mutable std::shared_mutex _mutex;
-
-        void rootsCheck(const ContainerModelBase * target) const override;
-
-    public:
-        explicit SharedList(Environment & environment) : ListModelBase{environment} {
-        }
-
-        void put(int32_t idx, const StructElement & element) override;
-        void insert(int32_t idx, const StructElement & element) override;
-        uint32_t length() const override;
-        StructElement get(int idx) const override;
-        std::shared_ptr<ListModelBase> copy() const override;
-    };
 }
 

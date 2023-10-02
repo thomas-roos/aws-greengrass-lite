@@ -30,6 +30,7 @@ extern "C" [[maybe_unused]] IMPEXP size_t ggapiGetOrdinalString(uint32_t ord, ch
 extern "C" [[maybe_unused]] IMPEXP size_t ggapiGetOrdinalStringLen(uint32_t ord) noexcept;
 extern "C" [[maybe_unused]] IMPEXP uint32_t ggapiCreateStruct(uint32_t anchorHandle) noexcept;
 extern "C" [[maybe_unused]] IMPEXP uint32_t ggapiCreateList(uint32_t anchorHandle) noexcept;
+extern "C" [[maybe_unused]] IMPEXP uint32_t ggapiCreateBuffer(uint32_t anchorHandle) noexcept;
 extern "C" [[maybe_unused]] IMPEXP uint32_t ggapiCreateBlob(uint32_t anchorHandle, const char * bytes, size_t len) noexcept;
 extern "C" [[maybe_unused]] IMPEXP bool ggapiStructPutInt64(uint32_t structHandle, uint32_t ord, uint64_t value) noexcept;
 extern "C" [[maybe_unused]] IMPEXP bool ggapiStructPutFloat64(uint32_t structHandle, uint32_t ord, double value) noexcept;
@@ -49,12 +50,16 @@ extern "C" [[maybe_unused]] IMPEXP bool ggapiListInsertInt64(uint32_t listHandle
 extern "C" [[maybe_unused]] IMPEXP bool ggapiListInsertFloat64(uint32_t listHandle, int32_t idx, double value) noexcept;
 extern "C" [[maybe_unused]] IMPEXP bool ggapiListInsertString(uint32_t listHandle, int32_t idx, const char * bytes, size_t len) noexcept;
 extern "C" [[maybe_unused]] IMPEXP bool ggapiListInsertHandle(uint32_t listHandle, int32_t idx, uint32_t nestedHandle) noexcept;
-extern "C" [[maybe_unused]] IMPEXP bool ggapiListGetLength(uint32_t structHandle) noexcept;
 extern "C" [[maybe_unused]] IMPEXP uint64_t ggapiListGetInt64(uint32_t structHandle, int32_t idx) noexcept;
 extern "C" [[maybe_unused]] IMPEXP double ggapiListGetFloat64(uint32_t structHandle, int32_t idx) noexcept;
 extern "C" [[maybe_unused]] IMPEXP size_t ggapiListGetStringLen(uint32_t listHandle, int32_t idx) noexcept;
 extern "C" [[maybe_unused]] IMPEXP size_t ggapiListGetString(uint32_t structHandle, int32_t idx, char * buffer, size_t buflen) noexcept;
 extern "C" [[maybe_unused]] IMPEXP uint32_t ggapiListGetHandle(uint32_t listHandle, int32_t idx) noexcept;
+extern "C" [[maybe_unused]] IMPEXP bool ggapiBufferPut(uint32_t listHandle, int32_t idx, const uint8_t * buffer, uint32_t buflen) noexcept;
+extern "C" [[maybe_unused]] IMPEXP bool ggapiBufferInsert(uint32_t listHandle, int32_t idx, const uint8_t * buffer, uint32_t buflen) noexcept;
+extern "C" [[maybe_unused]] IMPEXP uint32_t ggapiBufferGet(uint32_t listHandle, int32_t idx, uint8_t * buffer, uint32_t buflen) noexcept;
+extern "C" [[maybe_unused]] IMPEXP bool ggapiBufferResize(uint32_t structHandle, uint32_t newSize) noexcept;
+extern "C" [[maybe_unused]] IMPEXP uint32_t ggapiGetSize(uint32_t structHandle) noexcept;
 extern "C" [[maybe_unused]] IMPEXP uint32_t ggapiAnchorHandle(uint32_t anchorHandle, uint32_t objectHandle) noexcept;
 extern "C" [[maybe_unused]] IMPEXP bool ggapiReleaseHandle(uint32_t objectHandle) noexcept;
 extern "C" [[maybe_unused]] IMPEXP uint32_t ggapiGetCurrentTask(void) noexcept;

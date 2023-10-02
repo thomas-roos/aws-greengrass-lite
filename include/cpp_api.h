@@ -19,6 +19,7 @@ namespace ggapi {
     class Container;
     class Struct;
     class List;
+    class Buffer;
     class Scope;
     class Subscription;
     class GgApiError; // error from GG API call
@@ -175,6 +176,7 @@ namespace ggapi {
 
         [[nodiscard]] Struct createStruct();
         [[nodiscard]] List createList();
+        [[nodiscard]] Buffer createBuffer();
     };
 
     //
@@ -217,6 +219,12 @@ namespace ggapi {
         explicit Container(const ObjHandle & other) : ObjHandle{other} {
         }
         explicit Container(uint32_t handle) : ObjHandle{handle} {
+        }
+
+        [[nodiscard]] uint32_t size() const {
+            return callApiReturn<uint32_t>([*this](){
+                return ::ggapiGetSize(_handle);
+            });
         }
     };
 
@@ -352,12 +360,6 @@ namespace ggapi {
             return *this;
         }
 
-        [[nodiscard]] uint32_t length() const {
-            return callApiReturn<uint32_t>([*this](){
-                return ::ggapiListGetLength(_handle);
-            });
-        }
-
         template<typename T>
         T get(int32_t idx) {
             if constexpr (std::is_integral_v<T>) {
@@ -383,6 +385,55 @@ namespace ggapi {
         }
     };
 
+    //
+    // Buffers are shared containers of bytes
+    //
+    class Buffer : public Container {
+    private:
+
+    public:
+        typedef uint8_t Byte;
+        typedef std::vector<Byte> Vector;
+
+        explicit Buffer(const ObjHandle & other) : Container{other} {
+        }
+        explicit Buffer(uint32_t handle) : Container{handle} {
+        }
+
+        static Buffer create(ObjHandle parent) {
+            return Buffer(::ggapiCreateBuffer(parent.getHandleId()));
+        }
+
+        Buffer & put(int32_t idx, const Vector & vec) {
+            callApi([*this, idx, &vec](){
+                ::ggapiBufferPut(_handle, idx, vec.data(), vec.size());
+            });
+            return *this;
+        }
+
+        Buffer & insert(int32_t idx, const Vector & vec) {
+            callApi([*this, idx, &vec](){
+                ::ggapiBufferInsert(_handle, idx, vec.data(), vec.size());
+            });
+            return *this;
+        }
+
+        Buffer & get(int32_t idx, Vector & vec) {
+            callApi([*this, idx, &vec](){
+                uint32_t actLen = ::ggapiBufferGet(_handle, idx, vec.data(), vec.size());
+                vec.resize(actLen);
+            });
+            return *this;
+        }
+
+        Buffer & resize(uint32_t newSize) {
+            callApi([*this, newSize](){
+                ::ggapiBufferResize(_handle, newSize);
+            });
+            return *this;
+        }
+    };
+
     template<typename T>
     inline T ObjectBase<T>::anchor(Scope newParent) const {
         return callApiReturnHandle<T>([newParent, *this](){return ::ggapiAnchorHandle(newParent.getHandleId(), _handle);});
@@ -398,6 +449,10 @@ namespace ggapi {
 
     inline List Scope::createList() {
         return List::create(*this);
+    }
+
+    inline Buffer Scope::createBuffer() {
+        return Buffer::create(*this);
     }
 
     inline Subscription Scope::subscribeToTopic(StringOrd topic, topicCallback_t callback) {
@@ -464,6 +519,19 @@ namespace ggapi {
     }
 
     //
+    // StringOrd constants - done as inline methods so that only used constants are included. Note that ordinal
+    // gets are idempotent and thread safe.
+    //
+    struct Consts {
+
+        static StringOrd error() {
+            static const StringOrd error {"error"};
+            return error;
+        }
+    };
+
+
+    //
     // Translated exception
     //
     class GgApiError : public std::exception {
@@ -508,7 +576,7 @@ namespace ggapi {
                 return fn();
             }
         } catch (...) {
-            ggapiSetError(-1); // TODO - replace with actual error code
+            ggapiSetError(Consts::error().toOrd());
             if constexpr (std::is_void_v<T>) {
                 return;
             } else {

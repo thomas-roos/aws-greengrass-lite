@@ -1,4 +1,7 @@
 #include "data/globals.h"
+#include "data/shared_struct.h"
+#include "data/shared_list.h"
+#include "data/shared_buffer.h"
 #include <cpp_api.h>
 #include <util.h>
 
@@ -19,8 +22,11 @@ size_t ggapiGetOrdinalString(uint32_t ord, char * bytes, size_t len) noexcept {
         StringOrd ordH = StringOrd{ord};
         global.environment.stringTable.assertStringHandle(ordH);
         std::string s { global.environment.stringTable.getString(ordH) };
-        util::CheckedBuffer checked(bytes, len);
-        return checked.copy(s);
+        if (s.length() > len) {
+            throw std::runtime_error("Destination buffer is too small");
+        }
+        util::Span span(bytes, len);
+        return span.copyFrom(s.begin(), s.end());
     });
 }
 
@@ -53,6 +59,18 @@ uint32_t ggapiCreateList(uint32_t anchorHandle) noexcept {
     return ggapi::trapErrorReturn<uint32_t>([anchorHandle]() {
         Global & global = Global::self();
         auto ss {std::make_shared<SharedList>(global.environment)};
+        auto owner {global.environment.handleTable.getObject<TrackingScope>(ObjHandle{anchorHandle})};
+        return owner->anchor(ss).getHandle().asInt();
+    });
+}
+
+uint32_t ggapiCreateBuffer(uint32_t anchorHandle) noexcept {
+    if (anchorHandle == 0) {
+        anchorHandle = tasks::Task::getThreadSelf().asInt();
+    }
+    return ggapi::trapErrorReturn<uint32_t>([anchorHandle]() {
+        Global & global = Global::self();
+        auto ss {std::make_shared<SharedBuffer>(global.environment)};
         auto owner {global.environment.handleTable.getObject<TrackingScope>(ObjHandle{anchorHandle})};
         return owner->anchor(ss).getHandle().asInt();
     });
@@ -185,6 +203,26 @@ bool ggapiListInsertHandle(uint32_t listHandle, int32_t idx, uint32_t nestedHand
     });
 }
 
+bool ggapiBufferPut(uint32_t listHandle, int32_t idx, const Byte * bytes, uint32_t len) noexcept {
+    return ggapi::trapErrorReturn<bool>([listHandle,idx,bytes,len]() {
+        Global & global = Global::self();
+        auto ss {global.environment.handleTable.getObject<SharedBuffer>(ObjHandle{listHandle})};
+        ConstMemoryView buffer {bytes,len};
+        ss->put(idx, buffer);
+        return true;
+    });
+}
+
+bool ggapiBufferInsert(uint32_t listHandle, int32_t idx, const Byte * bytes, uint32_t len) noexcept {
+    return ggapi::trapErrorReturn<bool>([listHandle,idx,bytes,len]() {
+        Global & global = Global::self();
+        auto ss {global.environment.handleTable.getObject<SharedBuffer>(ObjHandle{listHandle})};
+        ConstMemoryView buffer {bytes,len};
+        ss->insert(idx, buffer);
+        return true;
+    });
+}
+
 bool ggapiStructHasKey(uint32_t structHandle, uint32_t ord) noexcept {
     return ggapi::trapErrorReturn<bool>([structHandle,ord]() {
         Global & global = Global::self();
@@ -194,11 +232,11 @@ bool ggapiStructHasKey(uint32_t structHandle, uint32_t ord) noexcept {
     });
 }
 
-uint32_t ggapiListGetLen(uint32_t listHandle) noexcept {
-    return ggapi::trapErrorReturn<bool>([listHandle]() {
+uint32_t ggapiGetSize(uint32_t listHandle) noexcept {
+    return ggapi::trapErrorReturn<uint32_t>([listHandle]() {
         Global & global = Global::self();
-        auto ss {global.environment.handleTable.getObject<ListModelBase>(ObjHandle{listHandle})};
-        return ss->length();
+        auto ss {global.environment.handleTable.getObject<ContainerModelBase>(ObjHandle{listHandle})};
+        return ss->size();
     });
 }
 
@@ -275,8 +313,11 @@ size_t ggapiStructGetString(uint32_t structHandle, uint32_t ord, char * buffer, 
         auto ss {global.environment.handleTable.getObject<StructModelBase>(ObjHandle{structHandle})};
         StringOrd ordH = StringOrd{ord};
         std::string s = ss->get(ordH).getString();
-        util::CheckedBuffer checked(buffer, buflen);
-        return checked.copy(s);
+        if (s.length() > buflen) {
+            throw std::runtime_error("Destination buffer is too small");
+        }
+        util::Span span(buffer, buflen);
+        return span.copyFrom(s.begin(), s.end());
     });
 }
 
@@ -294,8 +335,20 @@ size_t ggapiListGetString(uint32_t listHandle, int32_t idx, char * buffer, size_
         Global & global = Global::self();
         auto ss {global.environment.handleTable.getObject<ListModelBase>(ObjHandle{listHandle})};
         std::string s = ss->get(idx).getString();
-        util::CheckedBuffer checked(buffer, buflen);
-        return checked.copy(s);
+        if (s.length() > buflen) {
+            throw std::runtime_error("Destination buffer is too small");
+        }
+        util::Span span(buffer, buflen);
+        return span.copyFrom(s.begin(), s.end());
+    });
+}
+
+uint32_t ggapiBufferGet(uint32_t listHandle, int32_t idx, Byte * bytes, uint32_t len) noexcept {
+    return ggapi::trapErrorReturn<uint32_t>([listHandle,idx,bytes,len]() {
+        Global & global = Global::self();
+        auto ss {global.environment.handleTable.getObject<SharedBuffer>(ObjHandle{listHandle})};
+        MemoryView buffer {bytes,len};
+        return ss->get(idx, buffer);
     });
 }
 

@@ -254,6 +254,7 @@ namespace config {
         void put(std::string_view sv, const data::StructElement & element) override;
         void updateChild(const Element & element);
         bool hasKey(data::StringOrd handle) const override;
+        uint32_t size() const override;
         data::StructElement get(data::StringOrd handle) const override;
         data::StructElement get(std::string_view name) const override;
         std::shared_ptr<data::StructModelBase> copy() const override;

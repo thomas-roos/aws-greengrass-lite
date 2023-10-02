@@ -19,6 +19,8 @@ add_library(nucleus-core SHARED
         data/environment.cpp data/environment.h
         data/handle_table.cpp data/handle_table.h
         data/safe_handle.cpp data/safe_handle.h
+        data/shared_buffer.cpp data/shared_buffer.h
+        data/shared_list.cpp data/shared_list.h
         data/shared_struct.cpp data/shared_struct.h
         data/string_table.cpp data/string_table.h
         data/struct_model.cpp data/struct_model.h
@@ -29,7 +31,7 @@ add_library(nucleus-core SHARED
         tasks/expire_time.h
         tasks/sub_task.h
         tasks/task.cpp tasks/task.h
-        api/error.cpp)
+        )
 target_link_libraries(nucleus-core Threads::Threads ${CMAKE_DL_LIBS} ${YAML_CPP_LIBRARIES})
 target_link_directories(nucleus-core PUBLIC ${YAML_CPP_LIBRARY_DIR})
 target_include_directories(nucleus-core PUBLIC ${YAML_CPP_INCLUDE_DIR})

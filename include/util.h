@@ -55,28 +55,60 @@ namespace util {
         return target;
     }
 
-    class CheckedBuffer {
-    private:
-        char * _buffer;
-        size_t _buflen;
+
+    //
+    // Used for views into memory buffers with safe copies (C++20 has span, C++17 does not)
+    //
+    template<typename DataT, typename SizeT = std::size_t>
+    class Span {
+        DataT * _ptr;
+        SizeT _len;
     public:
-        explicit CheckedBuffer(char * buffer, size_t buflen) :
-                _buffer{buffer},_buflen(buflen) {
-            // NOLINTNEXTLINE(*-pointer-arithmetic)
-            if (_buffer + _buflen < _buffer) {
-                throw std::out_of_range("Buffer wraps");
-            }
+        Span(DataT * ptr, SizeT len) noexcept :
+                _ptr(ptr), _len(len) {
+        }
+        DataT& operator[](SizeT i) noexcept {
+            return *_ptr[i];
         }
 
-        size_t copy(const std::string & s) {
-            if (_buflen < 1 || s.length() >= _buflen) {
-                throw std::out_of_range("Buffer is too small");
-            }
-            s.copy(_buffer, _buflen-1);
-            // NOLINTNEXTLINE(*-pointer-arithmetic)
-            _buffer[s.length()] = 0; // ok because of above length check
-            return s.length();
+        DataT const & operator[](SizeT i) const noexcept {
+            return *_ptr[i];
         }
+
+        [[nodiscard]] SizeT size() const noexcept {
+            return _len;
+        }
+
+        DataT* begin() noexcept {
+            return _ptr;
+        }
+
+        DataT* end() noexcept {
+            return _ptr + _len;
+        }
+
+        template<typename OutputIt>
+        SizeT copyTo(OutputIt d_first, OutputIt d_last) {
+            DataT * s = begin();
+            DataT * s_last = end();
+            OutputIt d = d_first;
+            for(; s!=s_last && d!=d_last;++s,++d) {
+                *d=*s;
+            }
+            return s-begin();
+        }
+
+        template<typename InputIt>
+        SizeT copyFrom(InputIt s_first, InputIt s_last) {
+            DataT * d = begin();
+            DataT * d_last = end();
+            InputIt s = s_first;
+            for(; s!=s_last && d!=d_last;++s,++d) {
+                *d=*s;
+            }
+            return d-begin();
+        }
+
     };
 
     //

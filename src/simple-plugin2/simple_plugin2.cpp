@@ -81,4 +81,14 @@ void asyncThreadFn() {
     auto pongString = pongData.get<std::string>("pong");
 
     std::cout << "Pong..." << pongString << std::endl;
+
+    ggapi::Buffer buf = threadScope.createBuffer();
+    ggapi::Buffer::Vector vecData;
+    vecData.push_back(1);
+    vecData.push_back(2);
+    vecData.push_back(3);
+    buf.insert(0, vecData);
+    buf.insert(1, vecData);
+    vecData.resize(10);
+    buf.get(0, vecData);
 }

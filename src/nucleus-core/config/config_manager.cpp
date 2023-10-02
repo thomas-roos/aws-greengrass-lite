@@ -141,6 +141,12 @@ namespace config {
         return i != _children.end();
     }
 
+    uint32_t Topics::size() const {
+        //_environment.stringTable.assertStringHandle(handle);
+        std::shared_lock guard{_mutex};
+        return _children.size();
+    }
+
     Element Topics::createChild(data::StringOrd nameOrd, const std::function<Element(data::StringOrd)> & creator) {
         data::StringOrd key = Element::getKey(_environment, nameOrd);
         std::unique_lock guard{_mutex};

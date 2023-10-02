@@ -156,14 +156,18 @@ namespace data {
     };
 
     //
-    // Base class for classes that behave like a container - ie lists and structures
+    // Base class for classes that behave like a container - lists, structures and buffers
     //
     class ContainerModelBase : public TrackedObject {
     public:
         explicit ContainerModelBase(Environment & environment) : TrackedObject{environment} {
         }
 
+        //
+        // Used for lists and structures
+        //
         virtual void rootsCheck(const ContainerModelBase * target) const = 0;
+        virtual uint32_t size() const = 0;
         void checkedPut(const StructElement & element, const std::function<void(const StructElement &)>& putAction);
     };
 
@@ -193,7 +197,7 @@ namespace data {
 
         virtual void put(int32_t idx, const StructElement & element) = 0;
         virtual void insert(int32_t idx, const StructElement & element) = 0;
-        virtual uint32_t length() const = 0;
+        virtual uint32_t size() const = 0;
         virtual StructElement get(int idx) const = 0;
         virtual std::shared_ptr<ListModelBase> copy() const = 0;
     };
