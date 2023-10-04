@@ -5,6 +5,7 @@
 #include "data/shared_struct.h"
 #include "data/string_table.h"
 #include "tasks/expire_time.h"
+#include "watcher.h"
 #include <filesystem>
 #include <optional>
 #include <utility>
@@ -36,7 +37,8 @@ namespace config {
         explicit constexpr Timestamp(int64_t timeMillis) : _time{timeMillis} {
         }
 
-        explicit constexpr Timestamp(const std::chrono::time_point<std::chrono::system_clock> time)
+        template<typename T>
+        explicit constexpr Timestamp(const std::chrono::time_point<T> time)
             : _time(static_cast<int64_t>(
                 std::chrono::duration_cast<std::chrono::milliseconds>(time.time_since_epoch())
                     .count()
@@ -96,66 +98,6 @@ namespace config {
     constexpr Timestamp Timestamp::infinite() {
         return Timestamp{-1};
     }
-
-    //
-    // Inside the Nucleus, there are some keys that have side effects, handled
-    // through watchers Assume these are internal to Nucleus, but can be extended by
-    // creating a special watcher container to map to pub-sub
-    //
-    enum class WhatHappened : uint32_t {
-        never = 0,
-        changed = 1 << 0,
-        initialized = 1 << 1,
-        childChanged = 1 << 2,
-        removed = 1 << 3,
-        childRemoved = 1 << 4,
-        timestampUpdated = 1 << 5,
-        interiorAdded = 1 << 6,
-        validation = 1 << 7
-    };
-
-    // allow combining of bit-flags
-    inline WhatHappened operator|(WhatHappened left, WhatHappened right) {
-        return static_cast<WhatHappened>(
-            static_cast<uint32_t>(left) | static_cast<uint32_t>(right)
-        );
-    }
-
-    // allow masking of bit-flags
-    inline WhatHappened operator&(WhatHappened left, WhatHappened right) {
-        return static_cast<WhatHappened>(
-            static_cast<uint32_t>(left) & static_cast<uint32_t>(right)
-        );
-    }
-
-    class Watcher {
-    public:
-        Watcher() = delete;
-        Watcher(const Watcher &) = delete;
-        Watcher(Watcher &&) = delete;
-        Watcher &operator=(const Watcher &) = delete;
-        Watcher &operator=(Watcher &&) = delete;
-        virtual ~Watcher() = default;
-
-        [[nodiscard]] virtual std::optional<data::ValueType> validate(
-            const std::shared_ptr<Topics> &topics,
-            data::StringOrd key,
-            const data::ValueType &proposed,
-            const data::ValueType &currentValue
-        ) const {
-            return {};
-        }
-
-        virtual void changed(
-            const std::shared_ptr<Topics> &topics, data::StringOrd key, WhatHappened changeType
-        ) const {
-        }
-
-        virtual void childChanged(
-            const std::shared_ptr<Topics> &topics, data::StringOrd key, WhatHappened changeType
-        ) const {
-        }
-    };
 
     class Watching {
         data::StringOrd _subKey{}; // if specified, indicates value that is being
@@ -273,51 +215,103 @@ namespace config {
     //
     class Topics : public data::StructModelBase {
     protected:
+        data::StringOrd _key;
+        bool _excludeTlog{false};
+        Timestamp _modtime;
         std::weak_ptr<Topics> _parent;
         std::map<data::StringOrd, Element, data::StringOrd::CompLess> _children;
         std::vector<Watching> _watching;
         mutable std::shared_mutex _mutex;
+
         void rootsCheck(const data::ContainerModelBase *target) const override;
 
     public:
-        explicit Topics(data::Environment &environment, const std::shared_ptr<Topics> &parent)
-            : data::StructModelBase{environment}, _parent{parent} {
+        explicit Topics(
+            data::Environment &environment,
+            const std::shared_ptr<Topics> &parent,
+            const data::StringOrd &key
+        );
+
+        [[nodiscard]] data::StringOrd getKeyOrd() const {
+            return _key;
+        }
+
+        [[nodiscard]] std::string getKey() const;
+
+        [[nodiscard]] std::vector<std::string> getKeyPath() const;
+
+        [[nodiscard]] bool excludeTlog() {
+            return _excludeTlog;
+        }
+
+        [[nodiscard]] Timestamp getModTime() const {
+            return _modtime;
         }
 
         void addWatcher(
             data::StringOrd subKey, const std::shared_ptr<Watcher> &watcher, WhatHappened reasons
         );
+
         void addWatcher(const std::shared_ptr<Watcher> &watcher, WhatHappened reasons);
+
         bool hasWatchers() const;
+
         std::optional<std::vector<std::shared_ptr<Watcher>>>
             filterWatchers(data::StringOrd subKey, WhatHappened reasons) const;
+
         std::optional<std::vector<std::shared_ptr<Watcher>>> filterWatchers(WhatHappened reasons
         ) const;
+
         void put(data::StringOrd handle, const data::StructElement &element) override;
+
         void put(std::string_view sv, const data::StructElement &element) override;
+
         void updateChild(const Element &element);
+
         bool hasKey(data::StringOrd handle) const override;
+
+        std::vector<data::StringOrd> getKeys() const;
+
         uint32_t size() const override;
+
         data::StructElement get(data::StringOrd handle) const override;
+
         data::StructElement get(std::string_view name) const override;
+
         std::shared_ptr<data::StructModelBase> copy() const override;
+
         Element createChild(
             data::StringOrd nameOrd, const std::function<Element(data::StringOrd)> &creator
         );
+
         Topic createChild(data::StringOrd nameOrd, const Timestamp &timestamp = Timestamp());
+
         Topic createChild(std::string_view name, const Timestamp &timestamp = Timestamp());
+
         std::shared_ptr<Topics> createInteriorChild(
             data::StringOrd nameOrd, const Timestamp &timestamp = Timestamp::now()
         );
+
         std::shared_ptr<Topics> createInteriorChild(
             std::string_view name, const Timestamp &timestamp = Timestamp::now()
         );
+
+        std::vector<std::shared_ptr<Topics>> getInteriors();
+
+        std::vector<Topic> getLeafs();
+
         Element getChildElement(data::StringOrd handle) const;
+
         Element getChildElement(std::string_view sv) const;
+
         Topic getChild(data::StringOrd handle);
+
         Topic getChild(std::string_view name);
+
         size_t getSize() const;
+
         Lookup lookup();
+
         Lookup lookup(Timestamp timestamp);
 
         std::optional<data::ValueType> validate(
@@ -346,12 +340,23 @@ namespace config {
     public:
         Topic(const Topic &el) = default;
         Topic(Topic &&el) = default;
+
         Topic &operator=(const Topic &other) = default;
+
         Topic &operator=(Topic &&other) = default;
+
         ~Topic() = default;
 
         explicit Topic(data::Environment &env, const std::shared_ptr<Topics> &parent, Element value)
             : _environment{&env}, _parent{parent}, _value{std::move(value)} {
+        }
+
+        [[nodiscard]] data::StringOrd getKeyOrd() const {
+            return _value.getKey(*_environment);
+        }
+
+        [[nodiscard]] std::shared_ptr<Topics> getTopics() {
+            return _parent;
         }
 
         // signature follows that of GG-Java
@@ -371,6 +376,9 @@ namespace config {
         Topic &overrideValue(data::ValueType nv) {
             return withNewerValue(_value.getModTime(), std::move(nv));
         }
+
+        Topic &addWatcher(const std::shared_ptr<Watcher> &watcher, WhatHappened reasons);
+        Topic &dflt(data::ValueType defVal);
 
         Element get() {
             return _value;
@@ -442,13 +450,22 @@ namespace config {
 
     public:
         explicit Manager(data::Environment &environment)
-            : _environment{environment}, _root{std::make_shared<Topics>(environment, nullptr)} {
+            : _environment{environment},
+              _root{std::make_shared<Topics>(environment, nullptr, data::StringOrd::nullHandle())} {
         }
 
         std::shared_ptr<Topics> root() {
             return _root;
         }
 
-        void read(std::filesystem::path path);
+        Manager &read(const std::filesystem::path &path);
+
+        Lookup lookup() {
+            return _root->lookup();
+        }
+
+        Lookup lookup(Timestamp timestamp) {
+            return _root->lookup(timestamp);
+        }
     };
 } // namespace config
