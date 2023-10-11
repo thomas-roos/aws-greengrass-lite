@@ -10,33 +10,26 @@ namespace config {
         const std::shared_ptr<Topics> &root,
         const std::filesystem::path &outputPath
     )
-        : _environment(environment), _root(root), _tlogOutputPath(outputPath) {
-        _writer.exceptions(std::ios::failbit | std::ios::badbit);
-        //_root->addWatcher(_watcher, WhatHappened::all);
+        : _environment(environment), _root(root), _tlogFile(outputPath) {
     }
 
-    TlogWriter::~TlogWriter() {
-        close();
+    TlogWriter &TlogWriter::dump() {
+        startNew();
+        writeAll();
+        commit();
+        return *this;
     }
 
-    void TlogWriter::dump(
-        data::Environment &environment,
-        const std::shared_ptr<Topics> &root,
-        const std::filesystem::path &outputPath
-    ) {
-        TlogWriter writer{environment, root, outputPath};
-        writer.open(std::ios_base::out | std::ios_base::trunc);
-        writer.writeAll();
-        writer.close();
-    }
-
-    void TlogWriter::close() {
+    void TlogWriter::commit() {
         std::unique_lock guard{_mutex};
         _watcher.reset();
-        if(_writer.is_open()) {
-            _writer.flush();
-            _writer.close();
-        }
+        _tlogFile.commit();
+    }
+
+    void TlogWriter::abandon() {
+        std::unique_lock guard{_mutex};
+        _watcher.reset();
+        _tlogFile.abandon();
     }
 
     TlogWriter &TlogWriter::withWatcher(bool f) {
@@ -45,6 +38,7 @@ namespace config {
             if(!_watcher) {
                 _watcher = std::make_shared<TlogWatcher>(*this);
             }
+            _root->addWatcher(_watcher, WhatHappened::all);
         } else {
             _watcher.reset();
         }
@@ -63,9 +57,12 @@ namespace config {
         return *this;
     }
 
-    TlogWriter &TlogWriter::flushImmediately() {
+    TlogWriter &TlogWriter::flushImmediately(bool f) {
         std::unique_lock guard{_mutex};
-        _writer.flush();
+        _flushImmediately = f;
+        if(f) {
+            _tlogFile.flush();
+        }
         return *this;
     }
 
@@ -74,22 +71,20 @@ namespace config {
         return *this;
     }
 
-    std::filesystem::path TlogWriter::getPath() {
+    std::filesystem::path TlogWriter::getPath() const {
         std::unique_lock guard{_mutex};
-        return _tlogOutputPath;
+        return _tlogFile.getTargetFile();
     }
 
-    TlogWriter &TlogWriter::open(std::ios_base::openmode mode) {
-        return open(getPath(), mode);
+    TlogWriter &TlogWriter::startNew() {
+        std::unique_lock guard{_mutex};
+        _tlogFile.begin();
+        return *this;
     }
 
-    TlogWriter &TlogWriter::open(const std::filesystem::path &path, std::ios_base::openmode mode) {
-        close();
-        std::ofstream stream;
-        stream.exceptions(std::ios::failbit | std::ios::badbit);
-        stream.open(path, mode);
+    TlogWriter &TlogWriter::append() {
         std::unique_lock guard{_mutex};
-        _writer = std::move(stream);
+        _tlogFile.append();
         return *this;
     }
 
@@ -111,11 +106,12 @@ namespace config {
         if(node.excludeTlog()) {
             return;
         }
-        Topic *nodeAsTopic = dynamic_cast<Topic *>(&node);
+        auto *nodeAsTopic = dynamic_cast<Topic *>(&node);
         TlogLine tlogline;
         tlogline.topicPath = node.getKeyPath();
         tlogline.timestamp = node.getModTime();
-        if((changeType & WhatHappened::childChanged) != WhatHappened::never
+        if((changeType & (WhatHappened::changed | WhatHappened::childChanged))
+               != WhatHappened::never
            && nodeAsTopic != nullptr) {
             tlogline.value = nodeAsTopic->slice();
             tlogline.action = WhatHappened::changed;
@@ -136,12 +132,12 @@ namespace config {
         tlogline.serialize(_environment, writer);
 
         std::unique_lock guard{_mutex};
-        if(!_writer.is_open()) {
+        if(!_tlogFile.is_open()) {
             return;
         }
-        _writer << buffer.GetString() << std::endl;
+        _tlogFile << buffer.GetString() << "\n";
         if(_flushImmediately) {
-            _writer.flush();
+            _tlogFile.flush();
         }
         uint32_t currentCount = ++_count;
         // TODO: insert auto-truncate logic from ConfigurationWriter::childChanged

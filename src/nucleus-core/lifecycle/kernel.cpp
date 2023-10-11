@@ -22,6 +22,7 @@ namespace lifecycle {
     // That logic is moved here to decouple command line processing and post-processing.
     //
     void Kernel::preLaunch(CommandLine &commandLine) {
+        getConfig().publishQueue().start();
         _rootPathWatcher = std::make_shared<RootPathWatcher>(*this);
         _global.environment.configManager.lookup()["system"]("rootpath")
             .dflt(getPaths()->rootPath().generic_string())
@@ -83,6 +84,7 @@ namespace lifecycle {
             getConfig().read(commandLine.getProvidedConfigPath());
             readFromTlog = false;
         } else {
+            // Note: Bootstrap config is written only if override config not used
             std::filesystem::path bootstrapTlogPath =
                 _nucleusPaths->configPath() / DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE;
 
@@ -128,10 +130,13 @@ namespace lifecycle {
         }
         // After each boot create a dump of what the configuration looks like
         writeEffectiveConfig();
-        //
-        //        // hook tlog to config so that changes over time are persisted to the tlog
-        //        tlog = config::TlogWriter::logTransactionsTo(getConfig(), transactionLogPath)
-        //                .flushImmediately(true).withAutoTruncate(getContext());
+
+        // hook tlog to config so that changes over time are persisted to the tlog
+        _tlog = std::make_unique<config::TlogWriter>(
+            _global.environment, getConfig().root(), transactionLogPath
+        );
+        // TODO: per KernelLifecycle.initConfigAndTlog(), configure auto truncate from config
+        _tlog->flushImmediately().withAutoTruncate().append().withWatcher();
     }
 
     void Kernel::updateDeviceConfiguration() {
@@ -202,7 +207,7 @@ namespace lifecycle {
     }
 
     void Kernel::writeEffectiveConfigAsTransactionLog(const std::filesystem::path &tlogFile) {
-        config::TlogWriter::dump(_global.environment, getConfig().root(), tlogFile);
+        config::TlogWriter(_global.environment, getConfig().root(), tlogFile).dump();
     }
 
     void Kernel::writeEffectiveConfig() {
@@ -261,6 +266,7 @@ namespace lifecycle {
             ggapiGetCurrentTask(), -1
         ); // essentially blocks forever but allows main thread to do work
         _global.loader->lifecycleTerminate(emptyStruct);
+        getConfig().publishQueue().stop();
     }
 
     void RootPathWatcher::initialized(

@@ -8,11 +8,13 @@ namespace util {
     // In this implementation, begin() must be called, and commits do not happen unless commit()
     // is called.
     class CommitableFile {
+        enum Mode { CLOSED, BEGIN_NEW, APPEND_EXISTING };
+
         std::filesystem::path _new;
         std::filesystem::path _target;
         std::filesystem::path _backup;
         std::ofstream _stream;
-        bool _didBegin{false};
+        Mode _mode{CLOSED};
 
     public:
         CommitableFile(const CommitableFile &) = delete;
@@ -31,7 +33,16 @@ namespace util {
             return _stream;
         }
 
-        CommitableFile &begin();
+        explicit operator std::filesystem::path() const {
+            return getTargetFile();
+        }
+
+        CommitableFile &begin(
+            std::ios_base::openmode mode = std::ios_base::trunc | std::ios_base::out
+        );
+        CommitableFile &append(
+            std::ios_base::openmode mode = std::ios_base::app | std::ios_base::out
+        );
         CommitableFile &commit();
         CommitableFile &abandon();
         CommitableFile &deleteNew();
@@ -41,5 +52,16 @@ namespace util {
         CommitableFile &moveNewToTarget();
         static std::filesystem::path getNewFile(const std::filesystem::path &path);
         static std::filesystem::path getBackupFile(const std::filesystem::path &path);
+        std::filesystem::path getTargetFile() const;
+        std::filesystem::path getNewFile() const;
+        std::filesystem::path getBackupFile() const;
+        void flush();
+        bool is_open();
+
+        template<typename T>
+        CommitableFile &operator<<(T v) {
+            _stream << v;
+            return *this;
+        }
     };
 } // namespace util

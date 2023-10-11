@@ -2,6 +2,7 @@
 
 #include "config_manager.h"
 #include "json_helper.h"
+#include "util/commitable_file.h"
 #include <atomic>
 #include <filesystem>
 #include <fstream>
@@ -75,7 +76,7 @@ namespace config {
 
         data::Environment &_environment;
         mutable std::mutex _mutex;
-        std::filesystem::path _tlogOutputPath;
+        util::CommitableFile _tlogFile;
         std::shared_ptr<Topics> _root;
         std::shared_ptr<TlogWatcher> _watcher;
         bool _truncateQueue{false};
@@ -84,7 +85,6 @@ namespace config {
         bool _autoTruncate{false};
         uint32_t _maxEntries{DEFAULT_MAX_TLOG_ENTRIES};
         uint32_t _retryCount{0};
-        std::ofstream _writer;
 
         void writeAll(const std::shared_ptr<Topics> &node);
 
@@ -94,23 +94,25 @@ namespace config {
             const std::shared_ptr<Topics> &root,
             const std::filesystem::path &outputPath
         );
-        ~TlogWriter();
+        TlogWriter(const TlogWriter &) = delete;
+        TlogWriter(TlogWriter &&) = delete;
+        TlogWriter &operator=(const TlogWriter &) = delete;
+        TlogWriter &operator=(TlogWriter &&other) = delete;
+        ~TlogWriter() = default;
 
-        void close();
+        void abandon();
+        void commit();
         TlogWriter &withAutoTruncate(bool f = true);
         TlogWriter &withWatcher(bool f = true);
         TlogWriter &withMaxEntries(uint32_t maxEntries = DEFAULT_MAX_TLOG_ENTRIES);
         TlogWriter &writeAll();
-        TlogWriter &flushImmediately();
-        TlogWriter &open(std::ios_base::openmode mode);
-        TlogWriter &open(const std::filesystem::path &path, std::ios_base::openmode mode);
-        std::filesystem::path getPath();
-        static void dump(
-            data::Environment &environment,
-            const std::shared_ptr<Topics> &root,
-            const std::filesystem::path &outputPath
-        );
+        TlogWriter &flushImmediately(bool f = true);
+        TlogWriter &startNew();
+        TlogWriter &append();
+        std::filesystem::path getPath() const;
         void childChanged(ConfigNode &node, WhatHappened changeType);
+        TlogWriter &dump();
+
         static std::filesystem::path getOldTlogPath(const std::filesystem::path &path);
     };
 } // namespace config
