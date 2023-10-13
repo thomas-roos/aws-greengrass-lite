@@ -2,11 +2,16 @@
 
 #include <cstdint>
 #include <functional>
+#include <iostream>
+#include <limits>
 #include <memory>
 #include <stdexcept>
+#include <streambuf>
 #include <string>
 #include <string_view>
 #include <type_traits>
+#include <variant>
+#include <vector>
 
 extern "C" {
 #include "c_api.h"
@@ -80,7 +85,16 @@ namespace ggapi {
             return r;
         }
 
-        explicit StringOrd(std::string_view sv) noexcept : _ord{intern(sv)} {
+        // NOLINTNEXTLINE(google-explicit-constructor)
+        StringOrd(const std::string &sv) noexcept : _ord{intern(sv)} {
+        }
+
+        // NOLINTNEXTLINE(google-explicit-constructor)
+        StringOrd(std::string_view sv) noexcept : _ord{intern(sv)} {
+        }
+
+        // NOLINTNEXTLINE(google-explicit-constructor)
+        StringOrd(const char *sv) noexcept : _ord{intern(sv)} {
         }
 
         explicit constexpr StringOrd(uint32_t ord) noexcept : _ord{ord} {
@@ -265,6 +279,9 @@ namespace ggapi {
     class Container : public ObjHandle {
     private:
     public:
+        using Value = std::variant<bool, int64_t, uint64_t, double, std::string, ObjHandle>;
+        using KeyValue = std::pair<StringOrd, Value>;
+
         explicit Container(const ObjHandle &other) : ObjHandle{other} {
         }
 
@@ -294,7 +311,9 @@ namespace ggapi {
 
         template<typename T>
         Struct &put(StringOrd ord, T v) {
-            if constexpr(std::is_integral_v<T>) {
+            if constexpr(std::is_same_v<bool, T>) {
+                callApi([*this, ord, v]() { ::ggapiStructPutBool(_handle, ord.toOrd(), v); });
+            } else if constexpr(std::is_integral_v<T>) {
                 auto intv = static_cast<uint64_t>(v);
                 callApi([*this, ord, intv]() { ::ggapiStructPutInt64(_handle, ord.toOrd(), intv); }
                 );
@@ -312,15 +331,23 @@ namespace ggapi {
                 callApi([*this, ord, &v]() {
                     ::ggapiStructPutHandle(_handle, ord.toOrd(), v.getHandleId());
                 });
+            } else if constexpr(std::is_same_v<Value, T>) {
+                std::visit([this, ord](auto &&value) { put(ord, value); }, v);
             } else {
                 static_assert(T::usingUnsupportedType, "Unsupported type");
             }
             return *this;
         }
 
-        template<typename T>
-        Struct &put(std::string_view sv, T v) {
-            return put<T>(StringOrd(sv), v);
+        Struct &put(const KeyValue &kv) {
+            return put(kv.first, kv.second);
+        }
+
+        Struct &put(std::initializer_list<KeyValue> list) {
+            for(const auto &i : list) {
+                put(i);
+            }
+            return *this;
         }
 
         [[nodiscard]] bool hasKey(StringOrd ord) const {
@@ -335,7 +362,11 @@ namespace ggapi {
 
         template<typename T>
         T get(StringOrd ord) {
-            if constexpr(std::is_integral_v<T>) {
+            if constexpr(std::is_same_v<bool, T>) {
+                return callApiReturn<bool>([*this, ord]() {
+                    return ::ggapiStructGetBool(_handle, ord.toOrd());
+                });
+            } else if constexpr(std::is_integral_v<T>) {
                 auto intv = callApiReturn<uint64_t>([*this, ord]() {
                     return ::ggapiStructGetInt64(_handle, ord.toOrd());
                 });
@@ -362,11 +393,6 @@ namespace ggapi {
                 static_assert(T::usingUnsupportedType, "Unsupported type");
             }
         }
-
-        template<typename T>
-        T get(std::string_view sv) {
-            return get<T>(StringOrd(sv));
-        }
     };
 
     //
@@ -382,12 +408,14 @@ namespace ggapi {
         }
 
         static List create(ObjHandle parent) {
-            return List(::ggapiCreateStruct(parent.getHandleId()));
+            return List(::ggapiCreateList(parent.getHandleId()));
         }
 
         template<typename T>
         List &put(int32_t idx, T v) {
-            if constexpr(std::is_integral_v<T>) {
+            if constexpr(std::is_same_v<bool, T>) {
+                callApi([*this, idx, v]() { ::ggapiListPutBool(_handle, idx, v); });
+            } else if constexpr(std::is_integral_v<T>) {
                 auto intv = static_cast<uint64_t>(v);
                 callApi([*this, idx, intv]() { ::ggapiListPutInt64(_handle, idx, intv); });
             } else if constexpr(std::is_floating_point_v<T>) {
@@ -401,6 +429,8 @@ namespace ggapi {
             } else if constexpr(std::is_base_of_v<ObjHandle, T>) {
                 callApi([*this, idx, &v]() { ::ggapiListPutHandle(_handle, idx, v.getHandleId()); }
                 );
+            } else if constexpr(std::is_same_v<Value, T>) {
+                std::visit([this, idx](auto &&value) { put(idx, value); }, v);
             } else {
                 static_assert(T::usingUnsupportedType, "Unsupported type");
             }
@@ -409,7 +439,9 @@ namespace ggapi {
 
         template<typename T>
         List &insert(int32_t idx, T v) {
-            if constexpr(std::is_integral_v<T>) {
+            if constexpr(std::is_same_v<bool, T>) {
+                callApi([*this, idx, v]() { ::ggapiListInsertBool(_handle, idx, v); });
+            } else if constexpr(std::is_integral_v<T>) {
                 auto intv = static_cast<uint64_t>(v);
                 callApi([*this, idx, intv]() { ::ggapiListInsertInt64(_handle, idx, intv); });
             } else if constexpr(std::is_floating_point_v<T>) {
@@ -424,15 +456,33 @@ namespace ggapi {
                 callApi([*this, idx, &v]() {
                     ::ggapiListInsertHandle(_handle, idx, v.getHandleId());
                 });
+            } else if constexpr(std::is_same_v<Value, T>) {
+                std::visit([this, idx](auto &&value) { insert(idx, value); }, v);
             } else {
                 static_assert(T::usingUnsupportedType, "Unsupported type");
             }
             return *this;
         }
 
+        List &append(const Value &value) {
+            std::visit([this](auto &&value) { insert(-1, value); }, value);
+            return *this;
+        }
+
+        List &append(std::initializer_list<Value> list) {
+            for(const auto &i : list) {
+                append(i);
+            }
+            return *this;
+        }
+
         template<typename T>
         T get(int32_t idx) {
-            if constexpr(std::is_integral_v<T>) {
+            if constexpr(std::is_same_v<bool, T>) {
+                return callApiReturn<bool>([*this, idx]() {
+                    return ::ggapiListGetBool(_handle, idx);
+                });
+            } else if constexpr(std::is_integral_v<T>) {
                 auto intv = callApiReturn<uint64_t>([*this, idx]() {
                     return ::ggapiListGetInt64(_handle, idx);
                 });
@@ -461,15 +511,16 @@ namespace ggapi {
         }
     };
 
+    class BufferStream;
+    class BufferInStream;
+    class BufferOutStream;
+
     //
     // Buffers are shared containers of bytes
     //
     class Buffer : public Container {
     private:
     public:
-        typedef uint8_t Byte;
-        typedef std::vector<Byte> Vector;
-
         explicit Buffer(const ObjHandle &other) : Container{other} {
         }
 
@@ -480,25 +531,112 @@ namespace ggapi {
             return Buffer(::ggapiCreateBuffer(parent.getHandleId()));
         }
 
-        Buffer &put(int32_t idx, const Vector &vec) {
-            callApi([*this, idx, &vec]() { ::ggapiBufferPut(_handle, idx, vec.data(), vec.size()); }
-            );
+        BufferStream stream();
+        BufferInStream in();
+        BufferOutStream out();
+
+        Buffer &put(int32_t idx, const char *data, size_t n) {
+            if(n > std::numeric_limits<uint32_t>::max()) {
+                throw std::out_of_range("length out of range");
+            }
+            callApi([*this, idx, data, n]() { ::ggapiBufferPut(_handle, idx, data, n); });
             return *this;
         }
 
-        Buffer &insert(int32_t idx, const Vector &vec) {
-            callApi([*this, idx, &vec]() {
-                ::ggapiBufferInsert(_handle, idx, vec.data(), vec.size());
-            });
+        template<typename T>
+        Buffer &put(int32_t idx, const T *data, size_t n) {
+            // NOLINTNEXTLINE(*-type-reinterpret-cast)
+            const char *d = reinterpret_cast<const char *>(data);
+            size_t nn = n * sizeof(const char);
+            if(nn < n) {
+                throw std::out_of_range("length out of range");
+            }
+            return put(idx, d, nn);
+        }
+
+        template<typename T>
+        Buffer &put(int32_t idx, const std::vector<T> &vec) {
+            return put(idx, vec.data(), vec.size());
+        }
+
+        template<typename T>
+        Buffer &put(int32_t idx, const std::basic_string_view<T> sv) {
+            return put(idx, sv.data(), sv.length());
+        }
+
+        Buffer &insert(int32_t idx, const char *data, size_t n) {
+            if(n > std::numeric_limits<uint32_t>::max()) {
+                throw std::out_of_range("length out of range");
+            }
+            callApi([*this, idx, data, n]() { ::ggapiBufferInsert(_handle, idx, data, n); });
             return *this;
         }
 
-        Buffer &get(int32_t idx, Vector &vec) {
-            callApi([*this, idx, &vec]() {
-                uint32_t actLen = ::ggapiBufferGet(_handle, idx, vec.data(), vec.size());
-                vec.resize(actLen);
+        template<typename T>
+        Buffer &insert(int32_t idx, const T *data, size_t n) {
+            // NOLINTNEXTLINE(*-type-reinterpret-cast)
+            const char *d = reinterpret_cast<const char *>(data);
+            size_t nn = n * sizeof(const char);
+            if(nn < n) {
+                throw std::out_of_range("length out of range");
+            }
+            return insert(idx, d, nn);
+        }
+
+        template<typename T>
+        Buffer &insert(int32_t idx, const std::vector<T> &vec) {
+            return insert(idx, vec.data(), vec.size());
+        }
+
+        template<typename T>
+        Buffer &insert(int32_t idx, const std::basic_string_view<T> sv) {
+            return insert(idx, sv.data(), sv.length());
+        }
+
+        size_t get(int32_t idx, char *data, size_t max) {
+            if(max > std::numeric_limits<uint32_t>::max()) {
+                throw std::out_of_range("max length out of range");
+            }
+            return callApiReturn<size_t>([*this, idx, data, max]() -> size_t {
+                return ::ggapiBufferGet(_handle, idx, data, max);
             });
-            return *this;
+        }
+
+        template<typename T>
+        size_t get(int32_t idx, T *data, size_t max) {
+            // NOLINTNEXTLINE(*-type-reinterpret-cast)
+            char *d = reinterpret_cast<char *>(data);
+            size_t nn = max * sizeof(const char);
+            if(nn < max) {
+                throw std::out_of_range("length out of range");
+            }
+            size_t act = get(idx, d, nn);
+            return act / sizeof(T);
+        }
+
+        template<typename T>
+        size_t get(int32_t idx, std::vector<T> &vec) {
+            size_t actual = get(idx, vec.data(), vec.size());
+            vec.resize(actual);
+            return actual;
+        }
+
+        template<typename T>
+        size_t get(int32_t idx, std::basic_string<T> &str) {
+            size_t actual = get(idx, str.data(), str.size());
+            str.resize(actual);
+            return actual;
+        }
+
+        template<typename T>
+        T get(int32_t idx, size_t max) {
+            if(max > std::numeric_limits<uint32_t>::max()) {
+                throw std::out_of_range("max length out of range");
+            }
+            T buffer;
+            buffer.resize(max);
+            get(idx, buffer);
+            return buffer;
         }
 
         Buffer &resize(uint32_t newSize) {
@@ -506,6 +644,254 @@ namespace ggapi {
             return *this;
         }
     };
+
+    class BufferStream : public std::streambuf {
+        //
+        // Lightweight implementation to allow << and >> operators
+        //
+
+        Buffer _buffer;
+        pos_type _inpos{0}; // unbuffered position
+        pos_type _outpos{0};
+        std::vector<char> _inbuf;
+        std::vector<char> _outbuf;
+        static constexpr uint32_t BUFFER_SIZE{256};
+
+        int32_t inAsInt(uint32_t limit = std::numeric_limits<int32_t>::max()) {
+            if(_inpos > limit) {
+                throw std::invalid_argument("Seek position beyond limit");
+            }
+            return static_cast<int32_t>(_inpos);
+        }
+
+        int32_t outAsInt(uint32_t limit = std::numeric_limits<int32_t>::max()) {
+            if(_outpos > limit) {
+                throw std::invalid_argument("Seek position beyond limit");
+            }
+            return static_cast<int32_t>(_outpos);
+        }
+
+        bool readMore() {
+            flushRead();
+            int32_t pos = inAsInt();
+            uint32_t end = _buffer.size();
+            if(pos >= end) {
+                return false;
+            }
+            std::vector<char> temp(std::min(end - pos, BUFFER_SIZE));
+            auto didRead = _buffer.get(pos, temp);
+            if(didRead > 0) {
+                _inbuf = std::move(temp);
+                // NOLINTNEXTLINE(*-pointer-arithmetic)
+                setg(_inbuf.data(), _inbuf.data(), _inbuf.data() + _inbuf.size());
+                return true;
+            } else {
+                return false;
+            }
+        }
+
+        void flushWrite() {
+            if(!_outbuf.empty()) {
+                if(unflushed() > 0) {
+                    int32_t pos = outAsInt();
+                    _buffer.put(pos, pbase(), unflushed());
+                    _outpos += unflushed(); // NOLINT(*-narrowing-conversions)
+                }
+                _outbuf.clear();
+                setp(nullptr, nullptr);
+            }
+        }
+
+        void flushRead() {
+            if(!_inbuf.empty()) {
+                _inpos += consumed();
+                _inbuf.clear();
+                setg(nullptr, nullptr, nullptr);
+            }
+        }
+
+        uint32_t unflushed() {
+            return pptr() - pbase(); // NOLINT(*-narrowing-conversions)
+        }
+
+        uint32_t unread() {
+            return egptr() - gptr(); // NOLINT(*-narrowing-conversions)
+        }
+
+        uint32_t consumed() {
+            return gptr() - eback(); // NOLINT(*-narrowing-conversions)
+        }
+
+        pos_type eInPos() {
+            return _inpos + static_cast<pos_type>(consumed());
+        }
+
+        void prepareWrite() {
+            flushWrite();
+            _outbuf.resize(BUFFER_SIZE);
+            // NOLINTNEXTLINE(*-pointer-arithmetic)
+            setp(_outbuf.data(), _outbuf.data() + _outbuf.size());
+        }
+
+        pos_type seek(pos_type cur, off_type pos, std::ios_base::seekdir seekdir) {
+            uint32_t end = _buffer.size();
+            off_type newPos;
+
+            switch(seekdir) {
+            case std::ios_base::beg:
+                newPos = pos;
+                break;
+            case std::ios_base::end:
+                newPos = end + pos;
+                break;
+            case std::ios_base::cur:
+                newPos = cur + pos;
+                break;
+            default:
+                throw std::invalid_argument("Seekdir is invalid");
+            }
+            if(newPos < 0) {
+                newPos = 0;
+            }
+            if(newPos > end) {
+                newPos = end;
+            }
+            return newPos;
+        }
+
+    protected:
+        pos_type seekoff(
+            off_type pos, std::ios_base::seekdir seekdir, std::ios_base::openmode openmode
+        ) override {
+            bool _seekIn = (openmode & std::ios_base::in) != 0;
+            bool _seekOut = (openmode & std::ios_base::out) != 0;
+            if(_seekIn && _seekOut) {
+                flushRead();
+                flushWrite();
+                _outpos = _inpos = seek(_outpos, pos, seekdir);
+                return _outpos;
+            }
+            if(_seekIn) {
+                flushRead();
+                _inpos = seek(_inpos, pos, seekdir);
+                return _inpos;
+            }
+            if(_seekOut) {
+                flushWrite();
+                _outpos = seek(_outpos, pos, seekdir);
+                return _outpos;
+            }
+            return std::streambuf::seekoff(pos, seekdir, openmode);
+        }
+
+        pos_type seekpos(pos_type pos, std::ios_base::openmode openmode) override {
+            return seekoff(pos, std::ios_base::beg, openmode);
+        }
+
+        std::streamsize showmanyc() override {
+            pos_type end = _buffer.size();
+            pos_type cur = eInPos();
+
+            if(cur >= end) {
+                return -1;
+            } else {
+                return end - cur;
+            }
+        }
+
+        int underflow() override {
+            // called when get buffer underflows
+            readMore();
+            if(unread() == 0) {
+                return traits_type::eof();
+            } else {
+                return traits_type::to_int_type(*gptr());
+            }
+        }
+
+        int pbackfail(int_type c) override {
+            // called when put-back underflows
+            flushRead();
+            flushWrite();
+            if(eInPos() == 0) {
+                return traits_type::eof();
+            }
+            _inpos -= 1;
+            if(traits_type::not_eof(c)) {
+                char cc = static_cast<char_type>(c);
+                _buffer.put(inAsInt(), std::string_view(&cc, 1));
+                return c;
+            } else {
+                return 0;
+            }
+        }
+
+        int overflow(int_type c) override {
+            // called when buffer full
+            prepareWrite(); // make room for data
+            std::streambuf::overflow(c);
+            if(traits_type::not_eof(c)) {
+                // expected to write one character
+                *pptr() = static_cast<char_type>(c);
+                pbump(1);
+            }
+            return 0;
+        }
+
+        int sync() override {
+            flushRead();
+            flushWrite();
+            return 0;
+        }
+
+    public:
+        BufferStream(const BufferStream &) = delete;
+        BufferStream(BufferStream &&) noexcept = default;
+        BufferStream &operator=(const BufferStream &) = delete;
+        BufferStream &operator=(BufferStream &&) noexcept = default;
+
+        ~BufferStream() override {
+            try {
+                flushWrite(); // attempt final flush if omitted
+            } catch(...) {
+                // destructor not allowed to throw exceptions
+            }
+        };
+
+        explicit BufferStream(const Buffer buffer) : _buffer(buffer) {
+        }
+    };
+
+    class BufferInStream : public std::istream {
+        BufferStream _stream;
+
+    public:
+        explicit BufferInStream(const Buffer buffer) : _stream(buffer) {
+            init(&_stream);
+        }
+    };
+
+    class BufferOutStream : public std::ostream {
+        BufferStream _stream;
+
+    public:
+        explicit BufferOutStream(const Buffer buffer) : _stream(buffer) {
+            init(&_stream);
+            _stream.pubseekoff(0, std::ios_base::end, std::ios_base::out);
+        }
+    };
+
+    inline BufferStream Buffer::stream() {
+        return BufferStream(*this);
+    }
+
+    inline BufferInStream Buffer::in() {
+        return BufferInStream(*this);
+    }
+
+    inline BufferOutStream Buffer::out() {
+        return BufferOutStream(*this);
+    }
 
     template<typename T>
     inline T ObjectBase<T>::anchor(Scope newParent) const {
