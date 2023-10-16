@@ -3,9 +3,14 @@
 #include "config/watcher.hpp"
 #include "data/globals.hpp"
 #include "deployment/deployment_model.hpp"
+#include "deployment/device_configuration.hpp"
 #include "util/nucleus_paths.hpp"
 #include <filesystem>
 #include <optional>
+
+namespace deployment {
+    class DeviceConfiguration;
+}
 
 namespace lifecycle {
     class CommandLine;
@@ -36,6 +41,7 @@ namespace lifecycle {
         std::shared_ptr<RootPathWatcher> _rootPathWatcher;
         std::unique_ptr<config::TlogWriter> _tlog;
         deployment::DeploymentStage _deploymentStageAtLaunch{deployment::DeploymentStage::DEFAULT};
+        std::unique_ptr<deployment::DeviceConfiguration> _deviceConfiguration{nullptr};
 
     public:
         explicit Kernel(data::Global &global);
@@ -49,6 +55,7 @@ namespace lifecycle {
         static constexpr auto DEFAULT_BOOTSTRAP_CONFIG_TLOG_FILE{"bootstrap.tlog"};
         static constexpr auto SERVICE_DIGEST_TOPIC_KEY{"service-digest"};
         static constexpr auto DEPLOYMENT_STAGE_LOG_KEY{"stage"};
+        const data::StringOrdInit SERVICES_TOPIC_KEY{"services"};
 
         void preLaunch(CommandLine &commandLine);
         void launch();
@@ -77,5 +84,7 @@ namespace lifecycle {
         config::Manager &getConfig() {
             return _global.environment.configManager;
         }
+
+        std::shared_ptr<config::Topics> findServiceTopic(const std::string_view &serviceName);
     };
 } // namespace lifecycle
