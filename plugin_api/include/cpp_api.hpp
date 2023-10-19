@@ -425,6 +425,16 @@ namespace ggapi {
                 static_assert(T::usingUnsupportedType, "Unsupported type");
             }
         }
+
+        template<typename T>
+        T getValue(const std::initializer_list<std::string_view> &keys) {
+            ggapi::Struct childStruct = *this;
+            auto it = keys.begin();
+            for(; it != std::prev(keys.end()); it++) {
+                childStruct = childStruct.get<ggapi::Struct>(*it);
+            }
+            return childStruct.get<T>(*it);
+        }
     };
 
     //

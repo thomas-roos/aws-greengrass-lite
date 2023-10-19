@@ -11,6 +11,7 @@ namespace lifecycle {
     private:
         data::Global &_global;
         lifecycle::Kernel &_kernel;
+        std::shared_ptr<util::NucleusPaths> _nucleusPaths;
 
         std::filesystem::path _providedConfigPath;
         std::filesystem::path _providedInitialConfigPath;
@@ -32,6 +33,18 @@ namespace lifecycle {
         void parseArgs(int argc, char *argv[]); // NOLINT(*-avoid-c-arrays)
         void parseArgs(const std::vector<std::string> &args);
         void parseProgramName(std::string_view progName);
+
+        std::string getAwsRegion() {
+            return _awsRegionFromCmdLine;
+        }
+
+        std::string getEnvStage() {
+            return _envStageFromCmdLine;
+        }
+
+        std::string getDefaultUser() {
+            return _defaultUserFromCmdLine;
+        }
 
         std::filesystem::path getProvidedConfigPath() {
             return _providedConfigPath;

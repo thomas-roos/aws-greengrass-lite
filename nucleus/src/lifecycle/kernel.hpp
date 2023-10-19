@@ -4,6 +4,7 @@
 #include "data/globals.hpp"
 #include "deployment/deployment_model.hpp"
 #include "deployment/device_configuration.hpp"
+#include "lifecycle/kernel_alternatives.hpp"
 #include "tasks/expire_time.hpp"
 #include "util/nucleus_paths.hpp"
 #include <filesystem>
@@ -16,6 +17,7 @@ namespace deployment {
 namespace lifecycle {
     class CommandLine;
     class Kernel;
+    class KernelAlternatives;
 
     class RootPathWatcher : public config::Watcher {
         Kernel &_kernel;
@@ -44,6 +46,7 @@ namespace lifecycle {
         std::unique_ptr<config::TlogWriter> _tlog;
         deployment::DeploymentStage _deploymentStageAtLaunch{deployment::DeploymentStage::DEFAULT};
         std::unique_ptr<deployment::DeviceConfiguration> _deviceConfiguration{nullptr};
+        std::unique_ptr<KernelAlternatives> _kernelAlts{nullptr};
         std::atomic_int _exitCode{0};
 
     public:
@@ -68,7 +71,7 @@ namespace lifecycle {
             CommandLine &commandLine, const std::filesystem::path &configFile
         );
         void initConfigAndTlog(CommandLine &commandLine);
-        void updateDeviceConfiguration();
+        void updateDeviceConfiguration(CommandLine &commandLine);
         void initializeNucleusFromRecipe();
         void setupProxy();
         void launchBootstrap();

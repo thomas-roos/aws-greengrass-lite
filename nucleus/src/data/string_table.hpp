@@ -129,18 +129,33 @@ namespace data {
     //
     class StringOrdInit {
         mutable StringOrd _ord{};
-        const char *_string;
+        std::string _string;
         void init(Environment &environment) const;
 
     public:
         // NOLINTNEXTLINE(*-explicit-constructor)
-        StringOrdInit(const char *_constString) : _string(_constString) {
+        StringOrdInit(const char *constString) : _string(constString) {
+        }
+
+        // NOLINTNEXTLINE(*-explicit-constructor)
+        StringOrdInit(std::string_view constString) : _string(constString) {
         }
 
         // NOLINTNEXTLINE(*-explicit-constructor)
         operator StringOrd() const {
             assert(!_ord.isNull());
             return _ord;
+        }
+
+        // NOLINTNEXTLINE(*-explicit-constructor)
+        operator std::string() const {
+            return _string;
+        }
+
+        StringOrdInit operator+(const StringOrdInit &other) const {
+            StringOrdInit result{_string};
+            result._string += other._string;
+            return result;
         }
 
         static void init(Environment &environment, std::initializer_list<StringOrdInit> list);

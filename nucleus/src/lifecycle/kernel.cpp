@@ -26,7 +26,7 @@ namespace lifecycle {
     void Kernel::preLaunch(CommandLine &commandLine) {
         getConfig().publishQueue().start();
         _rootPathWatcher = std::make_shared<RootPathWatcher>(*this);
-        _global.environment.configManager.lookup()["system"]("rootpath")
+        _global.environment.configManager.lookup({"system", "rootpath"})
             .dflt(getPaths()->rootPath().generic_string())
             .addWatcher(_rootPathWatcher, config::WhatHappened::changed);
 
@@ -48,7 +48,7 @@ namespace lifecycle {
             overrideConfigLocation(commandLine, overrideConfigFile);
         }
         initConfigAndTlog(commandLine);
-        updateDeviceConfiguration();
+        updateDeviceConfiguration(commandLine);
         initializeNucleusFromRecipe();
         setupProxy();
     }
@@ -141,12 +141,22 @@ namespace lifecycle {
         _tlog->flushImmediately().withAutoTruncate().append().withWatcher();
     }
 
-    void Kernel::updateDeviceConfiguration() {
+    void Kernel::updateDeviceConfiguration(CommandLine &commandLine) {
         _deviceConfiguration =
             std::make_unique<deployment::DeviceConfiguration>(_global.environment, *this);
+        if(!commandLine.getAwsRegion().empty()) {
+            _deviceConfiguration->setAwsRegion(commandLine.getAwsRegion());
+        }
+        if(!commandLine.getEnvStage().empty()) {
+            _deviceConfiguration->getEnvironmentStage().withValue(commandLine.getEnvStage());
+        }
+        if(!commandLine.getDefaultUser().empty()) {
+            // TODO: platform resolver for user
+        }
     }
 
     void Kernel::initializeNucleusFromRecipe() {
+        // _kernelAlts = std::make_unique<KernelAlternatives>(_global.environment, *this);
         // TODO: missing code
     }
 
@@ -263,17 +273,19 @@ namespace lifecycle {
         // TODO: This is stub/sample code
         //
         _global.loader->discoverPlugins(); // TODO: replace with looking in plugin directory
-        std::shared_ptr<data::StructModelBase> emptyStruct{
-            std::make_shared<data::SharedStruct>(_global.environment)}; // TODO, empty for now
-        _global.loader->lifecycleBootstrap(emptyStruct);
-        _global.loader->lifecycleDiscover(emptyStruct);
-        _global.loader->lifecycleStart(emptyStruct);
-        _global.loader->lifecycleRun(emptyStruct);
+        std::shared_ptr<data::SharedStruct> configStruct{
+            std::make_shared<data::SharedStruct>(_global.environment)};
+        std::shared_ptr<data::ContainerModelBase> rootStruct = getConfig().root();
+        configStruct->put("config", data::StructElement({rootStruct}));
+        _global.loader->lifecycleBootstrap(configStruct);
+        _global.loader->lifecycleDiscover(configStruct);
+        _global.loader->lifecycleStart(configStruct);
+        _global.loader->lifecycleRun(configStruct);
 
         (void) ggapiWaitForTaskCompleted(
             ggapiGetCurrentTask(), -1
         ); // essentially blocks forever but allows main thread to do work
-        _global.loader->lifecycleTerminate(emptyStruct);
+        _global.loader->lifecycleTerminate(configStruct);
         getConfig().publishQueue().stop();
     }
 

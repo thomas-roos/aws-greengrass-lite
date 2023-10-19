@@ -146,7 +146,7 @@ namespace data {
         }
 
         [[nodiscard]] double getDouble() const {
-            switch (_value.index()) {
+            switch(_value.index()) {
             case BOOL:
                 return std::get<bool>(_value) ? 1.0 : 0.0;
             case INT:
@@ -161,7 +161,7 @@ namespace data {
         }
 
         [[nodiscard]] std::string getString() const {
-            switch (_value.index()) {
+            switch(_value.index()) {
             case BOOL:
                 return std::get<bool>(_value) ? "true" : "false";
             case INT:
