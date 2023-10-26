@@ -11,16 +11,49 @@ namespace tasks {
     }
 
     void TaskManager::queueTask(const std::shared_ptr<Task> &task) {
+        if(!task->queueTaskInterlockedTrySetRunning(ref<TaskManager>())) {
+            return; // Cannot start at this time
+        }
+        // Following code executes only one time per task
         std::shared_ptr<TaskThread> affinity = task->getThreadAffinity();
         if(affinity) {
             // thread affinity - need to assign task to the specified thread
-            // e.g. event thread of a given WASM VM
+            // e.g. event thread of a given WASM VM or sync task
             affinity->queueTask(task);
             affinity->waken();
         } else {
-            // no affinity, just add to backlog, a worker will pick this up
+            // no affinity, Add to backlog for a worker to pick up
             std::unique_lock guard{_mutex};
             _backlog.push_back(task);
+            guard.unlock();
+            allocateNextWorker();
+        }
+    }
+
+    void TaskManager::scheduleFutureTaskAssumeLocked(
+        const ExpireTime &when, const std::shared_ptr<Task> &task
+    ) {
+        auto first = _delayedTasks.begin();
+        bool needsSignal = first == _delayedTasks.end() || when < first->first;
+        _delayedTasks.emplace(when, task); // insert into sorted order
+        auto thread{_timerWorkerThread.lock()};
+        if(thread && needsSignal) {
+            // Wake timer thread early - its wait time is incorrect
+            thread->waken();
+        }
+    }
+
+    void TaskManager::descheduleFutureTaskAssumeLocked(
+        const ExpireTime &when, const std::shared_ptr<Task> &task
+    ) {
+        if(when == ExpireTime::unspecified()) {
+            return;
+        }
+        for(auto it = _delayedTasks.find(when); it != _delayedTasks.end(); ++it) {
+            if(it->second == task) {
+                _delayedTasks.erase(it);
+                return;
+            }
         }
     }
 
@@ -167,7 +200,8 @@ namespace tasks {
 
     void TaskThread::taskStealing(const std::shared_ptr<Task> &blockedTask, const ExpireTime &end) {
         while(!blockedTask->terminatesWait()) {
-            ExpireTime adjEnd = blockedTask->getTimeout(end); // Note: timeout may change
+            ExpireTime adjEnd = blockedTask->getEffectiveTimeout(end); // Note: timeout may change
+            adjEnd = taskStealingHook(adjEnd);
             std::shared_ptr<Task> task = pickupTask(blockedTask);
             if(task) {
                 task->runInThread();
@@ -224,27 +258,134 @@ namespace tasks {
         return pickupPoolTask(blockingTask);
     }
 
+    void Task::signalBlockedThreads(bool isLocked) {
+        std::unique_lock guard{_mutex, std::defer_lock};
+        if(!isLocked) {
+            guard.lock();
+        }
+        for(const auto &i : _blockedThreads) {
+            i->waken();
+        }
+    }
+
+    void Task::releaseBlockedThreads(bool isLocked) {
+        std::unique_lock guard{_mutex, std::defer_lock};
+        if(!isLocked) {
+            guard.lock();
+        }
+        signalBlockedThreads(true);
+        _blockedThreads.clear();
+    }
+
+    bool Task::queueTaskInterlockedTrySetRunning(const std::shared_ptr<TaskManager> &taskManager) {
+        //
+        // This logic including double-locking ensures the correct interplay with setStartTime()
+        //
+        std::scoped_lock multi{_mutex, taskManager->_mutex};
+        _taskManager = taskManager;
+        if(_lastStatus != Pending) {
+            return false; // already started, cannot start again
+        }
+        // Clean up from schedule queue - prevents double-insert edge cases
+        // It's possible we'll remove and re-insert, but that makes for simpler logic
+        taskManager->descheduleFutureTaskAssumeLocked(_start, ref<Task>());
+        if(_start > ExpireTime::now()) {
+            // start in future
+            taskManager->scheduleFutureTaskAssumeLocked(_start, ref<Task>());
+            return false;
+        }
+        _lastStatus = Running;
+        return true;
+    }
+
     void Task::markTaskComplete() {
         std::unique_lock guard{_mutex};
         assert(_lastStatus != Cancelled);
         _lastStatus = Completed;
-        // Wake up all blocked threads so they can terminate
-        for(const auto &i : _blockedThreads) {
-            i->waken();
-        }
-        _blockedThreads.clear();
+        releaseBlockedThreads(true);
     }
 
     void Task::cancelTask() {
         std::unique_lock guard{_mutex};
-        if(_lastStatus != Completed && _lastStatus != Finalizing) {
+        std::shared_ptr<TaskManager> taskManager = getTaskManager();
+        if(!taskManager) {
+            assert(_lastStatus == Pending);
+            // Cancelled before queued
             _lastStatus = Cancelled;
+            releaseBlockedThreads(true);
+            return;
         }
-        // Wake up all blocked threads so they can terminate
-        for(const auto &i : _blockedThreads) {
-            i->waken();
+        if(_lastStatus == Pending) {
+            // Cancelling delayed task, need to deschedule
+            auto start = _start;
+            _lastStatus = Cancelled; // prevents task starting
+            guard.unlock();
+            std::scoped_lock multi{_mutex, taskManager->_mutex};
+            taskManager->descheduleFutureTaskAssumeLocked(start, ref<Task>());
+            releaseBlockedThreads(true);
+            return;
         }
-        _blockedThreads.clear();
+        if(_lastStatus != Completed && _lastStatus != Finalizing) {
+            // cancelling running task
+            _lastStatus = Cancelled;
+            releaseBlockedThreads(true);
+            return;
+        }
+    }
+
+    void Task::setTimeout(const ExpireTime &terminateTime) {
+        std::unique_lock guard{_mutex};
+        bool needSignal = _lastStatus != Pending && terminateTime < _timeout;
+        _timeout = terminateTime;
+        if(needSignal) {
+            // timeout change may cause task to be auto-cancelled
+            signalBlockedThreads(true);
+        }
+    }
+
+    bool Task::setStartTime(const ExpireTime &startTime) {
+        // Lock MUST be acquired prior to obtaining taskManager reference to
+        // prevent race condition with TaskManager's queueTask() function
+        std::unique_lock guard{_mutex};
+        std::shared_ptr<TaskManager> taskManager = getTaskManager();
+        if(!taskManager) {
+            assert(_lastStatus == Pending);
+            // The queueTask function has not been called yet. Just set new start time and done
+            _start = startTime;
+            return true;
+        }
+        guard.unlock(); // cannot keep this held while acquiring task manager lock
+
+        // At least one previous call to queueTask() occurred and taskManager is known
+        // we now need to repeat the process taking into considering this is after the
+        // queueTask() call
+
+        std::scoped_lock multi{_mutex, taskManager->_mutex};
+        // status may have changed while relocking (e.g. queueTask called again)
+        if(_lastStatus != Pending) {
+            return false; // already started, did not defer
+        }
+        taskManager->descheduleFutureTaskAssumeLocked(_start, ref<Task>());
+        if(startTime < ExpireTime::now()) {
+            // At this point, task can only be started via timer, so place at head of queue
+            // however, cannot use unspecified(), so use the earliest possible valid time.
+            _start = ExpireTime::epoch();
+        } else {
+            // New time is in future
+            _start = startTime;
+        }
+        taskManager->scheduleFutureTaskAssumeLocked(_start, ref<Task>());
+        return true; // rescheduled task
+    }
+
+    ExpireTime Task::getTimeout() const {
+        std::unique_lock guard{_mutex};
+        return _timeout;
+    }
+
+    ExpireTime Task::getStartTime() const {
+        std::unique_lock guard{_mutex};
+        return _start;
     }
 
     bool Task::terminatesWait() {
@@ -275,7 +416,7 @@ namespace tasks {
         if(_subtasks.empty()) {
             return NoSubTasks;
         }
-        std::shared_ptr<TaskThread> affinity = _subtasks.front()->getAffinity();
+        std::shared_ptr<TaskThread> affinity = _subtasks.front()->getAffinity(_defaultThread);
         if(affinity && affinity != TaskThread::getThreadContext()) {
             return SwitchThread; // task cannot run on current thread
         }
@@ -284,6 +425,7 @@ namespace tasks {
         return Running;
     }
 
+    // Ensures thread-self is assigned and cleaned up with stack unwinding (RII)
     class ThreadSelf {
     private:
         data::ObjHandle _oldHandle;
@@ -294,8 +436,8 @@ namespace tasks {
         ThreadSelf &operator=(const ThreadSelf &) = delete;
         ThreadSelf &operator=(ThreadSelf &&) = delete;
 
-        explicit ThreadSelf(data::ObjHandle newHandle) {
-            _oldHandle = Task::getSetThreadSelf(newHandle);
+        explicit ThreadSelf(Task *contextTask) {
+            _oldHandle = Task::getSetThreadSelf(contextTask->getSelf());
         }
 
         ~ThreadSelf() {
@@ -303,18 +445,23 @@ namespace tasks {
         }
     };
 
+    // Sets task thread affinity, used if subtask has no affinity
+    void Task::setDefaultThread(const std::shared_ptr<TaskThread> &thread) {
+        _defaultThread = thread;
+    }
+
     std::shared_ptr<TaskThread> Task::getThreadAffinity() {
         // What thread is allowed to handle the next sub-task?
         std::unique_lock guard{_mutex};
         if(_subtasks.empty()) {
-            return nullptr;
+            return _defaultThread;
         }
-        return _subtasks.front()->getAffinity();
+        return _subtasks.front()->getAffinity(_defaultThread);
     }
 
     Task::Status Task::runInThread() {
         std::shared_ptr<Task> taskObj{std::static_pointer_cast<Task>(shared_from_this())};
-        ThreadSelf threadSelf(getSelf());
+        ThreadSelf threadSelf(this);
         std::shared_ptr<data::StructModelBase> dataIn{getData()};
         std::shared_ptr<data::StructModelBase> dataOut;
         Status status = runInThreadCallNext(taskObj, dataIn, dataOut);
@@ -425,6 +572,10 @@ namespace tasks {
         throw std::runtime_error("Releasing a non-fixed thread");
     }
 
+    ExpireTime TaskThread::taskStealingHook(ExpireTime time) {
+        return time;
+    }
+
     void FixedTaskThread::releaseFixedThread() {
         data::ObjectAnchor defaultTask = FixedTaskThread::getDefaultTask();
         data::ObjHandle taskHandle{Task::getThreadSelf()};
@@ -436,5 +587,44 @@ namespace tasks {
         Task::getSetThreadSelf({});
         unprotect();
         getSetTaskThread(nullptr, true);
+    }
+
+    ExpireTime FixedTimerTaskThread::taskStealingHook(ExpireTime time) {
+        std::shared_ptr<TaskManager> taskManager{_pool.lock()};
+        if(!taskManager) {
+            return time;
+        }
+        ExpireTime nextDeferredTime = taskManager->pollNextDeferredTask(this);
+        if(nextDeferredTime == ExpireTime::infinite() || time < nextDeferredTime) {
+            return time;
+        } else {
+            return nextDeferredTime;
+        }
+    }
+
+    ExpireTime TaskManager::pollNextDeferredTask(TaskThread *worker) {
+        std::unique_lock guard{_mutex};
+        if(worker) {
+            _timerWorkerThread = worker->ref<TaskThread>();
+        }
+        for(auto it = _delayedTasks.begin(); it != _delayedTasks.end();
+            it = _delayedTasks.begin()) {
+            ExpireTime nextTime = it->first;
+            if(nextTime <= ExpireTime::now()) {
+                auto task = it->second;
+                _delayedTasks.erase(it);
+                guard.unlock();
+                // Note, at this point, _delayedTasks may get modified, and the iterator
+                // must be considered invalid. Given that we always remove head in each iteration
+                // we don't need to do any tricks to maintain the iterator.
+                queueTask(task);
+                guard.lock();
+            } else {
+                // Next task to be executed in the future
+                return nextTime;
+            }
+        }
+        // No deferred tasks
+        return ExpireTime::infinite();
     }
 } // namespace tasks
