@@ -78,7 +78,7 @@ add_library(nucleus-obj OBJECT
         src/util/commitable_file.cpp src/util/commitable_file.hpp
         src/util/nucleus_paths.cpp src/util/nucleus_paths.hpp
         src/util/permissions.cpp src/util/permissions.hpp
-        )
+)
 target_link_libraries(nucleus-obj
         PUBLIC gg_plugin_api
         PRIVATE Threads::Threads ${CMAKE_DL_LIBS} yaml-cpp)
