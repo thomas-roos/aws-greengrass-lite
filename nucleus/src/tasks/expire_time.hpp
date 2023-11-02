@@ -45,12 +45,12 @@ namespace tasks { //
             return _steadyTime;
         }
 
-        [[nodiscard]] constexpr inline uint64_t asMilliseconds() const {
+        [[nodiscard]] inline uint64_t asMilliseconds() const {
             return asCount<uint64_t, std::milli>();
         }
 
         template<class Rep = TimePoint::rep, class Period = TimePoint::period>
-        [[nodiscard]] constexpr Rep asCount() const {
+        [[nodiscard]] Rep asCount() const {
             using TargetDuration = typename std::chrono::duration<Rep, Period>;
             return std::chrono::duration_cast<TargetDuration>(_steadyTime.time_since_epoch())
                 .count();
