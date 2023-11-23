@@ -11,7 +11,7 @@ namespace lifecycle {
     //
     // GG-Interop:
     // GG-Java tightly couples Kernel and KernelLifecycle, this class combines functionality from
-    // both. Also some functionality from KernelCommandLine is moved here.
+    // both. Also, some functionality from KernelCommandLine is moved here.
     //
 
     Kernel::Kernel(const std::shared_ptr<scope::Context> &context) : _context(context) {
@@ -53,7 +53,6 @@ namespace lifecycle {
         initConfigAndTlog(commandLine);
         updateDeviceConfiguration(commandLine);
         initializeNucleusFromRecipe();
-        setupProxy();
     }
 
     //
@@ -152,7 +151,13 @@ namespace lifecycle {
             _deviceConfiguration->getEnvironmentStage().withValue(commandLine.getEnvStage());
         }
         if(!commandLine.getDefaultUser().empty()) {
-            // TODO: platform resolver for user
+#if defined(_WIN32)
+            _deviceConfiguration->getRunWithDefaultWindowsUser().withValue(
+                commandLine.getDefaultUser());
+#else
+            _deviceConfiguration->getRunWithDefaultPosixUser().withValue(
+                commandLine.getDefaultUser());
+#endif
         }
     }
 
@@ -208,7 +213,7 @@ namespace lifecycle {
             util::CommitableFile::getBackupFile(tlogFile),
             bootstrapTlogFile,
             util::CommitableFile::getBackupFile(bootstrapTlogFile)};
-        for(auto backupPath : paths) {
+        for(const auto &backupPath : paths) {
             if(config::TlogReader::handleTlogTornWrite(_context.lock(), backupPath)) {
                 // TODO: log
                 std::cerr << "Transaction log " << tlogFile
@@ -281,16 +286,19 @@ namespace lifecycle {
         context().pluginLoader().lifecycleStart(lifecycleArgs);
         context().pluginLoader().lifecycleRun(lifecycleArgs);
 
-        (void) ggapiWaitForTaskCompleted(
+        std::ignore = ggapiWaitForTaskCompleted(
             ggapiGetCurrentTask(), -1); // essentially blocks until kernel signalled to terminate
         context().pluginLoader().lifecycleTerminate(lifecycleArgs);
         getConfig().publishQueue().stop();
     }
 
     std::shared_ptr<config::Topics> Kernel::findServiceTopic(const std::string_view &serviceName) {
-        std::shared_ptr<config::ConfigNode> node =
-            getConfig().root()->createInteriorChild(SERVICES_TOPIC_KEY)->getNode(serviceName);
-        return std::dynamic_pointer_cast<config::Topics>(node);
+        if(!serviceName.empty()) {
+            std::shared_ptr<config::ConfigNode> node =
+                getConfig().root()->createInteriorChild(SERVICES_TOPIC_KEY)->getNode(serviceName);
+            return std::dynamic_pointer_cast<config::Topics>(node);
+        }
+        return nullptr;
     }
 
     void RootPathWatcher::initialized(
@@ -322,7 +330,7 @@ namespace lifecycle {
     void Kernel::shutdown(std::chrono::seconds timeoutSeconds) {
         // TODO: missing code
         softShutdown(timeoutSeconds);
-        // Cancel main task causes main thread to terminate, causing clean shutdown
+        // Cancel the main task causes the main thread to terminate, causing clean shutdown
         _mainThread.getTask()->cancelTask();
     }
 

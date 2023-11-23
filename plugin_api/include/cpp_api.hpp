@@ -36,10 +36,10 @@ namespace ggapi {
     class Subscription;
     class GgApiError; // error from GG API call
 
-    typedef std::function<Struct(Scope, Symbol, Struct)> topicCallbackLambda;
-    typedef std::function<void(Scope, Symbol, Struct)> lifecycleCallbackLambda;
-    typedef Struct (*topicCallback_t)(Task, Symbol, Struct);
-    typedef void (*lifecycleCallback_t)(ModuleScope, Symbol, Struct);
+    using topicCallbackLambda = std::function<Struct(Scope, Symbol, Struct)>;
+    using lifecycleCallbackLambda = std::function<void(Scope, Symbol, Struct)>;
+    using topicCallback_t = Struct (*)(Task, Symbol, Struct);
+    using lifecycleCallback_t = void (*)(ModuleScope, Symbol, Struct);
     uint32_t topicCallbackProxy(
         uintptr_t callbackContext,
         uint32_t taskHandle,
@@ -416,9 +416,9 @@ namespace ggapi {
                 return fn(static_cast<uint64_t>(x));
             } else if constexpr(std::is_floating_point_v<VT>) {
                 return fn(static_cast<double>(x));
-            } else if constexpr(std::is_assignable_v<Symbol, VT>) {
+            } else if constexpr(std::is_base_of_v<Symbol, VT>) {
                 return fn(static_cast<Symbol>(x));
-            } else if constexpr(std::is_assignable_v<ObjHandle, VT>) {
+            } else if constexpr(std::is_base_of_v<ObjHandle, VT>) {
                 return fn(static_cast<ObjHandle>(x));
             } else if constexpr(std ::is_assignable_v<std::string_view, VT>) {
                 return fn(static_cast<std::string_view>(x));
@@ -469,9 +469,9 @@ namespace ggapi {
                     return static_cast<uint64_t>(x);
                 } else if constexpr(std::is_floating_point_v<T>) {
                     return static_cast<double>(x);
-                } else if constexpr(std::is_assignable_v<Symbol, T>) {
+                } else if constexpr(std::is_base_of_v<Symbol, T>) {
                     return static_cast<Symbol>(x);
-                } else if constexpr(std::is_assignable_v<ObjHandle, T>) {
+                } else if constexpr(std::is_base_of_v<ObjHandle, T>) {
                     return static_cast<ObjHandle>(x);
                 } else if constexpr(std ::is_assignable_v<std::string_view, T>) {
                     return static_cast<std::string_view>(x);
@@ -565,7 +565,7 @@ namespace ggapi {
         }
 
         template<typename T>
-        T get(Symbol key) {
+        T get(Symbol key) const {
             required();
             if constexpr(std::is_same_v<bool, T>) {
                 return callApiReturn<bool>(
@@ -595,7 +595,7 @@ namespace ggapi {
         }
 
         template<typename T>
-        T getValue(const std::initializer_list<std::string_view> &keys) {
+        T getValue(const std::initializer_list<std::string_view> &keys) const {
             ggapi::Struct childStruct = *this;
             auto it = keys.begin();
             for(; it != std::prev(keys.end()); it++) {

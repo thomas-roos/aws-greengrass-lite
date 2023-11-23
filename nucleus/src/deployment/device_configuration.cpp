@@ -19,10 +19,9 @@ namespace deployment {
 
     std::string DeviceConfiguration::getNucleusComponentName() {
         std::unique_lock guard{_mutex};
-        if(!_nucleusComponentNameCache.empty()) {
-            if(_kernel.findServiceTopic(_nucleusComponentNameCache)) {
-                _nucleusComponentNameCache = initNucleusComponentName();
-            }
+        if(_nucleusComponentNameCache.empty()
+           || _kernel.findServiceTopic(_nucleusComponentNameCache)) {
+            _nucleusComponentNameCache = initNucleusComponentName();
         }
         return _nucleusComponentNameCache;
     }
@@ -41,7 +40,7 @@ namespace deployment {
 
     std::string DeviceConfiguration::initNucleusComponentName() {
         // TODO: missing code
-        return {};
+        return configs.DEFAULT_NUCLEUS_COMPONENT_NAME;
     }
 
     void DeviceConfiguration::initializeNucleusComponentConfig(std::string nucleusComponentName) {
@@ -83,10 +82,6 @@ namespace deployment {
         std::filesystem::path,
         std::filesystem::path) {
         // TODO: change definition and missing code
-    }
-
-    void DeviceConfiguration::initializeNucleusFromRecipe(lifecycle::KernelAlternatives) {
-        // TODO: missing code
     }
 
     void DeviceConfiguration::copyUnpackedNucleusArtifacts(
@@ -276,18 +271,18 @@ namespace deployment {
         return getTopic(configs.S3_ENDPOINT_TYPE).dflt("GLOBAL");
     }
 
-    void DeviceConfiguration::validate() {
-        validate(false);
+    void DeviceConfiguration::validateConfiguration() {
+        validateConfiguration(false);
     }
 
-    void DeviceConfiguration::validate(bool cloudOnly) {
-        std::string thingName = getThingName().getName();
-        std::string certificateFilePath = getCertificateFilePath().getName();
-        std::string privateKeyPath = getPrivateKeyFilePath().getName();
-        std::string rootCAPath = getRootCAFilePath().getName();
-        std::string iotDataEndpoint = getIoTDataEndpoint().getName();
-        std::string iotCredEndpoint = getIotCredentialEndpoint().getName();
-        std::string awsRegion = getAWSRegion().getName();
+    void DeviceConfiguration::validateConfiguration(bool cloudOnly) {
+        std::string thingName = getThingName().getString();
+        std::string certificateFilePath = getCertificateFilePath().getString();
+        std::string privateKeyPath = getPrivateKeyFilePath().getString();
+        std::string rootCAPath = getRootCAFilePath().getString();
+        std::string iotDataEndpoint = getIoTDataEndpoint().getString();
+        std::string iotCredEndpoint = getIotCredentialEndpoint().getString();
+        std::string awsRegion = getAWSRegion().getString();
 
         validateDeviceConfiguration(
             thingName,
@@ -307,7 +302,7 @@ namespace deployment {
         }
         // TODO: Add exception handling
         try {
-            validate(true);
+            validateConfiguration(true);
             _deviceConfigValidationCachedResult = true;
             return true;
         } catch(...) {
@@ -359,38 +354,38 @@ namespace deployment {
         std::string_view iotCredEndpoint,
         std::string_view awsRegion,
         bool cloudOnly) {
-        std::vector<std::string> errors;
         if(thingName.empty()) {
-            errors.emplace_back(configs.DEVICE_PARAM_THING_NAME + configs.CANNOT_BE_EMPTY);
+            throw DeviceConfigurationException(
+                configs.DEVICE_PARAM_THING_NAME + configs.CANNOT_BE_EMPTY);
         }
         if(certificateFilePath.empty()) {
-            errors.emplace_back(
+            throw DeviceConfigurationException(
                 configs.DEVICE_PARAM_CERTIFICATE_FILE_PATH + configs.CANNOT_BE_EMPTY);
         }
         if(privateKeyPath.empty()) {
-            errors.emplace_back(configs.DEVICE_PARAM_PRIVATE_KEY_PATH + configs.CANNOT_BE_EMPTY);
+            throw DeviceConfigurationException(
+                configs.DEVICE_PARAM_PRIVATE_KEY_PATH + configs.CANNOT_BE_EMPTY);
         }
         if(rootCAPath.empty()) {
-            errors.emplace_back(configs.DEVICE_PARAM_ROOT_CA_PATH + configs.CANNOT_BE_EMPTY);
+            throw DeviceConfigurationException(
+                configs.DEVICE_PARAM_ROOT_CA_PATH + configs.CANNOT_BE_EMPTY);
         }
         if(iotDataEndpoint.empty()) {
-            errors.emplace_back(configs.DEVICE_PARAM_IOT_DATA_ENDPOINT + configs.CANNOT_BE_EMPTY);
+            throw DeviceConfigurationException(
+                configs.DEVICE_PARAM_IOT_DATA_ENDPOINT + configs.CANNOT_BE_EMPTY);
         }
         if(iotCredEndpoint.empty()) {
-            errors.emplace_back(configs.DEVICE_PARAM_IOT_CRED_ENDPOINT + configs.CANNOT_BE_EMPTY);
+            throw DeviceConfigurationException(
+                configs.DEVICE_PARAM_IOT_CRED_ENDPOINT + configs.CANNOT_BE_EMPTY);
         }
         if(awsRegion.empty()) {
-            errors.emplace_back(configs.DEVICE_PARAM_AWS_REGION + configs.CANNOT_BE_EMPTY);
+            throw DeviceConfigurationException(
+                configs.DEVICE_PARAM_AWS_REGION + configs.CANNOT_BE_EMPTY);
         }
-        try {
-            validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
-            if(!cloudOnly) {
-                // TODO: Add platform
-            }
-        } catch(...) {
-            // TODO: Add exception handling
-        }
-        if(!errors.empty()) {
+        validateEndpoints(awsRegion, iotCredEndpoint, iotDataEndpoint);
+
+        if(!cloudOnly) {
+            // TODO: Add platform
         }
     }
 
@@ -409,13 +404,15 @@ namespace deployment {
            && iotCredEndpoint.find(std::string{configs.AMAZON_DOMAIN_SEQUENCE})
                   != std::string_view::npos
            && iotCredEndpoint.find(awsRegion) == std::string::npos) {
-            std::cerr << "IoT credential endpoint region does not match the AWS region of "
-                         "the device";
+            throw DeviceConfigurationException(
+                "IoT credential endpoint region does not match the AWS region of "
+                "the device");
         }
         if(!iotDataEndpoint.empty()
            && iotDataEndpoint.find(std::string{configs.AMAZON_DOMAIN_SEQUENCE})
                   != std::string_view::npos) {
-            std::cerr << "IoT data endpoint region does not match the AWS region of the device";
+            throw DeviceConfigurationException(
+                "IoT data endpoint region does not match the AWS region of the device");
         }
     }
 

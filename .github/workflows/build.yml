@@ -45,7 +45,6 @@ jobs:
         shell: bash
         if: ${{ matrix.os == 'windows-latest' && matrix.cpp_compiler == 'g++' }}
         run: |
-          choco install mingw
           cmake -B build -S . -G "MinGW Makefiles" \
             -DCMAKE_C_COMPILER=${{matrix.c_compiler}} \
             -DCMAKE_CXX_COMPILER=${{matrix.cpp_compiler}} \
