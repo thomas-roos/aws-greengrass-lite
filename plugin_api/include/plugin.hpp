@@ -1,5 +1,6 @@
 #pragma once
 #include "cpp_api.hpp"
+#include "util.hpp"
 #include <atomic>
 
 namespace ggapi {
@@ -8,46 +9,78 @@ namespace ggapi {
      * Base class for all plugins
      */
     class Plugin {
+    public:
+        enum class Phase { UNKNOWN, BOOTSTRAP, BIND, DISCOVER, START, RUN, TERMINATE };
+        using PhaseEnum = util::Enum<
+            Phase,
+            Phase::UNKNOWN,
+            Phase::BOOTSTRAP,
+            Phase::BIND,
+            Phase::DISCOVER,
+            Phase::START,
+            Phase::RUN,
+            Phase::TERMINATE>;
+
     private:
         std::atomic<ModuleScope> _moduleScope{ModuleScope{}};
-        std::atomic<Symbol> _phase{Symbol{}};
+        std::atomic<Phase> _phase{Phase::UNKNOWN};
         std::atomic<Struct> _config{};
 
-        /**
-         * Generic lifecycle dispatch
-         */
-        bool lifecycleDispatch(Symbol phase, Struct data) {
-            if(phase == BOOTSTRAP) {
-                return onBootstrap(data);
-            } else if(phase == BIND) {
-                internalBind(data);
-                return onBind(data);
-            } else if(phase == DISCOVER) {
-                return onDiscover(data);
-            } else if(phase == START) {
-                return onStart(data);
-            } else if(phase == RUN) {
-                return onRun(data);
-            } else if(phase == TERMINATE) {
-                return onTerminate(data);
-            } else {
-                // Return to caller that phase was not handled
-                return false;
-            }
+        bool lifecycleDispatch(const PhaseEnum::ConstType<Phase::BOOTSTRAP> &, Struct data) {
+            return onBootstrap(data);
+        }
+
+        bool lifecycleDispatch(const PhaseEnum::ConstType<Phase::BIND> &, Struct data) {
+            internalBind(data);
+            return onBootstrap(data);
+        }
+
+        bool lifecycleDispatch(const PhaseEnum::ConstType<Phase::DISCOVER> &, Struct data) {
+            return onBootstrap(data);
+        }
+
+        bool lifecycleDispatch(const PhaseEnum::ConstType<Phase::START> &, Struct data) {
+            return onStart(data);
+        }
+
+        bool lifecycleDispatch(const PhaseEnum::ConstType<Phase::RUN> &, Struct data) {
+            return onRun(data);
+        }
+
+        bool lifecycleDispatch(const PhaseEnum::ConstType<Phase::TERMINATE> &, Struct data) {
+            return onTerminate(data);
+        }
+
+        bool lifecycleDispatch(const PhaseEnum::ConstType<Phase::UNKNOWN> &, Struct data) {
+            return false;
         }
 
         void internalBind(Struct data) {
             _config = getScope().anchor(data.get<ggapi::Struct>(CONFIG));
         }
+        // Lifecycle constants
+        inline static const Symbol BOOTSTRAP_SYM{"bootstrap"};
+        inline static const Symbol BIND_SYM{"bind"};
+        inline static const Symbol DISCOVER_SYM{"discover"};
+        inline static const Symbol START_SYM{"start"};
+        inline static const Symbol RUN_SYM{"run"};
+        inline static const Symbol TERMINATE_SYM{"terminate"};
 
     public:
-        // Lifecycle constants
-        inline static const Symbol BOOTSTRAP{"bootstrap"};
-        inline static const Symbol BIND{"bind"};
-        inline static const Symbol DISCOVER{"discover"};
-        inline static const Symbol START{"start"};
-        inline static const Symbol RUN{"run"};
-        inline static const Symbol TERMINATE{"terminate"};
+        // Mapping of symbols to enums
+        inline static const util::LookupTable PHASE_MAP{
+            BOOTSTRAP_SYM,
+            Phase::BOOTSTRAP,
+            BIND_SYM,
+            Phase::BIND,
+            DISCOVER_SYM,
+            Phase::DISCOVER,
+            START_SYM,
+            Phase::START,
+            RUN_SYM,
+            Phase::RUN,
+            TERMINATE_SYM,
+            Phase::TERMINATE};
 
         // Lifecycle parameter constants
         inline static const Symbol CONFIG_ROOT{"configRoot"};
@@ -72,10 +105,15 @@ namespace ggapi {
 
         bool lifecycle(ModuleScope moduleScope, Symbol phase, Struct data) {
             _moduleScope = moduleScope;
-            _phase = phase;
-            beforeLifecycle(phase, data);
-            bool handled = lifecycleDispatch(phase, data);
-            afterLifecycle(phase, data);
+            auto mappedPhase = PHASE_MAP.lookup(phase).value_or(Phase::UNKNOWN);
+            _phase = mappedPhase;
+            beforeLifecycle(phase, data); // TODO: Deprecate
+            beforeLifecycle(mappedPhase, data);
+            bool handled = PhaseEnum::visit<bool>(mappedPhase, [this, data](auto p) {
+                               return this->lifecycleDispatch(p, data);
+                           }).value_or(false);
+            afterLifecycle(mappedPhase, data);
+            afterLifecycle(phase, data); // TODO: Deprecate
             return handled;
         }
 
@@ -90,7 +128,7 @@ namespace ggapi {
         /**
          * Current phase driven by lifecycle manager
          */
-        [[nodiscard]] Symbol getCurrentPhase() const {
+        [[nodiscard]] Phase getCurrentPhase() const {
             return _phase.load();
         }
 
@@ -102,15 +140,27 @@ namespace ggapi {
         }
 
         /**
-         * Hook to allow any pre-processing before lifecycle step
+         * (Deprecated) Hook to allow any pre-processing before lifecycle step
          */
         virtual void beforeLifecycle(Symbol phase, Struct data) {
         }
 
         /**
-         * Hook to allow any post-processing after lifecycle step
+         * Hook to allow any pre-processing before lifecycle step
+         */
+        virtual void beforeLifecycle(Phase phase, Struct data) {
+        }
+
+        /**
+         * (Deprecated) Hook to allow any post-processing after lifecycle step
          */
         virtual void afterLifecycle(Symbol phase, Struct data) {
+        }
+
+        /**
+         * Hook to allow any post-processing after lifecycle step
+         */
+        virtual void afterLifecycle(Phase phase, Struct data) {
         }
 
         /**
