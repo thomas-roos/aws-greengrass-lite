@@ -1,5 +1,4 @@
-
-#include "src/iot_broker.hpp"
+#include "iot_broker.hpp"
 
 extern "C" [[maybe_unused]] bool greengrass_lifecycle(
     uint32_t moduleHandle, uint32_t phase, uint32_t dataHandle) noexcept {

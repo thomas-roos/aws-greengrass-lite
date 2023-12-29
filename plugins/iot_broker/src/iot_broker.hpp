@@ -63,7 +63,6 @@ class IotBroker : public ggapi::Plugin {
         std::string rootPath;
     } _thingInfo;
 
-    std::thread _asyncThread;
     std::atomic<ggapi::Struct> _nucleus;
     std::atomic<ggapi::Struct> _system;
 

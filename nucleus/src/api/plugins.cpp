@@ -13,7 +13,13 @@ uint32_t ggapiRegisterPlugin(
         auto lifecycleCallback{context->objFromInt<tasks::Callback>(callback)};
         auto delegate{std::make_shared<plugins::DelegatePlugin>(
             context, componentName.toString(), parentModule, lifecycleCallback)};
-        data::ObjectAnchor anchor = parentModule->root()->anchor(delegate);
+        std::shared_ptr<data::TrackingRoot> root;
+        if(parentModule) {
+            root = parentModule->root();
+        } else {
+            root = context->pluginLoader().root();
+        }
+        auto anchor = root->anchor(delegate);
         return anchor.getHandle().asInt();
     });
 }
@@ -27,6 +33,6 @@ uint32_t ggapiChangeModule(uint32_t moduleHandleInt) noexcept {
         auto context = scope::context();
         auto targetModule{context->objFromInt<plugins::AbstractPlugin>(moduleHandleInt)};
         auto prev = scope::thread()->setEffectiveModule(targetModule);
-        return prev->getSelf().asInt();
+        return prev ? prev->getSelf().asInt() : 0;
     });
 }

@@ -13,9 +13,6 @@ endif()
 
 add_compile_definitions(PLATFORM_SHLIB_SUFFIX=${CMAKE_SHARED_MODULE_SUFFIX})
 
-include(FetchContent)
-include(../utils/fetchContentFromDeps.cmake)
-
 fetchContentFromDeps(yaml-cpp rapidjson)
 
 FetchContent_GetProperties(yaml-cpp)
@@ -204,7 +201,6 @@ add_executable(
 target_link_libraries(nucleus-tests PRIVATE nucleus-lib Catch2::Catch2WithMain)
 target_include_directories(nucleus-tests
                            PRIVATE src tests ${rapidjson_SOURCE_DIR}/include)
-include(Catch)
 catch_discover_tests(nucleus-tests)
 
 if(CMAKE_BUILD_TYPE STREQUAL Debug)

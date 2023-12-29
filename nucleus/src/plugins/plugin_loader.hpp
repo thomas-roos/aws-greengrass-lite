@@ -236,6 +236,10 @@ namespace plugins {
                 });
         }
 
+        std::shared_ptr<data::TrackingRoot> root() const {
+            return _root;
+        }
+
         std::shared_ptr<config::Topics> getServiceTopics(AbstractPlugin &plugin) const;
         std::shared_ptr<data::StructModelBase> buildParams(
             plugins::AbstractPlugin &plugin, bool partial = false) const;

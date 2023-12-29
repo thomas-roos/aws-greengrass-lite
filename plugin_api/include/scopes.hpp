@@ -80,6 +80,12 @@ namespace ggapi {
 
         [[nodiscard]] ModuleScope registerPlugin(Symbol componentName, LifecycleCallback callback);
 
+        [[nodiscard]] static ModuleScope registerGlobalPlugin(
+            Symbol componentName, const LifecycleCallbackLambda &callback);
+
+        [[nodiscard]] static ModuleScope registerGlobalPlugin(
+            Symbol componentName, LifecycleCallback callback);
+
         ModuleScope setActive() {
             return callApiReturnHandle<ModuleScope>(
                 [this]() { return ::ggapiChangeModule(getHandleId()); });

@@ -379,4 +379,16 @@ namespace ggapi {
         return registerPlugin(componentName, LifecycleCallback::of(callback));
     }
 
+    inline ModuleScope ModuleScope::registerGlobalPlugin(
+        Symbol componentName, LifecycleCallback callback) {
+        return callApiReturnHandle<ModuleScope>([componentName, callback]() {
+            return ::ggapiRegisterPlugin(0, componentName.asInt(), callback.getHandleId());
+        });
+    }
+
+    inline ModuleScope ModuleScope::registerGlobalPlugin(
+        Symbol componentName, const LifecycleCallbackLambda &callback) {
+        return registerGlobalPlugin(componentName, LifecycleCallback::of(callback));
+    }
+
 } // namespace ggapi

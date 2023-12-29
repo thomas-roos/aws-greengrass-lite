@@ -535,5 +535,4 @@ namespace util {
             return _visitNoRet<Func, EVals...>(v, std::forward<Func>(func));
         }
     };
-
 } // namespace util
