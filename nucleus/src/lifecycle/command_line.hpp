@@ -23,6 +23,8 @@ namespace lifecycle {
 
     class CommandLine final : public scope::UsesContext {
     private:
+        static constexpr std::string_view DEFAULT_POSIX_USER = "ggc_user:ggc_group";
+
         lifecycle::Kernel &_kernel;
         std::shared_ptr<util::NucleusPaths> _nucleusPaths;
 

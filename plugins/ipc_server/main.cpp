@@ -4,6 +4,7 @@
 #include <limits>
 #include <optional>
 #include <plugin.hpp>
+#include <random>
 
 #include "ServerBootstrap.hpp"
 #include "cpp_api.hpp"
@@ -17,6 +18,8 @@
 
 class Listener;
 
+static constexpr int SEED = 123;
+
 struct Keys {
 private:
     Keys() = default;
@@ -29,12 +32,17 @@ public:
     ggapi::Symbol accepted{"accepted"};
     ggapi::Symbol errorCode{"errorCode"};
     ggapi::Symbol channel{"channel"};
+    ggapi::Symbol socketPath{"domain_socket_path"};
+    ggapi::Symbol cliAuthToken{"cli_auth_token"};
+    ggapi::Symbol topicName{"aws.greengrass.RequestIpcInfo"};
 
     static const Keys &get() {
         static Keys keys;
         return keys;
     }
 };
+
+static const auto &keys = Keys::get();
 
 static void onListenerDestroy(
     aws_event_stream_rpc_server_listener *server, void *user_data) noexcept;
@@ -88,6 +96,15 @@ private:
     using MutexType = std::shared_mutex;
     template<template<class> class Lock>
     static constexpr bool is_lockable = std::is_constructible_v<Lock<MutexType>, MutexType &>;
+    // TODO: This needs to come from host-environment plugin
+    static constexpr std::string_view SOCKET_NAME = "gglite-ipc.socket";
+
+    ggapi::Struct cliHandler(ggapi::Task, ggapi::Symbol, ggapi::Struct);
+    static std::string generateIpcToken();
+
+    std::atomic<ggapi::Struct> _system;
+    std::atomic<ggapi::Struct> _config;
+    std::atomic<ggapi::Struct> _configRoot;
 
 public:
     bool onBootstrap(ggapi::Struct data) override;
@@ -152,8 +169,6 @@ public:
         if(!self) {
             return ggapi::Struct::create();
         }
-
-        const auto &keys = Keys::get();
 
         auto messageType = response.hasKey(keys.errorCode) && response.get<int>(keys.errorCode) != 0
                                ? AWS_EVENT_STREAM_RPC_MESSAGE_TYPE_APPLICATION_ERROR
@@ -226,7 +241,6 @@ public:
                     .fromJson();
             return jsonHandle.getHandleId() ? jsonHandle.unbox<Struct>() : Struct::create();
         }();
-        auto const &keys = Keys::get();
         auto scope = ggapi::CallScope{};
         // NOLINTNEXTLINE
         auto continuation = *static_cast<ContinutationHandle>(user_data);
@@ -304,10 +318,8 @@ public:
         Close();
     }
 
-    void Connect() {
+    void Connect(std::string_view socket_path) {
         // TODO: This should be refactored again into a new class
-        static constexpr std::string_view socket_path = "/tmp/gglite-ipc.socket";
-
         if(std::filesystem::exists(socket_path)) {
             std::filesystem::remove(socket_path);
         }
@@ -487,22 +499,51 @@ extern "C" [[maybe_unused]] ggapiErrorKind greengrass_lifecycle(
 }
 
 void IpcServer::beforeLifecycle(ggapi::Symbol phase, ggapi::Struct data) {
-    std::cerr << "[mqtt-plugin] Running lifecycle phase " << phase.toString() << std::endl;
+    std::cerr << "[ipc-server] Running lifecycle phase " << phase.toString() << std::endl;
 }
 
 bool IpcServer::onBootstrap(ggapi::Struct structData) {
-    structData.put("name", "aws.greengrass.ipc_server");
+    structData.put(NAME, "aws.greengrass.ipc_server");
     return true;
 }
 
 bool IpcServer::onStart(ggapi::Struct data) {
+    std::ignore = getScope().subscribeToTopic(
+        keys.topicName, ggapi::TopicCallback::of(&IpcServer::cliHandler, this));
+    auto system = _system.load();
+    std::filesystem::path rootPath = system.getValue<std::string>({"rootPath"});
+    auto socketPath = rootPath / SOCKET_NAME;
     _listener = std::make_shared<Listener>();
     try {
-        _listener->Connect();
+        _listener->Connect(socketPath.string());
     } catch(std::runtime_error &e) {
         throw ggapi::GgApiError(e.what());
     }
     return true;
+}
+
+std::string IpcServer::generateIpcToken() {
+    // SECURITY-TODO: Make random generation secure
+    static constexpr size_t TOKEN_LENGTH = 16;
+    std::string_view chars = "0123456789"
+                             "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    thread_local std::mt19937 rng(SEED);
+    auto dist = std::uniform_int_distribution{{}, chars.size() - 1};
+    auto result = std::string(TOKEN_LENGTH, '\0');
+    std::generate_n(result.begin(), TOKEN_LENGTH, [&]() { return chars[dist(rng)]; });
+    return result;
+}
+
+ggapi::Struct IpcServer::cliHandler(ggapi::Task, ggapi::Symbol, ggapi::Struct) {
+    auto system = _system.load();
+    std::filesystem::path rootPath =
+        std::filesystem::canonical(system.getValue<std::string>({"rootPath"}));
+    auto socketPath = rootPath / SOCKET_NAME;
+
+    auto resp = ggapi::Struct::create();
+    resp.put(keys.socketPath, socketPath.string());
+    resp.put(keys.cliAuthToken, generateIpcToken());
+    return resp;
 }
 
 bool IpcServer::onTerminate(ggapi::Struct structData) {
@@ -511,6 +552,9 @@ bool IpcServer::onTerminate(ggapi::Struct structData) {
 }
 
 bool IpcServer::onBind(ggapi::Struct data) {
+    _system = getScope().anchor(data.getValue<ggapi::Struct>({"system"}));
+    _config = getScope().anchor(data.getValue<ggapi::Struct>({"config"}));
+    _configRoot = getScope().anchor(data.getValue<ggapi::Struct>({"configRoot"}));
     return true;
 }
 
