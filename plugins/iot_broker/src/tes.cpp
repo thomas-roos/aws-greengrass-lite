@@ -1,8 +1,32 @@
 #include "iot_broker.hpp"
 
-ggapi::Struct IotBroker::retriveToken(ggapi::Task, ggapi::Symbol, ggapi::Struct callData) {
+ggapi::Struct IotBroker::retrieveToken(ggapi::Task, ggapi::Symbol, ggapi::Struct callData) {
     ggapi::Struct response = ggapi::Struct::create();
-    response.put("Response", _savedToken.c_str());
+    const char *json_string = _savedToken.c_str();
+    // TODO: Verify if keys exist before retrieving
+    auto jsonHandle =
+        ggapi::Buffer::create().put(0, std::string_view(_savedToken.c_str())).fromJson();
+    auto responseStruct = ggapi::Struct::create();
+    auto jsonStruct = ggapi::Struct{jsonHandle};
+
+    if(jsonStruct.hasKey("credentials")) {
+        auto innerStruct = jsonStruct.get<ggapi::Struct>("credentials");
+        responseStruct.put("AccessKeyId", innerStruct.get<std::string>("accessKeyId"));
+        responseStruct.put("SecretAccessKey", innerStruct.get<std::string>("secretAccessKey"));
+        responseStruct.put("Token", innerStruct.get<std::string>("sessionToken"));
+        responseStruct.put("Expiration", innerStruct.get<std::string>("expiration"));
+        // Create json response string
+        auto responseBuffer = responseStruct.toJson();
+        auto responseVec = responseBuffer.get<std::vector<uint8_t>>(0, responseBuffer.size());
+        auto responseJsonAsString = std::string{responseVec.begin(), responseVec.end()};
+        response.put("Response", responseJsonAsString);
+        return response;
+    }
+    std::cerr << "Unable to fetch TES credentials" << std::endl;
+    auto responseBuffer = jsonStruct.toJson();
+    auto responseVec = responseBuffer.get<std::vector<uint8_t>>(0, responseBuffer.size());
+    auto responseJsonAsString = std::string{responseVec.begin(), responseVec.end()};
+    response.put("Error", responseJsonAsString);
     return response;
 }
 
@@ -47,7 +71,7 @@ bool IotBroker::tesOnStart(ggapi::Struct data) {
     request.put("pkeyPath", _thingInfo.keyPath.c_str());
 
     auto response =
-        ggapi::Task::sendToTopic(ggapi::Symbol{"aws.grengrass.fetch_TES_from_cloud"}, request);
+        ggapi::Task::sendToTopic(ggapi::Symbol{"aws.greengrass.fetch_TES_from_cloud"}, request);
 
     _savedToken = response.get<std::string>("Response");
 
@@ -56,7 +80,8 @@ bool IotBroker::tesOnStart(ggapi::Struct data) {
 
 bool IotBroker::tesOnRun(void) {
     std::ignore = getScope().subscribeToTopic(
-        ggapi::Symbol{"aws.grengrass.requestTES"},
-        ggapi::TopicCallback::of(&IotBroker::retriveToken, this));
+        ggapi::Symbol{"aws.greengrass.requestTES"},
+        ggapi::TopicCallback::of(&IotBroker::retrieveToken, this));
+
     return true;
 }
