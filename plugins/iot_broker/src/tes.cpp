@@ -1,11 +1,13 @@
 #include "iot_broker.hpp"
 
+const auto LOG = ggapi::Logger::of("TES");
+
 ggapi::Struct IotBroker::retrieveToken(ggapi::Task, ggapi::Symbol, ggapi::Struct callData) {
+    tesRefresh();
     ggapi::Struct response = ggapi::Struct::create();
-    const char *json_string = _savedToken.c_str();
-    // TODO: Verify if keys exist before retrieving
-    auto jsonHandle =
-        ggapi::Buffer::create().put(0, std::string_view(_savedToken.c_str())).fromJson();
+    auto json_string = _savedToken.c_str();
+    // TODO: Verify if keys exist before retrieving [Cache]
+    auto jsonHandle = ggapi::Buffer::create().put(0, std::string_view{_savedToken}).fromJson();
     auto responseStruct = ggapi::Struct::create();
     auto jsonStruct = ggapi::Struct{jsonHandle};
 
@@ -22,7 +24,10 @@ ggapi::Struct IotBroker::retrieveToken(ggapi::Task, ggapi::Symbol, ggapi::Struct
         response.put("Response", responseJsonAsString);
         return response;
     }
-    std::cerr << "Unable to fetch TES credentials" << std::endl;
+
+    LOG.atInfo().event("Unable to fetch TES credentials").kv("ERROR", _savedToken).log();
+    std::cerr << "[TES] Unable to fetch TES credentials. ERROR: " << _savedToken << std::endl;
+
     auto responseBuffer = jsonStruct.toJson();
     auto responseVec = responseBuffer.get<std::vector<uint8_t>>(0, responseBuffer.size());
     auto responseJsonAsString = std::string{responseVec.begin(), responseVec.end()};
@@ -53,9 +58,20 @@ bool IotBroker::tesOnStart(ggapi::Struct data) {
 
         returnValue = true;
     } catch(const std::exception &e) {
+        LOG.atInfo()
+            .event("Failed to parse device config for credentials")
+            .kv("ERROR", e.what())
+            .log();
         std::cerr << "[TES] Error: " << e.what() << std::endl;
     }
 
+    tesRefresh();
+
+    return returnValue;
+}
+
+// TODO:: Fix the mutex on TLSConnectionInit failure on refresh
+void IotBroker::tesRefresh() {
     auto request{ggapi::Struct::create()};
     std::stringstream ss;
     ss << "https://" << _thingInfo.credEndpoint << "/role-aliases/" << _iotRoleAlias
@@ -71,14 +87,12 @@ bool IotBroker::tesOnStart(ggapi::Struct data) {
     request.put("pkeyPath", _thingInfo.keyPath.c_str());
 
     auto response =
-        ggapi::Task::sendToTopic(ggapi::Symbol{"aws.greengrass.fetch_TES_from_cloud"}, request);
+        ggapi::Task::sendToTopic(ggapi::Symbol{"aws.greengrass.fetchTesFromCloud"}, request);
 
     _savedToken = response.get<std::string>("Response");
-
-    return returnValue;
 }
 
-bool IotBroker::tesOnRun(void) {
+bool IotBroker::tesOnRun() {
     std::ignore = getScope().subscribeToTopic(
         ggapi::Symbol{"aws.greengrass.requestTES"},
         ggapi::TopicCallback::of(&IotBroker::retrieveToken, this));

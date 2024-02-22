@@ -5,15 +5,11 @@
 #include <aws/crt/mqtt/Mqtt5Packets.h>
 #include <aws/iot/Mqtt5Client.h>
 #include <cpp_api.hpp>
-#include <iostream>
+#include <logging.hpp>
 #include <memory>
 #include <mqtt/topic_filter.hpp>
 #include <plugin.hpp>
 #include <shared_mutex>
-#include <stdexcept>
-#include <string_view>
-#include <thread>
-#include <unordered_map>
 
 class MqttBuilderException : public ggapi::GgApiError {
 public:
@@ -90,7 +86,8 @@ public:
 
     // TES
     bool tesOnStart(ggapi::Struct data);
-    bool tesOnRun(void);
+    bool tesOnRun();
+    void tesRefresh();
     ggapi::Struct retrieveToken(ggapi::Task, ggapi::Symbol, ggapi::Struct callData);
 
 private:
