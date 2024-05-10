@@ -68,7 +68,7 @@ class IotBroker : public ggapi::Plugin {
     ggapi::Subscription _ipcPublishSubs;
     ggapi::Subscription _subscribeSubs;
     ggapi::Subscription _ipcSubscribeSubs;
-    ggapi::Subscription _requestTestSubs;
+    ggapi::Subscription _requestTesSubs;
 
     // TES
     std::string _iotRoleAlias;
@@ -86,7 +86,6 @@ public:
 
     // TES
     bool tesOnStart(const ggapi::Struct &data);
-    bool tesOnRun();
     void tesRefresh();
     ggapi::Promise retrieveToken(ggapi::Symbol, const ggapi::Container &callData);
     void retrieveTokenAsync(const ggapi::Struct &callData, ggapi::Promise promise);
