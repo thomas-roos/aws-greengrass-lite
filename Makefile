@@ -18,7 +18,7 @@ clean:
 compile_commands.json:
 	bear -- $(MAKE) -Bk
 
-ifneq ($(MAKECMDGOALS),clean)
+ifeq (,$(filter clean,$(MAKECMDGOALS)))
 
 CPPFLAGS += -D_FORTIFY_SOURCE=2
 CFLAGS += -std=gnu11 -pedantic -Wall -Wextra -Wvla -Wshadow -Wformat=2 \
@@ -34,12 +34,15 @@ include profiles/$(PROFILE).mk
 
 CFLAGS += $(EXTRA_CFLAGS)
 
+$(and $(shell mkdir -p $(BUILDDIR)),)
+
 # Rebuild if environment changes
-ignore := $(shell mkdir -p $(BUILDDIR); env > $(BUILDDIR)/env.new; \
-        if cmp -s $(BUILDDIR)/env.new $(BUILDDIR)/env; \
-        then rm $(BUILDDIR)/env.new;\
-        else mv $(BUILDDIR)/env.new $(BUILDDIR)/env; \
-        fi)
+ifneq (,$(filter shell-export,$(.FEATURES)))
+env := $(shell env)
+ifneq ($(file <$(BUILDDIR)/env),$(env))
+$(file >$(BUILDDIR)/env,$(env))
+endif
+endif
 
 core_deps := $(MAKEFILE_LIST) $(BUILDDIR)/env
 
