@@ -42,6 +42,10 @@ gravel_log_disabled(const char *tag, const char *format, ...) {
 #define GRAVEL_LOG_LEVEL GRAVEL_LOG_INFO
 #endif
 
+#ifndef __FILE_NAME__
+#define __FILE_NAME__ __FILE__
+#endif
+
 #define GRAVEL_LOG(level, ...) \
     gravel_log(level, __FILE_NAME__, __LINE__, __VA_ARGS__)
 
