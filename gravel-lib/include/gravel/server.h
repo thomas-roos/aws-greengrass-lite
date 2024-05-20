@@ -12,20 +12,21 @@
 
 typedef struct GravelResponseHandle GravelResponseHandle;
 
-/** Callback that receives messages from listen.
+/** Listen on `path` and receive incoming RPC calls/notifications.
+ * Messages are passed to `gravel_receive_callback`. */
+noreturn void gravel_listen(GravelBuffer path, void *ctx);
+
+/** Function that receives messages from listen.
  * `handle` will be non-NULL if client is expecting a response.
  * If `handle` is non-NULL, it must be passed to `gravel_respond` at some point.
+ * Defined by user of library.
  */
-typedef void (*GravelReceiveCallback)(
+void gravel_receive_callback(
     void *ctx,
     GravelBuffer method,
     GravelList params,
     GravelResponseHandle *handle
 );
-
-/** Listen on `path` and receive incoming RPC calls/notifications. */
-noreturn void
-gravel_listen(GravelBuffer path, GravelReceiveCallback callback, void *ctx);
 
 /** Respond to a message received from listen.
  * Pass non-zero error to return an error, else value is the successful result.

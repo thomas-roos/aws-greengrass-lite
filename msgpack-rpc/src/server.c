@@ -185,8 +185,7 @@ static int parse_incoming(
     return 0;
 }
 
-noreturn void
-gravel_listen(GravelBuffer path, GravelReceiveCallback callback, void *ctx) {
+noreturn void gravel_listen(GravelBuffer path, void *ctx) {
     while (true) {
         int sockfd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
         if (sockfd == -1) {
@@ -332,7 +331,7 @@ gravel_listen(GravelBuffer path, GravelReceiveCallback callback, void *ctx) {
                     };
                 }
 
-                callback(ctx, method, params, handle);
+                gravel_receive_callback(ctx, method, params, handle);
             }
         }
     }
