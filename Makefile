@@ -37,15 +37,16 @@ CFLAGS += $(EXTRA_CFLAGS)
 
 $(and $(shell mkdir -p $(BUILDDIR)),)
 
+core_deps := $(MAKEFILE_LIST)
+
 # Rebuild if environment changes
 ifneq (,$(filter shell-export,$(.FEATURES)))
 env := $(shell env)
 ifneq ($(file <$(BUILDDIR)/env),$(env))
 $(file >$(BUILDDIR)/env,$(env))
 endif
+core_deps += $(BUILDDIR)/env
 endif
-
-core_deps := $(MAKEFILE_LIST) $(BUILDDIR)/env
 
 $(BUILDDIR)/%.d: %.c $(core_deps)
 	@mkdir -p $(@D)
