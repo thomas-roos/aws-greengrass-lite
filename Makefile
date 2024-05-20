@@ -7,6 +7,7 @@ PROFILE ?= release
 
 MAKEFLAGS += --no-builtin-rules
 .DELETE_ON_ERROR:
+.SECONDEXPANSION:
 
 .PHONY: all clean install compile_commands.json
 
@@ -102,7 +103,7 @@ $(BUILDDIR)/bin/$$($1_BIN): CFLAGS += $$($1_CFLAGS)
 $(BUILDDIR)/bin/$$($1_BIN): LDFLAGS += $$($1_LDFLAGS)
 $(BUILDDIR)/bin/$$($1_BIN): LDLIBS += $$($1_LDLIBS)
 $(BUILDDIR)/bin/$$($1_BIN): $$($1_OBJS) \
-        $$(call get_archives,$$(call get_lib_closure,$1))
+        $$$$(call get_archives,$$$$(call get_lib_closure,$1))
 	@mkdir -p $$(@D)
 	$$(CC) $$(CFLAGS) $$(LDFLAGS) -o $$@ $$+ $$(LDLIBS)
 
