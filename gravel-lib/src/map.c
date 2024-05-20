@@ -8,7 +8,6 @@
 #include <stdbool.h>
 
 bool gravel_map_get(GravelMap map, GravelBuffer key, GravelObject **result) {
-    *result = NULL;
     GRAVEL_MAP_FOREACH(pair, map) {
         if (gravel_buffer_eq(key, pair->key)) {
             if (result != NULL) {
@@ -16,6 +15,9 @@ bool gravel_map_get(GravelMap map, GravelBuffer key, GravelObject **result) {
             }
             return true;
         }
+    }
+    if (result != NULL) {
+        *result = NULL;
     }
     return false;
 }
