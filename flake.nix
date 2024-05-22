@@ -11,6 +11,7 @@
         pkg-config
         clang-tools
         bear
+        openssl
       ];
     };
     devShells.clang = devShell // {
