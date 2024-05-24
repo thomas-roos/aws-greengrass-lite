@@ -8,7 +8,6 @@
 #include "gravel/object.h"
 #include <errno.h>
 #include <time.h>
-#include <unistd.h>
 #include <stddef.h>
 #include <stdint.h>
 
