@@ -36,8 +36,14 @@ int main(void) {
         GravelBumpAlloc alloc = gravel_bump_alloc_init(GRAVEL_BUF(buffer));
         GravelObject result;
 
-        (void
-        ) gravel_call(conn, GRAVEL_STR("publish"), args, &alloc.alloc, &result);
+        ret = gravel_call(
+            conn, GRAVEL_STR("publish"), args, &alloc.alloc, &result
+        );
+
+        if (ret != 0) {
+            GRAVEL_LOGE("client", "Failed to send publish: %d.", ret);
+            break;
+        }
     }
 
     clock_gettime(CLOCK_REALTIME, &after);
