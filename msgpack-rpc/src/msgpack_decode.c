@@ -10,6 +10,7 @@
 #include <endian.h>
 #include <errno.h>
 #include <string.h>
+#include <stdbool.h>
 #include <stdint.h>
 
 static_assert((uint32_t) -1 == 0xFFFFFFFFUL, "twos-compliment required");
@@ -20,7 +21,9 @@ static int decode_obj(
 
 static int
 buf_split(GravelBuffer buf, GravelBuffer *left, GravelBuffer *right, size_t n) {
-    if (n > buf.len) return EBADMSG;
+    if (n > buf.len) {
+        return EBADMSG;
+    }
 
     if (left != NULL) {
         *left = (GravelBuffer) { .len = n, .data = buf.data };
@@ -37,7 +40,9 @@ static int read_uint(GravelBuffer *buf, size_t bytes, uint64_t *result) {
 
     GravelBuffer read_from;
     int ret = buf_split(*buf, &read_from, buf, bytes);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     uint64_t value = 0;
     memcpy(&((char *) &value)[sizeof(uint64_t) - bytes], read_from.data, bytes);
@@ -53,7 +58,9 @@ static int decode_uint(GravelBuffer *buf, size_t bytes, GravelObject *obj) {
     uint64_t value;
 
     int ret = read_uint(buf, bytes, &value);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     *obj = GRAVEL_OBJ_U64(value);
     return 0;
@@ -65,7 +72,9 @@ static int decode_int(GravelBuffer *buf, size_t bytes, GravelObject *obj) {
 
     GravelBuffer read_from;
     int ret = buf_split(*buf, &read_from, buf, bytes);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     bool negative = (read_from.data[0] & 0x80) > 0;
 
@@ -96,13 +105,17 @@ static int decode_buf(
 
     GravelBuffer old;
     int ret = buf_split(*buf, &old, buf, len);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     if (noalloc) {
         *obj = GRAVEL_OBJ(old);
     } else {
         uint8_t *new_storage = GRAVEL_ALLOCN(alloc, uint8_t, len);
-        if (new_storage == NULL) return ENOMEM;
+        if (new_storage == NULL) {
+            return ENOMEM;
+        }
 
         GravelBuffer new = { .data = new_storage, .len = len };
         memcpy(new.data, old.data, len);
@@ -123,7 +136,9 @@ static int decode_len_buf(
 
     uint64_t len;
     int ret = read_uint(buf, len_bytes, &len);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     return decode_buf(noalloc, alloc, buf, len, obj);
 }
@@ -134,7 +149,9 @@ static int decode_f32(GravelBuffer *buf, GravelObject *obj) {
 
     uint64_t value_bytes_64;
     int ret = read_uint(buf, 4, &value_bytes_64);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     uint32_t value_bytes = (uint32_t) value_bytes_64;
     float value;
@@ -150,7 +167,9 @@ static int decode_f64(GravelBuffer *buf, GravelObject *obj) {
 
     uint64_t value_bytes;
     int ret = read_uint(buf, 8, &value_bytes);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     double value;
     memcpy(&value, &value_bytes, 8);
@@ -159,6 +178,7 @@ static int decode_f64(GravelBuffer *buf, GravelObject *obj) {
     return 0;
 }
 
+// NOLINTNEXTLINE(misc-no-recursion)
 static int decode_array(
     bool noalloc,
     GravelAlloc *alloc,
@@ -172,11 +192,15 @@ static int decode_array(
         *obj = GRAVEL_OBJ((GravelList) { .len = len, .items = NULL });
     } else {
         GravelObject *items = GRAVEL_ALLOCN(alloc, GravelObject, len);
-        if (items == NULL) return ENOMEM;
+        if (items == NULL) {
+            return ENOMEM;
+        }
 
         for (size_t i = 0; i < len; i++) {
             int ret = decode_obj(noalloc, alloc, buf, &items[i]);
-            if (ret != 0) return ret;
+            if (ret != 0) {
+                return ret;
+            }
         }
 
         *obj = GRAVEL_OBJ((GravelList) { .len = len, .items = items });
@@ -185,6 +209,7 @@ static int decode_array(
     return 0;
 }
 
+// NOLINTNEXTLINE(misc-no-recursion)
 static int decode_len_array(
     bool noalloc,
     GravelAlloc *alloc,
@@ -196,11 +221,14 @@ static int decode_len_array(
 
     uint64_t len;
     int ret = read_uint(buf, len_bytes, &len);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     return decode_array(noalloc, alloc, buf, len, obj);
 }
 
+// NOLINTNEXTLINE(misc-no-recursion)
 static int decode_map(
     bool noalloc,
     GravelAlloc *alloc,
@@ -214,12 +242,16 @@ static int decode_map(
         *obj = GRAVEL_OBJ((GravelMap) { .len = len, .pairs = NULL });
     } else {
         GravelKV *pairs = GRAVEL_ALLOCN(alloc, GravelKV, len);
-        if (pairs == NULL) return ENOMEM;
+        if (pairs == NULL) {
+            return ENOMEM;
+        }
 
         for (size_t i = 0; i < len; i++) {
             GravelObject key;
             int ret = decode_obj(noalloc, alloc, buf, &key);
-            if (ret != 0) return ret;
+            if (ret != 0) {
+                return ret;
+            }
 
             if (key.type != GRAVEL_TYPE_BUF) {
                 GRAVEL_LOGE("msgpack", "Map has unsupported key type.");
@@ -228,7 +260,9 @@ static int decode_map(
             pairs[i].key = key.buf;
 
             ret = decode_obj(noalloc, alloc, buf, &pairs[i].val);
-            if (ret != 0) return ret;
+            if (ret != 0) {
+                return ret;
+            }
         }
 
         *obj = GRAVEL_OBJ((GravelMap) { .len = len, .pairs = pairs });
@@ -236,6 +270,7 @@ static int decode_map(
     return 0;
 }
 
+// NOLINTNEXTLINE(misc-no-recursion)
 static int decode_len_map(
     bool noalloc,
     GravelAlloc *alloc,
@@ -247,17 +282,22 @@ static int decode_len_map(
 
     uint64_t len;
     int ret = read_uint(buf, len_bytes, &len);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     return decode_map(noalloc, alloc, buf, len, obj);
 }
 
+// NOLINTNEXTLINE(misc-no-recursion,readability-function-cognitive-complexity)
 static int decode_obj(
     bool noalloc, GravelAlloc *alloc, GravelBuffer *buf, GravelObject *obj
 ) {
     assert((alloc != NULL) && (buf != NULL) && (obj != NULL));
 
-    if (buf->len < 1) return EBADMSG;
+    if (buf->len < 1) {
+        return EBADMSG;
+    }
     uint8_t tag = buf->data[0];
     (void) buf_split(*buf, NULL, buf, 1);
 
@@ -265,106 +305,134 @@ static int decode_obj(
         // positive fixint
         *obj = GRAVEL_OBJ_I64(tag);
         return 0;
-    } else if (tag < 0x8F) {
+    }
+    if (tag < 0x8F) {
         // fixmap
         return decode_map(noalloc, alloc, buf, tag & 15, obj);
-    } else if (tag < 0x9F) {
+    }
+    if (tag < 0x9F) {
         // fixarray
         return decode_array(noalloc, alloc, buf, tag & 15, obj);
-    } else if (tag < 0xBF) {
+    }
+    if (tag < 0xBF) {
         // fixstr
         return decode_buf(noalloc, alloc, buf, tag & 31, obj);
-    } else if (tag == 0xC0) {
+    }
+    if (tag == 0xC0) {
         // nil
         *obj = GRAVEL_OBJ_NULL();
         return 0;
-    } else if (tag == 0xC1) {
+    }
+    if (tag == 0xC1) {
         // never used
         GRAVEL_LOGE("msgpack", "Payload has invalid 0xC1 type tag.");
         return EBADMSG;
-    } else if (tag == 0xC2) {
+    }
+    if (tag == 0xC2) {
         // false
         *obj = GRAVEL_OBJ_BOOL(false);
         return 0;
-    } else if (tag == 0xC3) {
+    }
+    if (tag == 0xC3) {
         // true
         *obj = GRAVEL_OBJ_BOOL(true);
         return 0;
-    } else if (tag == 0xC4) {
+    }
+    if (tag == 0xC4) {
         // bin 8
         return decode_len_buf(noalloc, alloc, buf, 1, obj);
-    } else if (tag == 0xC5) {
+    }
+    if (tag == 0xC5) {
         // bin 16
         return decode_len_buf(noalloc, alloc, buf, 2, obj);
-    } else if (tag == 0xC6) {
+    }
+    if (tag == 0xC6) {
         // bin 32
         return decode_len_buf(noalloc, alloc, buf, 4, obj);
-    } else if (tag <= 0xC9) {
+    }
+    if (tag <= 0xC9) {
         // ext
         GRAVEL_LOGE("msgpack", "Payload has unsupported ext type.");
         return ENOTSUP;
-    } else if (tag == 0xCA) {
+    }
+    if (tag == 0xCA) {
         // float 32
         return decode_f32(buf, obj);
-    } else if (tag == 0xCB) {
+    }
+    if (tag == 0xCB) {
         // float 64
         return decode_f64(buf, obj);
-    } else if (tag == 0xCC) {
+    }
+    if (tag == 0xCC) {
         // uint 8
         return decode_uint(buf, 1, obj);
-    } else if (tag == 0xCD) {
+    }
+    if (tag == 0xCD) {
         // uint 16
         return decode_uint(buf, 2, obj);
-    } else if (tag == 0xCE) {
+    }
+    if (tag == 0xCE) {
         // uint 32
         return decode_uint(buf, 4, obj);
-    } else if (tag == 0xCF) {
+    }
+    if (tag == 0xCF) {
         // uint 64
         return decode_uint(buf, 8, obj);
-    } else if (tag == 0xD0) {
+    }
+    if (tag == 0xD0) {
         // int 8
         return decode_int(buf, 1, obj);
-    } else if (tag == 0xD1) {
+    }
+    if (tag == 0xD1) {
         // int 16
         return decode_int(buf, 2, obj);
-    } else if (tag == 0xD2) {
+    }
+    if (tag == 0xD2) {
         // int 32
         return decode_int(buf, 4, obj);
-    } else if (tag == 0xD3) {
+    }
+    if (tag == 0xD3) {
         // int 64
         return decode_int(buf, 8, obj);
-    } else if (tag <= 0xD8) {
+    }
+    if (tag <= 0xD8) {
         // fixext
         GRAVEL_LOGE("msgpack", "Payload has unsupported ext type.");
         return ENOTSUP;
-    } else if (tag == 0xD9) {
+    }
+    if (tag == 0xD9) {
         // str 8
         return decode_len_buf(noalloc, alloc, buf, 1, obj);
-    } else if (tag == 0xDA) {
+    }
+    if (tag == 0xDA) {
         // str 16
         return decode_len_buf(noalloc, alloc, buf, 2, obj);
-    } else if (tag == 0xDB) {
+    }
+    if (tag == 0xDB) {
         // str 32
         return decode_len_buf(noalloc, alloc, buf, 4, obj);
-    } else if (tag == 0xDC) {
+    }
+    if (tag == 0xDC) {
         // array 16
         return decode_len_array(noalloc, alloc, buf, 2, obj);
-    } else if (tag == 0xDD) {
+    }
+    if (tag == 0xDD) {
         // array 32
         return decode_len_array(noalloc, alloc, buf, 4, obj);
-    } else if (tag == 0xDE) {
+    }
+    if (tag == 0xDE) {
         // map 16
         return decode_len_map(noalloc, alloc, buf, 2, obj);
-    } else if (tag == 0xDF) {
+    }
+    if (tag == 0xDF) {
         // map 32
         return decode_len_map(noalloc, alloc, buf, 4, obj);
-    } else {
-        // negative fixint
-        int8_t val;
-        memcpy(&val, &tag, 1);
-        *obj = GRAVEL_OBJ_I64(val);
-        return 0;
     }
+    // negative fixint
+    int8_t val;
+    memcpy(&val, &tag, 1);
+    *obj = GRAVEL_OBJ_I64(val);
+    return 0;
 }
 
 int gravel_msgpack_decode(
@@ -374,7 +442,9 @@ int gravel_msgpack_decode(
 
     GravelBuffer msg = buf;
     int ret = decode_obj(false, alloc, &msg, obj);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     // Ensure no trailing data
     if (msg.len != 0) {

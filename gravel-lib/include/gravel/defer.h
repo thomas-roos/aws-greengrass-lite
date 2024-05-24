@@ -41,6 +41,7 @@
     gravel_defer_fn__##id(&gravel_defer_record__##id); \
     GRAVEL_DEFER_CANCEL(id)
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 /** Enable defer for a function with one parameter. */
 #define GRAVEL_DEFINE_DEFER(fn, type, name, cleanup) \
     typedef type *GravelDeferRecord__##fn; \
@@ -53,6 +54,7 @@
     static inline void gravel_cancel_defer__##fn(type **defer_record_ptr) { \
         *defer_record_ptr = NULL; \
     }
+// NOLINTEND(bugprone-macro-parentheses)
 
 // Common deferred functions
 
@@ -72,7 +74,7 @@ GRAVEL_DEFINE_DEFER(
 typedef struct {
     void **ptr;
     GravelAlloc *ctx;
-} GravelDeferRecord__gravel_free;
+} GravelDeferRecord__gravel_free; // NOLINT(readability-identifier-naming)
 
 static inline void
 gravel_defer__gravel_free(GravelDeferRecord__gravel_free *record) {

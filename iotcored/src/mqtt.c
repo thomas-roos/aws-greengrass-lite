@@ -6,18 +6,19 @@
 #include "args.h"
 #include "gravel/log.h"
 #include "gravel/object.h"
+#include "gravel/utils.h"
 #include "tls.h"
-#include "unistd.h"
 #include <assert.h>
 #include <core_mqtt.h>
 #include <core_mqtt_config.h>
 #include <core_mqtt_serializer.h>
 #include <errno.h>
 #include <pthread.h>
-#include <signal.h>
 #include <string.h>
 #include <sys/time.h>
+#include <time.h>
 #include <transport_interface.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdnoreturn.h>
 
@@ -35,7 +36,7 @@
 
 static uint32_t time_ms(void);
 static void event_callback(
-    MQTTContext_t *mqtt_ctx,
+    MQTTContext_t *ctx,
     MQTTPacketInfo_t *packet_info,
     MQTTDeserializedInfo_t *deserialized_info
 );
@@ -80,7 +81,7 @@ noreturn static void *mqtt_recv_thread_fn(void *arg) {
 
         if ((mqtt_ret != MQTTSuccess) && (mqtt_ret != MQTTNeedMoreBytes)) {
             GRAVEL_LOGE("mqtt", "Error in receive loop, closing connection.");
-            pthread_kill(keepalive_thread, SIGTERM);
+            pthread_cancel(keepalive_thread);
             iotcored_tls_cleanup(
                 ctx->transportInterface.pNetworkContext->tls_ctx
             );
@@ -93,9 +94,9 @@ noreturn static void *mqtt_keepalive_thread_fn(void *arg) {
     MQTTContext_t *ctx = arg;
 
     while (true) {
-        unsigned int sleep_time = IOTCORED_KEEP_ALIVE_PERIOD;
-        while (sleep_time > 0) {
-            sleep_time = sleep(sleep_time);
+        int err = gravel_sleep(IOTCORED_KEEP_ALIVE_PERIOD);
+        if (err != 0) {
+            break;
         }
 
         if (ping_pending) {
@@ -116,31 +117,31 @@ noreturn static void *mqtt_keepalive_thread_fn(void *arg) {
         }
     }
 
-    pthread_kill(recv_thread, SIGTERM);
+    pthread_cancel(recv_thread);
     iotcored_tls_cleanup(ctx->transportInterface.pNetworkContext->tls_ctx);
     pthread_exit(NULL);
 }
 
 static int32_t transport_recv(
-    NetworkContext_t *pNetworkContext, void *pBuffer, size_t bytesToRecv
+    NetworkContext_t *network_context, void *buffer, size_t bytes_to_recv
 ) {
-    size_t bytes = bytesToRecv < INT32_MAX ? bytesToRecv : INT32_MAX;
+    size_t bytes = bytes_to_recv < INT32_MAX ? bytes_to_recv : INT32_MAX;
 
-    GravelBuffer buf = { .data = pBuffer, .len = bytes };
+    GravelBuffer buf = { .data = buffer, .len = bytes };
 
-    int ret = iotcored_tls_read(pNetworkContext->tls_ctx, &buf);
+    int ret = iotcored_tls_read(network_context->tls_ctx, &buf);
 
     return (ret == 0) ? (int32_t) buf.len : -1;
 }
 
 static int32_t transport_send(
-    NetworkContext_t *pNetworkContext, const void *pBuffer, size_t bytesToSend
+    NetworkContext_t *network_context, const void *buffer, size_t bytes_to_send
 ) {
-    size_t bytes = bytesToSend < INT32_MAX ? bytesToSend : INT32_MAX;
+    size_t bytes = bytes_to_send < INT32_MAX ? bytes_to_send : INT32_MAX;
 
     int ret = iotcored_tls_write(
-        pNetworkContext->tls_ctx,
-        (GravelBuffer) { .data = (void *) pBuffer, .len = bytes }
+        network_context->tls_ctx,
+        (GravelBuffer) { .data = (void *) buffer, .len = bytes }
     );
 
     return (ret == 0) ? (int32_t) bytes : -1;
@@ -164,7 +165,9 @@ int iotcored_mqtt_connect(const IotcoredArgs *args) {
     assert(mqtt_ret == MQTTSuccess);
 
     int ret = iotcored_tls_connect(args, &net_ctx.tls_ctx);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     size_t id_len = strlen(args->id);
     if (id_len > UINT16_MAX) {

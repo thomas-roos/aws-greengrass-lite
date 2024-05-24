@@ -9,6 +9,7 @@
 #include <errno.h>
 #include <time.h>
 #include <unistd.h>
+#include <stddef.h>
 #include <stdint.h>
 
 int main(void) {
@@ -27,16 +28,16 @@ int main(void) {
     GravelList args
         = GRAVEL_LIST(GRAVEL_OBJ_STR("hello"), GRAVEL_OBJ_STR("world"));
 
-    struct timespec before, after;
+    struct timespec before;
+    struct timespec after;
     clock_gettime(CLOCK_REALTIME, &before);
 
     for (size_t i = 0; i < 1000000; i++) {
         GravelBumpAlloc alloc = gravel_bump_alloc_init(GRAVEL_BUF(buffer));
         GravelObject result;
 
-        ret = gravel_call(
-            conn, GRAVEL_STR("publish"), args, &alloc.alloc, &result
-        );
+        (void
+        ) gravel_call(conn, GRAVEL_STR("publish"), args, &alloc.alloc, &result);
     }
 
     clock_gettime(CLOCK_REALTIME, &after);

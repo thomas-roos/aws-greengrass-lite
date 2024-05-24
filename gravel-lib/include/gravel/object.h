@@ -70,9 +70,9 @@ typedef struct GravelKV {
 /** Create buffer literal from a string literal. */
 #define GRAVEL_STR(strlit) \
     __extension__({ \
-        char temp[] __attribute((unused)) = strlit; \
+        char temp[] __attribute((unused)) = (strlit); \
         (GravelBuffer) { \
-            .data = (uint8_t *) strlit, \
+            .data = (uint8_t *) (strlit), \
             .len = sizeof(strlit) - 1U, \
         }; \
     })
@@ -112,25 +112,25 @@ typedef struct GravelKV {
 /** Create bool object literal. */
 #define GRAVEL_OBJ_BOOL(value) \
     (GravelObject) { \
-        .type = GRAVEL_TYPE_BOOLEAN, .boolean = value \
+        .type = GRAVEL_TYPE_BOOLEAN, .boolean = (value) \
     }
 
 /** Create unsigned integer object literal. */
 #define GRAVEL_OBJ_U64(value) \
     (GravelObject) { \
-        .type = GRAVEL_TYPE_U64, .u64 = value \
+        .type = GRAVEL_TYPE_U64, .u64 = (value) \
     }
 
 /** Create signed integer object literal. */
 #define GRAVEL_OBJ_I64(value) \
     (GravelObject) { \
-        .type = GRAVEL_TYPE_I64, .i64 = value \
+        .type = GRAVEL_TYPE_I64, .i64 = (value) \
     }
 
 /** Create floating point object literal. */
 #define GRAVEL_OBJ_F64(value) \
     (GravelObject) { \
-        .type = GRAVEL_TYPE_F64, .f64 = value \
+        .type = GRAVEL_TYPE_F64, .f64 = (value) \
     }
 
 /** Create buffer object literal from a string literal. */
@@ -157,8 +157,10 @@ typedef struct GravelKV {
         .type = GRAVEL_TYPE_LIST, .list = GRAVEL_LIST(__VA_ARGS__), \
     }
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 #define GRAVEL_FORCE(type, value) \
     _Generic((value), type: (value), default: (type) { 0 })
+// NOLINTEND(bugprone-macro-parentheses)
 
 /** Create object literal from buffer, list, or map. */
 #define GRAVEL_OBJ(...) \

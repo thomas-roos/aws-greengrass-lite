@@ -17,6 +17,6 @@ typedef struct {
 int iotcored_mqtt_connect(const IotcoredArgs *args);
 
 int iotcored_mqtt_publish(const IotcoredMsg *msg, uint8_t qos);
-int iotcored_mqtt_subscribe(GravelBuffer topic, uint8_t qos);
+int iotcored_mqtt_subscribe(GravelBuffer topic_filter, uint8_t qos);
 
 #endif

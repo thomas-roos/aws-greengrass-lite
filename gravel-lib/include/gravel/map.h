@@ -10,10 +10,12 @@
 #include "object.h"
 #include <stdbool.h>
 
+// NOLINTBEGIN(bugprone-macro-parentheses)
 /** Loop over the KV pairs in a map. */
 #define GRAVEL_MAP_FOREACH(name, map) \
     for (GravelKV *name = (map).pairs; name < &(map).pairs[(map).len]; \
          name = &name[1])
+// NOLINTEND(bugprone-macro-parentheses)
 
 /** Get the value corresponding with a key.
  * Returns whether the key was found in the map.

@@ -9,7 +9,6 @@
 
 #include "alloc.h"
 #include "object.h"
-#include <stdbool.h>
 #include <stddef.h>
 
 /** Alloc-only allocator backed by a fixed buffer. */

@@ -7,6 +7,7 @@
 #include "gravel/defer.h"
 #include "gravel/log.h"
 #include "gravel/object.h"
+#include "gravel/utils.h"
 #include "msgpack.h"
 #include <assert.h>
 #include <errno.h>
@@ -15,6 +16,7 @@
 #include <sys/socket.h>
 #include <sys/un.h>
 #include <unistd.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -79,7 +81,7 @@ static GravelResponseHandle *get_free_handle(void) {
                 }
             }
         }
-        sleep(1);
+        gravel_sleep(1);
     }
 }
 
@@ -99,7 +101,9 @@ static int parse_incoming(
     GravelObject obj;
 
     int ret = gravel_msgpack_decode_lazy_noalloc(&msg, &obj);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     if ((obj.type != GRAVEL_TYPE_LIST)) {
         GRAVEL_LOGE("msgpack-rpc", "Received payload that is not an array.");
@@ -115,7 +119,9 @@ static int parse_incoming(
 
     // type
     ret = gravel_msgpack_decode_lazy_noalloc(&msg, &obj);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     if (obj.type != GRAVEL_TYPE_I64) {
         GRAVEL_LOGE("msgpack-rpc", "Received payload type invalid.");
@@ -133,7 +139,9 @@ static int parse_incoming(
 
         // msgid
         ret = gravel_msgpack_decode_lazy_noalloc(&msg, &obj);
-        if (ret != 0) return ret;
+        if (ret != 0) {
+            return ret;
+        }
 
         if ((obj.type != GRAVEL_TYPE_U64) || (obj.u64 > UINT32_MAX)) {
             GRAVEL_LOGE("msgpack-rpc", "Received payload msgid invalid.");
@@ -161,7 +169,9 @@ static int parse_incoming(
 
     // method
     ret = gravel_msgpack_decode_lazy_noalloc(&msg, &obj);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     if (obj.type != GRAVEL_TYPE_BUF) {
         GRAVEL_LOGE("msgpack-rpc", "Received non-raw method.");
@@ -173,7 +183,9 @@ static int parse_incoming(
     // params
     GravelBuffer copy = msg;
     ret = gravel_msgpack_decode_lazy_noalloc(&copy, &obj);
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     if (obj.type != GRAVEL_TYPE_LIST) {
         GRAVEL_LOGE("msgpack-rpc", "Received non-array params.");
@@ -185,15 +197,14 @@ static int parse_incoming(
     return 0;
 }
 
+// NOLINTNEXTLINE(readability-function-cognitive-complexity)
 noreturn void gravel_listen(GravelBuffer path, void *ctx) {
     while (true) {
         int sockfd = socket(AF_UNIX, SOCK_SEQPACKET, 0);
         if (sockfd == -1) {
             int err = errno;
-            GRAVEL_LOGE(
-                "msgpack-rpc", "Failed to create socket: %s", strerror(err)
-            );
-            sleep(5);
+            GRAVEL_LOGE("msgpack-rpc", "Failed to create socket: %d.", err);
+            gravel_sleep(5);
             continue;
         }
         GRAVEL_DEFER(close, sockfd);
@@ -220,19 +231,15 @@ noreturn void gravel_listen(GravelBuffer path, void *ctx) {
 
         if (bind(sockfd, (struct sockaddr *) &addr, sizeof(addr)) == -1) {
             int err = errno;
-            GRAVEL_LOGE(
-                "msgpack-rpc", "Failed to bind socket: %s", strerror(err)
-            );
-            sleep(5);
+            GRAVEL_LOGE("msgpack-rpc", "Failed to bind socket: %d.", err);
+            gravel_sleep(5);
             continue;
         }
 
         if (listen(sockfd, 20) == -1) {
             int err = errno;
-            GRAVEL_LOGE(
-                "msgpack-rpc", "Failed to listen socket: %s", strerror(err)
-            );
-            sleep(5);
+            GRAVEL_LOGE("msgpack-rpc", "Failed to listen socket: %d.", err);
+            gravel_sleep(5);
             continue;
         }
 
@@ -241,9 +248,7 @@ noreturn void gravel_listen(GravelBuffer path, void *ctx) {
             if (clientfd == -1) {
                 int err = errno;
                 GRAVEL_LOGE(
-                    "msgpack-rpc",
-                    "Failed to accept on socket: %s",
-                    strerror(err)
+                    "msgpack-rpc", "Failed to accept on socket: %d.", err
                 );
                 break;
             }
@@ -261,9 +266,7 @@ noreturn void gravel_listen(GravelBuffer path, void *ctx) {
                 if (sys_ret < 0) {
                     int err = errno;
                     GRAVEL_LOGE(
-                        "msgpack-rpc",
-                        "Failed to recv from client: %s",
-                        strerror(err)
+                        "msgpack-rpc", "Failed to recv from client: %d.", err
                     );
                     break;
                 }
@@ -294,7 +297,9 @@ noreturn void gravel_listen(GravelBuffer path, void *ctx) {
                 int ret = parse_incoming(
                     recv_buffer, &needs_resp, &msgid, &method, &params_buf
                 );
-                if (ret != 0) break;
+                if (ret != 0) {
+                    break;
+                }
 
                 GravelBumpAlloc decode_mem
                     = gravel_bump_alloc_init(GRAVEL_BUF(decode_array));
@@ -340,7 +345,9 @@ noreturn void gravel_listen(GravelBuffer path, void *ctx) {
 void gravel_respond(
     GravelResponseHandle *handle, int error, GravelObject value
 ) {
-    if (handle == NULL) return;
+    if (handle == NULL) {
+        return;
+    }
 
     GRAVEL_DEFER(release_handle, handle);
 
@@ -365,8 +372,6 @@ void gravel_respond(
     ssize_t result = send(handle->respfd, encoded.data, encoded.len, 0);
     if (result <= 0) {
         int err = errno;
-        GRAVEL_LOGE(
-            "msgpack-rpc", "Failed to send response: %s", strerror(err)
-        );
+        GRAVEL_LOGE("msgpack-rpc", "Failed to send response: %d.", err);
     }
 }

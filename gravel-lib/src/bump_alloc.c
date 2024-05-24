@@ -5,6 +5,8 @@
 #include "gravel/bump_alloc.h"
 #include "gravel/alloc.h"
 #include "gravel/log.h"
+#include "gravel/object.h"
+#include <stdlib.h>
 
 static void *
 bump_alloc_alloc(GravelAlloc *alloc, size_t size, size_t alignment) {
@@ -29,7 +31,7 @@ bump_alloc_alloc(GravelAlloc *alloc, size_t size, size_t alignment) {
 
 GravelBumpAlloc gravel_bump_alloc_init(GravelBuffer buf) {
     return (GravelBumpAlloc) {
-        .alloc = { .alloc = bump_alloc_alloc, .free = NULL },
+        .alloc = { .ALLOC = bump_alloc_alloc, .FREE = NULL },
         .buf = buf,
         .index = 0,
     };

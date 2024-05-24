@@ -7,6 +7,7 @@
 #include "gravel/object.h"
 #include "gravel/server.h"
 #include <errno.h>
+#include <stdlib.h>
 
 void gravel_receive_callback(
     void *ctx,

@@ -3,6 +3,7 @@
  */
 
 #include "gravel/buffer.h"
+#include "gravel/object.h"
 #include <string.h>
 #include <stdbool.h>
 

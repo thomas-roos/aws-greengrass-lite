@@ -7,6 +7,7 @@
 #include "gravel/server.h"
 #include "mqtt.h"
 #include <argp.h>
+#include <stdlib.h>
 
 static char doc[] = "iotcored -- MQTT spooler for AWS IoT Core";
 
@@ -30,6 +31,7 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
         if ((args->endpoint == NULL) || (args->id == NULL)
             || (args->rootca == NULL) || (args->cert == NULL)
             || (args->key == NULL)) {
+            // NOLINTNEXTLINE(concurrency-mt-unsafe)
             argp_usage(state);
         }
         break;
@@ -43,11 +45,14 @@ static struct argp argp = { opts, arg_parser, 0, doc, 0, 0, 0 };
 int main(int argc, char **argv) {
     IotcoredArgs args = { 0 };
 
+    // NOLINTNEXTLINE(concurrency-mt-unsafe)
     argp_parse(&argp, argc, argv, 0, 0, &args);
 
     int ret = iotcored_mqtt_connect(&args);
 
-    if (ret != 0) return ret;
+    if (ret != 0) {
+        return ret;
+    }
 
     gravel_listen(GRAVEL_STR("/aws/gravel/iotcored"), NULL);
 }

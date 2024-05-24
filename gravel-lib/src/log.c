@@ -7,6 +7,7 @@
 #include <errno.h>
 #include <pthread.h>
 #include <stdarg.h>
+#include <stdint.h>
 #include <stdio.h>
 
 static pthread_mutex_t log_mutex = PTHREAD_MUTEX_INITIALIZER;

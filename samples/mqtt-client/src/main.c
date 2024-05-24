@@ -6,7 +6,6 @@
 #include "gravel/log.h"
 #include "gravel/object.h"
 #include <errno.h>
-#include <unistd.h>
 
 int main(void) {
     GravelBuffer iotcored = GRAVEL_STR("/aws/gravel/iotcored");

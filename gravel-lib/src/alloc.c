@@ -5,11 +5,12 @@
 #include "gravel/alloc.h"
 #include "gravel/log.h"
 #include <assert.h>
+#include <stdlib.h>
 
 void *gravel_alloc(GravelAlloc *alloc, size_t size, size_t alignment) {
-    assert((alloc != NULL) && (alloc->alloc != NULL));
+    assert((alloc != NULL) && (alloc->ALLOC != NULL));
 
-    void *ret = alloc->alloc(alloc, size, alignment);
+    void *ret = alloc->ALLOC(alloc, size, alignment);
 
     if (ret == NULL) {
         GRAVEL_LOGW(
@@ -29,7 +30,7 @@ void gravel_free(GravelAlloc *alloc, void *ptr) {
 
     GRAVEL_LOGT("gravel-lib", "[%p] Free %p", (void *) alloc, ptr);
 
-    if ((alloc->free != NULL) && (ptr != NULL)) {
-        alloc->free(alloc, ptr);
+    if ((alloc->FREE != NULL) && (ptr != NULL)) {
+        alloc->FREE(alloc, ptr);
     }
 }

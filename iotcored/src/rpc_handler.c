@@ -9,6 +9,7 @@
 #include "gravel/server.h"
 #include "mqtt.h"
 #include <errno.h>
+#include <stdint.h>
 
 static void rpc_publish(GravelMap params, GravelResponseHandle *handle) {
     IotcoredMsg msg = { 0 };

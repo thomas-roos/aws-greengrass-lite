@@ -8,15 +8,14 @@
 /*! Generic allocator interface */
 
 #include <stdalign.h>
-#include <stdbool.h>
 #include <stddef.h>
 
 /** Allocator vtable. Embedded into allocator structs. */
 typedef struct GravelAlloc {
-    void *(*const alloc)(
+    void *(*const ALLOC)(
         struct GravelAlloc *ctx, size_t size, size_t alignment
     );
-    void (*const free)(struct GravelAlloc *ctx, void *ptr);
+    void (*const FREE)(struct GravelAlloc *ctx, void *ptr);
 } GravelAlloc;
 
 /** Allocate memory from an allocator.
