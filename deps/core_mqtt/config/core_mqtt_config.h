@@ -1,5 +1,6 @@
 /* gravel - Utilities for AWS IoT Core clients
- * Copyright (C) 2024 Amazon.com, Inc. or its affiliates
+ * Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+ * SPDX-License-Identifier: Apache-2.0
  */
 
 #ifndef CORE_MQTT_CONFIG_H

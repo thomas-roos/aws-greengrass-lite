@@ -1,5 +1,6 @@
 # gravel - Utilities for AWS IoT Core clients
-# Copyright (C) 2024 Amazon.com, Inc. or its affiliates
+# Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
+# SPDX-License-Identifier: Apache-2.0
 
 samples/mqtt-client_LIBS := gravel-lib msgpack-rpc
 samples/mqtt-client_BIN := mqtt-client
