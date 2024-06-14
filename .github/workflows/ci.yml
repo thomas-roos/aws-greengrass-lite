@@ -1,0 +1,90 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+  pull_request:
+    branches: ["main"]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  run-checks:
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: editorconfig
+            check: editorconfig
+    name: Check ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 0
+          filter: "tree:0"
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Check ${{ matrix.name }}
+        run:
+          nix build -L --log-lines 0 .#checks.x86_64-linux.${{ matrix.check }}
+
+  format-check:
+    timeout-minutes: 60
+    name: Check formatting
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: nix develop -c bash -exo pipefail {0}
+    steps:
+      - uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 0
+          filter: "tree:0"
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Check formatting
+        id: formatting-check
+        run: nix build -L --log-lines 0 .#checks.x86_64-linux.formatting
+
+      - name: Generate / show patch
+        if: ${{ failure() && steps.formatting-check.outcome == 'failure' }}
+        run: |
+          nix fmt
+          git diff >> formatting.patch
+          git diff --color=always
+
+      - name: Upload patch
+        if: ${{ failure() && steps.formatting-check.outcome == 'failure' }}
+        uses: actions/upload-artifact@v3
+        with:
+          name: formatting_patch
+          path: formatting.patch
+          retention-days: 5
+
+  git-secrets:
+    timeout-minutes: 60
+    name: Check git-secrets
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: nix develop -c bash -exo pipefail {0}
+    steps:
+      - uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 0
+          filter: "tree:0"
+      - uses: DeterminateSystems/nix-installer-action@main
+      - uses: DeterminateSystems/magic-nix-cache-action@main
+
+      - name: Check git-secrets
+        run: |
+          git-secrets --register-aws
+          git-secrets --scan

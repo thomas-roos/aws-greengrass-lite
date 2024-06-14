@@ -24,13 +24,13 @@ ifeq (,$(filter clean,$(MAKECMDGOALS)))
 
 CPPFLAGS += -D_FORTIFY_SOURCE=2
 CFLAGS += -std=gnu11 -pedantic -Wall -Wextra -Wvla -Wshadow -Wformat=2 \
-        -Wmissing-prototypes -Wstrict-prototypes -Wold-style-definition \
-        -Wunused -Wundef -Wconversion -Wredundant-decls -Wdate-time \
-        -Wstack-protector -Wframe-larger-than=512 \
-        -fPIE -fvisibility=hidden -fno-semantic-interposition \
-        -fstack-protector-strong -fstack-clash-protection -fcf-protection=full
+		-Wmissing-prototypes -Wstrict-prototypes -Wold-style-definition \
+		-Wunused -Wundef -Wconversion -Wredundant-decls -Wdate-time \
+		-Wstack-protector -Wframe-larger-than=512 \
+		-fPIE -fvisibility=hidden -fno-semantic-interposition \
+		-fstack-protector-strong -fstack-clash-protection -fcf-protection=full
 LDFLAGS += -pie -Wl,-z,relro,-z,now,-z,noexecstack -Wl,--as-needed \
-        -Wl,--enable-new-dtags,--hash-style=gnu
+		-Wl,--enable-new-dtags,--hash-style=gnu
 
 include profiles/$(PROFILE).mk
 
@@ -60,7 +60,7 @@ $(BUILDDIR)/%.o: %.c $(core_deps)
 include_flags = $(foreach lib,$1,$(addprefix -I$(lib)/,$($(lib)_INCDIRS)))
 get_archives = $(foreach lib,$1,$(BUILDDIR)/$(lib)/$(notdir $(lib)).a)
 get_lib_closure = $(if $($1_LIBS),\
-        $(foreach lib,$($1_LIBS),$(lib) $(call get_lib_closure,$(lib))))
+		$(foreach lib,$($1_LIBS),$(lib) $(call get_lib_closure,$(lib))))
 
 # template for each package directory
 define dir_template
@@ -82,10 +82,10 @@ $$($1_OBJS) $$($1_DEPS): $1/gravel.mk
 $$($1_OBJS) $$($1_DEPS): CPPFLAGS += $$($1_CPPFLAGS)
 $$($1_OBJS) $$($1_DEPS): CPPFLAGS += $$(call include_flags,$1)
 $$($1_OBJS) $$($1_DEPS): CPPFLAGS += \
-        $$(subst -Ideps,-isystem deps,$$(call include_flags,$$($1_LIBS)))
+		$$(subst -Ideps,-isystem deps,$$(call include_flags,$$($1_LIBS)))
 ifdef $1_PKGS
 $$($1_OBJS) $$($1_DEPS): CPPFLAGS += \
-        $$(subst -I,-isystem ,$$(shell pkg-config --cflags-only-I $$($1_PKGS)))
+		$$(subst -I,-isystem ,$$(shell pkg-config --cflags-only-I $$($1_PKGS)))
 endif
 $$($1_OBJS): CFLAGS += $$($1_CFLAGS)
 
@@ -97,15 +97,15 @@ $(BUILDDIR)/$1/$(notdir $1).a: $$($1_OBJS)
 ifdef $1_BIN
 ifdef $1_PKGS
 $(BUILDDIR)/bin/$$($1_BIN): LDFLAGS += \
-        $$(shell pkg-config --libs-only-L $$($1_PKGS))
+		$$(shell pkg-config --libs-only-L $$($1_PKGS))
 $(BUILDDIR)/bin/$$($1_BIN): LDLIBS += \
-        $$(shell pkg-config --libs-only-l $$($1_PKGS))
+		$$(shell pkg-config --libs-only-l $$($1_PKGS))
 endif # $1_PKGS
 $(BUILDDIR)/bin/$$($1_BIN): CFLAGS += $$($1_CFLAGS)
 $(BUILDDIR)/bin/$$($1_BIN): LDFLAGS += $$($1_LDFLAGS)
 $(BUILDDIR)/bin/$$($1_BIN): LDLIBS += $$($1_LDLIBS)
 $(BUILDDIR)/bin/$$($1_BIN): $$($1_OBJS) \
-        $$$$(call get_archives,$$$$(call get_lib_closure,$1))
+		$$$$(call get_archives,$$$$(call get_lib_closure,$1))
 	@mkdir -p $$(@D)
 	$$(CC) $$(CFLAGS) $$(LDFLAGS) -o $$@ $$+ $$(LDLIBS)
 
@@ -118,7 +118,7 @@ endif # $(notdir $1)_LOADED
 endef # dir_template
 
 DIRS = $(shell find * -maxdepth 1 -type d \
-        -exec test -f '{}'/gravel.mk \; -print)
+		-exec test -f '{}'/gravel.mk \; -print)
 
 $(foreach dir,$(DIRS),$(eval $(call dir_template,$(dir))))
 

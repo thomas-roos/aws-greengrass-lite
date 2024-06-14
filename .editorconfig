@@ -9,15 +9,18 @@ trim_trailing_whitespace = true
 insert_final_newline = true
 max_line_length = 80
 
-[GNUmakefile]
-indent_style = tab
-
-[{*.nix,flake.lock}]
+[{*.{nix,yml,yaml,json},flake.lock}]
 indent_size = 2
+
+[{Makefile,*.mk}]
+indent_style = tab
 
 [*.md]
 trim_trailing_whitespace = false
 indent_size = 2
+
+[.gitmodules]
+indent_style = tab
 
 [COMMIT_EDITMSG]
 max_line_length = 72

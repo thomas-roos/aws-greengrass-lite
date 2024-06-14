@@ -13,6 +13,8 @@
         clang-tools
         bear
         openssl
+        git
+        git-secrets
       ];
     };
     devShells.clang = devShell // {
