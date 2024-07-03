@@ -4,7 +4,14 @@ clientfd
 coremqtt
 coreutils
 DGGL
+EFAILURE
+EOK
+ggconfig
+ggconfigd
+ggconfiglib
+ggconflib
 gghttplib
+gglite
 htobe
 iotcored
 LOGD
