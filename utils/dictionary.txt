@@ -3,6 +3,7 @@ argp
 clientfd
 coremqtt
 coreutils
+cpus
 DGGL
 EFAILURE
 EOK
@@ -29,11 +30,13 @@ NOLINTNEXTLINE
 NOMEM
 pkgs
 pname
+posix
 respfd
 rootca
 serverd
 sigv4
 statusd
 stdenv
+subscribetocomponentupdates
 tesd
 unsuback
