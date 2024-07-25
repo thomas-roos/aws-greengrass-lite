@@ -9,6 +9,7 @@ EFAILURE
 EOK
 EPOLLIN
 execvpe
+Fssd
 ggconfig
 ggconfigd
 ggconfiglib
@@ -18,6 +19,7 @@ gghealthd
 gghttplib
 ggipcd
 gglite
+greengrassv
 htobe
 iotcored
 LOGD
