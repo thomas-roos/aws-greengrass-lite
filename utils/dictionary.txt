@@ -18,6 +18,7 @@ ggdeploymentd
 gghealthd
 gghttplib
 ggipcd
+gglib
 gglite
 greengrassv
 htobe
@@ -29,10 +30,12 @@ LOGT
 LOGW
 mqtt
 mtls
+NOCASE
 NOCONN
 NOENTRY
 NOLINTNEXTLINE
 NOMEM
+parentid
 pkgs
 pname
 posix
@@ -44,4 +47,5 @@ statusd
 stdenv
 subscribetocomponentupdates
 tesd
+tlog
 unsuback

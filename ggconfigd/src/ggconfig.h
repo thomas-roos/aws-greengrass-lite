@@ -8,14 +8,13 @@
 */
 typedef void GglConfigCallback(void *parameter);
 
-/* TODO: Make const strings into buffers */
+GglError ggconfig_write_value_at_key(GglBuffer *key, GglBuffer *value);
 
-GglError ggconfig_insert_key_and_value(const char *key, const char *value);
-
-GglError ggconfig_get_value_from_key(
-    const char *key, const char *value_buffer, size_t *value_buffer_length
-);
+GglError ggconfig_get_value_from_key(GglBuffer *key, GglBuffer *value_buffer);
 
 GglError ggconfig_get_key_notification(
-    const char *key, GglConfigCallback callback, void *parameter
+    GglBuffer *key, GglConfigCallback callback, void *parameter
 );
+
+GglError ggconfig_open(void);
+GglError ggconfig_close(void);

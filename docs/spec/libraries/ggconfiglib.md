@@ -21,12 +21,10 @@ flexibility in implementation.
 2. [ggconfiglib-2] The library can insert new key/value pairs
    - [ggconfiglib-2.1] The library will create the entire path as needed to
      place the new key-value pair.
-   - [ggconfiglib-2.2] The library will return GGL_ERR_FAILURE when the
-     requested component is not found.
-   - [ggconfiglib-2.3] The library will return GGL_ERR_FAILURE if the new key is
+   - [ggconfiglib-2.2] The library will return GGL_ERR_FAILURE if the new key is
      a duplicate.
-   - [ggconfiglib-2.4] The library will return GGL_ERR_FAILURE when the new
-     value is created.
+   - [ggconfiglib-2.3] The library will return GGL_ERR_OK when the new value is
+     created.
 3. [ggconfiglib-3] The library can modify existing key/value pairs
    - [ggconfiglib-3.1] The library will return GGL_ERR_FAILURE when the
      requested key is not found.
@@ -36,40 +34,58 @@ flexibility in implementation.
      requested component is not found.
    - [ggconfiglib-3.4] The library will return GGL_ERR_OK when the existing
      value is updated.
-4. [ggconfiglib-4] The library can add components to the configuration
-   - [ggconfiglib-4.1] The library will return GGL_ERR_FAILURE if the component
-     is already in the list.
-   - [ggconfiglib-4.2] The library will return GGL_ERR_OK when the new component
-     is added.
-5. [ggconfiglib-5] The library can delete components from the configuration
-   - [ggconfiglib-5.1] The library will return GGL_ERR_FAILURE when the
-     requested component is not found.
-   - [ggconfiglib-5.2] The library will return GGL_ERR_OK when the component is
-     deleted.
-6. [ggconfiglib-6] The library can call callbacks when key values change.
-   - [ggconfiglib-6.1] The library will return GGL_ERR_FAILURE if the requested
+4. [ggconfiglib-4] The library can call callbacks when key values change.
+   - [ggconfiglib-4.1] The library will return GGL_ERR_FAILURE if the requested
      subscription key is not found.
-   - [ggconfiglib-6.2] The library will return GGL_ERR_FAILURE when the
+   - [ggconfiglib-4.2] The library will return GGL_ERR_FAILURE when the
      requested keypath is invalid.
-   - [ggconfiglib-6.3] The library will return GGL_ERR_FAILURE when the
+   - [ggconfiglib-4.3] The library will return GGL_ERR_FAILURE when the
      requested component is not found.
-   - [ggconfiglib-6.4] The library will return GGL_ERR_OK when the subscription
+   - [ggconfiglib-4.4] The library will return GGL_ERR_OK when the subscription
      callback is installed.
-   - [ggconfiglib-6.5] The library will accept a NULL callback reference to
+   - [ggconfiglib-4.5] The library will accept a NULL callback reference to
      disable notifications.
+5. [ggconfiglib-5] valid key rules
+   - [ggconfiglib-5.1] A key is either a leaf or a branch. Leaf's contain data
+     while branches are links between branches or to leaves.
+   - [ggconfiglib-5.2] A key is named as
 
 ## Library API
 
+The API follows CRU. Create, Read, Update. Note the DELETE is NOT supported in
+this version.
+
 ### Functions
 
-| function                    | purpose                                               | parameters                                                           |
-| --------------------------- | ----------------------------------------------------- | -------------------------------------------------------------------- |
-| ggconfig_writeValueToKey    | Update the value at the specified key in the keypath. | Key String, Value String, Component Name String                      |
-| ggconfig_insertKeyAndValue  | Create a new key in the keypath and add the value.    | Key String, Value String, Component Name String                      |
-| ggconfig_getValueFromKey    | Return the value stored at the specified keypath.     | Key String, Value Buffer, Value Buffer Length, Component Name String |
-| ggconfig_insertComponent    | Add a component to the component list                 | Component Name String                                                |
-| ggconfig_deleteComponent    | Remove a component from the component list            | Component Name String                                                |
-| ggconfig_getKeyNotification | Register a callback on a keypath                      | Key String, Component Name String, Callback                          |
+| function                    | purpose                                           | parameters                      |
+| --------------------------- | ------------------------------------------------- | ------------------------------- |
+| ggconfig_open               | open the configuration system                     | None                            |
+| ggconfig_close              | close the configuration system                    | None                            |
+| ggconfig_write_value_at_key | create a key with the indicated value.            | Key, Value                      |
+| ggconfig_get_value_from_key | Return the value stored at the specified keypath. | Key, Value, Value Buffer Length |
+| ggconfig_getKeyNotification | Register a callback on a keypath                  | Key, Callback                   |
+
+#### ggconfig_open
+
+Open the configuration system for access. The return will be GGL_ERR_OK or
+GGL_ERR_FAILURE.
+
+#### ggconfig_close
+
+Close the configuration system for access. The return will be GGL_ERR_OK or
+GGL_ERR_FAILURE.
+
+#### ggconfig_insert_key_and_value
+
+The insert_key_and_value function will inspect the provided key path and
+determine that the key does not already exist. If the path does not exist it
+will create the keys in the path and add the data in the last key. If the path
+already exists it will return GG_ERR_FAILURE.
+
+#### ggconfig_update_value_at_key
+
+The update_value_at_key function will find an existing key in the database and
+update the value to the new value supplied.
 
 ### Error Constants
 
@@ -79,6 +95,7 @@ flexibility in implementation.
 | --------------- | ---------------------------------------------- |
 | GGL_ERR_OK      | The command completed successfully             |
 | GGL_ERR_FAILURE | The command failed. Check the logs for details |
+| GGL_ERR_INVALID | The command parameters are incorrect           |
 
 ## Design for SQLITE implementation
 
@@ -99,57 +116,72 @@ is "owned" by a component. All values are stored as strings.
 
 ## Mapping the Datamodel to a relational database (sqlite)
 
-This implementation will use an adjacency list to create the hierarchical data
-mapping. The tables needed for configuration are as follows:
+This implementation will use an path list to create the hierarchical data
+mapping. The table needed for this configuration is as follows:
 
-1. Component Table
-2. Configuration Table
+1. Path Table
+2. Relationship Table
+3. Value Table
+4. Version Table
 
-### Component Table
+### Path Table
 
-The component table contains the list of components deployed into the system.
-This table can be extended as needed as the deployment system develops.
-Component data access is not defined in the GG IPC API.
+```sql
+CREATE TABLE pathTable('pathid' INTEGER PRIMARY KEY AUTOINCREMENT UNIQUE NOT NULL,
+                       'pathvalue' TEXT NOT NULL UNIQUE COLLATE NOCASE  );
+```
 
-| Component ID | Component Name |
-| ------------ | -------------- |
-| Integer KEY  | TEXT           |
+The pathTable keeps a list of every path segment in the system. The path
+'foo/bar/baz' will result in 3 entries into the path table: 'foo', 'foo/bar' and
+'foo/bar/baz' with three different id's.
 
-COMPONENT ID : The component id is the unique integer value for this component
-table row.
+### Relationship Table
 
-COMPONENT NAME : The component name is a text field containing the name for this
-component. This name must match the values send via the IPC API to ensure the
-correct key-value is accessed.
+```SQL
+CREATE TABLE relationTable( 'pathid' INT UNIQUE NOT NULL,
+                            'parentid' INT NOT NULL,
+                            PRIMARY KEY ( pathid ),
+                            FOREIGN KEY ( pathid ) REFERENCES pathTable(pathid),
+                            FOREIGN KEY( parentid) REFERENCES pathTable(pathid));
+```
 
-### Configuration Table
+The relationship table allows the paths to keep track of their parents in the
+hierarchy. This allows a query such as:
 
-The configuration table includes the owning component and the config parent to
-create the hierarchy. The key is a text string and is required to be a non-null
-value. The value can be null to allow the value to simply be a "key" on the
-hierarchy path.
+```SQL
+SELECT V.Value FROM relationTable R LEFT JOIN valueTable V LEFT JOIN pathTable P WHERE
+  P.PathId = V.PathID AND P.PathID = R.PathID AND pathvalue = 'foo/bar/baz';
+```
 
-| Configuration ID | Component Owner ID | Configuration Parent ID | Key           | Value |
-| ---------------- | ------------------ | ----------------------- | ------------- | ----- |
-| Integer KEY      | Integer            | Integer                 | Text NOT NULL | Text  |
+Which will ensure the returned value is a entry with a specific path and
+parentage. The table creation rules also prevent duplicate keys by keeping the
+path and parents unique.
 
-CONFIGURATION ID : The configuration id is the unique integer value for this
-configuration key. This allows two configuration items to share the same key
-text.
+### Value Table
 
-COMPONENT OWNER ID : The component owner id is an integer reference to a
-component in the component table.
+```SQL
+CREATE TABLE valueTable( 'pathid' INT UNIQUE NOT NULL,
+                         'value' TEXT NOT NULL,
+                         'timeStamp' TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                         FOREIGN KEY(pathid) REFERENCES pathTable(pathid) );
+```
 
-CONFIGURATION PARENT ID : Each key knows its parent. This creates the hierarchy.
-If the parent is NULL then it is the root level of the hierarchy.
+The value table keeps the actual value stored at a path with a time stamp and a
+link to the path. The Timestamp is automatically created when a row is inserted.
+An update trigger will update the timestamp automatically when the value is
+updated. If an update specifically includes the timestamp the update trigger
+will overwrite the value.
 
-KEY : The key is the name associated with this config option. A component must
-not have two keys with the same name at the same layer in the hierarchy. All
-keys must have a name and cannot be NULL.
+### Version Table
 
-VALUE : The value is the text data that is associated with a config key. The
-value can be NULL for keys that only exist in the path with no data. There are
-no data types or format checks on the values.
+```SQL
+CREATE TABLE version('version' TEXT DEFAULT '0.1');
+```
+
+The version table is a simple table that holds the current schema version. When
+future changes demand an update to the schema, the version will allow a
+migration algorithm to be created that will update the schema to any future
+schema.
 
 ### Appendix Other hierarchical map techniques
 
