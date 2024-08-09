@@ -307,12 +307,11 @@ static void rpc_write_object(void *ctx, GglMap params, uint32_t handle) {
         return;
     }
 
-    //! TODO: should timestamp a required field?  Currently defaulting to 1 (1
-    //! second after the dawn of time)
-    if (ggl_map_get(params, GGL_STR("timeStamp"), &val)
+    if (ggl_map_get(params, GGL_STR("timestamp"), &val)
         && (val->type == GGL_TYPE_I64)) {
-        GGL_LOGT("rpc_write_object", "timeStamp %ld", val->i64);
-        time_stamp = val->i64;
+        GGL_LOGI("rpc_write_object", "timeStamp %ld", val->i64);
+    } else {
+        time_stamp = 1; // TODO make a better default
     }
 
     if (ggl_map_get(params, GGL_STR("valueToMerge"), &val)
@@ -324,7 +323,6 @@ static void rpc_write_object(void *ctx, GglMap params, uint32_t handle) {
         } else {
             ggl_respond(handle, GGL_OBJ_NULL());
         }
-
         return;
     }
     GGL_LOGE("rpc-write_object", "write received invalid value argument.");

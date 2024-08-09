@@ -1,7 +1,9 @@
 aarch64
 ALLOCN
 argp
+awsiotsdk
 clientfd
+clientv
 coremqtt
 coreutils
 corge
@@ -28,6 +30,7 @@ gglite
 ggpubsub
 ggpubsubd
 grault
+greengrasscoreipc
 greengrassv
 htobe
 iotcored
@@ -56,6 +59,7 @@ sigv4
 statusd
 stdenv
 subscribetocomponentupdates
+svcuid
 tesd
 tlog
 unsuback
