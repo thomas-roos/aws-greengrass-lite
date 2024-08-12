@@ -13,9 +13,11 @@
 #include <ggl/log.h>
 #include <ggl/object.h>
 #include <pthread.h>
+#include <string.h>
 #include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
+#include <stdlib.h>
 
 #ifndef GGDEPLOYMENTD_DEPLOYMENT_QUEUE_SIZE
 #define GGDEPLOYMENTD_DEPLOYMENT_QUEUE_SIZE 20
@@ -38,9 +40,9 @@ typedef struct {
 } GgdeploymentdDeploymentQueue;
 
 static GgdeploymentdDeploymentQueue deployment_queue;
-static pthread_mutex_t deployment_queue_mtx;
+static pthread_mutex_t deployment_queue_mtx = PTHREAD_MUTEX_INITIALIZER;
 
-void ggl_deployment_queue_init(void) {
+__attribute__((constructor)) static void init_deployment_queue(void) {
     if (deployment_queue.initialized) {
         GGL_LOGD(
             "deployment_queue",
@@ -52,7 +54,6 @@ void ggl_deployment_queue_init(void) {
     deployment_queue.back = SIZE_MAX;
     deployment_queue.size = 0;
     deployment_queue.initialized = true;
-    pthread_mutex_init(&deployment_queue_mtx, NULL);
     pthread_cond_init(&deployment_queue.not_empty, NULL);
     pthread_cond_init(&deployment_queue.not_full, NULL);
 }
@@ -103,6 +104,22 @@ static bool should_replace_deployment_in_queue(
     return new_deployment.deployment_stage != GGDEPLOYMENT_DEFAULT;
 }
 
+static GglError null_terminate_buffer(GglBuffer *buf, GglAlloc *alloc) {
+    uint8_t *mem = GGL_ALLOCN(alloc, uint8_t, buf->len + 1);
+    if (mem == NULL) {
+        GGL_LOGE(
+            "deployment-queue", "Failed to allocate memory for copying buffer."
+        );
+        return GGL_ERR_NOMEM;
+    }
+
+    memcpy(mem, buf->data, buf->len);
+    mem[buf->len] = '\0';
+    buf->data = mem;
+    buf->len += 1;
+    return GGL_ERR_OK;
+}
+
 static GglError deep_copy_deployment(
     GgdeploymentdDeployment *location, GglAlloc *alloc
 ) {
@@ -131,19 +148,19 @@ static GglError deep_copy_deployment(
     }
     location->error_types = obj.list;
 
-    obj = GGL_OBJ(location->deployment_document.recipe_directory_path);
-    ret = ggl_obj_deep_copy(&obj, alloc);
+    ret = null_terminate_buffer(
+        &location->deployment_document.recipe_directory_path, alloc
+    );
     if (ret != GGL_ERR_OK) {
         return ret;
     }
-    location->deployment_document.recipe_directory_path = obj.buf;
 
-    obj = GGL_OBJ(location->deployment_document.artifact_directory_path);
-    ret = ggl_obj_deep_copy(&obj, alloc);
+    ret = null_terminate_buffer(
+        &location->deployment_document.artifact_directory_path, alloc
+    );
     if (ret != GGL_ERR_OK) {
         return ret;
     }
-    location->deployment_document.artifact_directory_path = obj.buf;
 
     obj = GGL_OBJ(location->deployment_document.root_component_versions_to_add);
     ret = ggl_obj_deep_copy(&obj, alloc);

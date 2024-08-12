@@ -8,6 +8,7 @@ coremqtt
 coreutils
 corge
 cpus
+depl
 DFETCHCONTENT
 DGGL
 DIOTCORED
@@ -52,6 +53,7 @@ parentid
 pkgs
 pname
 posix
+ptid
 respfd
 rootca
 serde
