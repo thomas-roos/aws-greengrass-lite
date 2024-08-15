@@ -5,12 +5,29 @@
 #include <ggl/json_decode.h>
 #include <ggl/log.h>
 #include <ggl/object.h>
+#include <string.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
 
+static char *print_key_path(GglList *key_path) {
+    static char path_string[64] = { 0 };
+    memset(path_string, 0, sizeof(path_string));
+    for (size_t x = 0; x < key_path->len; x++) {
+        if (x > 0) {
+            strncat(path_string, "/ ", 1);
+        }
+        strncat(
+            path_string,
+            (char *) key_path->items[x].buf.data,
+            key_path->items[x].buf.len
+        );
+    }
+    return path_string;
+}
+
 static void test_insert(
-    GglBuffer component, GglBuffer test_key, GglBuffer test_value
+    GglBuffer component, GglList test_key, GglObject test_value
 ) {
     GglBuffer server = GGL_STR("/aws/ggl/ggconfigd");
 
@@ -19,9 +36,10 @@ static void test_insert(
         = ggl_bump_alloc_init(GGL_BUF(big_buffer_for_bump));
 
     GglMap params = GGL_MAP(
-        { GGL_STR("component"), GGL_OBJ(component) },
-        { GGL_STR("key"), GGL_OBJ(test_key) },
-        { GGL_STR("value"), GGL_OBJ(test_value) }
+        { GGL_STR("componentName"), GGL_OBJ(component) },
+        { GGL_STR("keyPath"), GGL_OBJ(test_key) },
+        { GGL_STR("valueToMerge"), test_value },
+        { GGL_STR("timeStamp"), GGL_OBJ_I64(1723142212) }
     );
     GglObject result;
 
@@ -35,15 +53,15 @@ static void test_insert(
     }
 }
 
-static void test_get(GglBuffer component, GglBuffer test_key) {
+static void test_get(GglBuffer component, GglList test_key_path) {
     GglBuffer server = GGL_STR("/aws/ggl/ggconfigd");
     static uint8_t big_buffer_for_bump[4096];
     GglBumpAlloc the_allocator
         = ggl_bump_alloc_init(GGL_BUF(big_buffer_for_bump));
 
     GglMap params = GGL_MAP(
-        { GGL_STR("component"), GGL_OBJ(component) },
-        { GGL_STR("key"), GGL_OBJ(test_key) },
+        { GGL_STR("componentName"), GGL_OBJ(component) },
+        { GGL_STR("keyPath"), GGL_OBJ(test_key_path) },
     );
     GglObject result;
 
@@ -91,12 +109,12 @@ static void subscription_close(void *ctx, unsigned int handle) {
     GGL_LOGI("subscription close", "called");
 }
 
-static void test_subscribe(GglBuffer component, GglBuffer key) {
+static void test_subscribe(GglBuffer component, GglList key) {
     GglBuffer server = GGL_STR("/aws/ggl/ggconfigd");
 
     GglMap params = GGL_MAP(
-        { GGL_STR("component"), GGL_OBJ(component) },
-        { GGL_STR("key"), GGL_OBJ(key) },
+        { GGL_STR("componentName"), GGL_OBJ(component) },
+        { GGL_STR("keyPath"), GGL_OBJ(key) },
     );
     uint32_t handle;
     GglError error = ggl_subscribe(
@@ -115,11 +133,7 @@ static void test_subscribe(GglBuffer component, GglBuffer key) {
         exit(1);
     } else {
         GGL_LOGI(
-            "test_subscribe",
-            "Success %.*s : %d",
-            (int) key.len,
-            (char *) key.data,
-            handle
+            "test_subscribe", "Success %s : %d", print_key_path(&key), handle
         );
     }
 }
@@ -181,9 +195,7 @@ static void test_write_object(void) {
         { GGL_STR("valueToMerge"), test_value_object },
         { GGL_STR("timeStamp"), GGL_OBJ_I64(1723142212) }
     );
-    error = ggl_notify(
-        GGL_STR("/aws/ggl/ggconfigd"), GGL_STR("write_object"), params
-    );
+    error = ggl_notify(GGL_STR("/aws/ggl/ggconfigd"), GGL_STR("write"), params);
     GGL_LOGI("test_write_object", "test complete %d", error);
 }
 
@@ -192,19 +204,53 @@ int main(int argc, char **argv) {
     (void) argv;
 
     test_write_object();
-    test_insert(
-        GGL_STR("component"), GGL_STR("foo/bar"), GGL_STR("another big value")
-    );
-    test_subscribe(GGL_STR("component"), GGL_STR("foo/bar"));
-    test_insert(GGL_STR("component"), GGL_STR("foo/bar"), GGL_STR("big value"));
-    test_insert(
-        GGL_STR("component"), GGL_STR("foo/bar"), GGL_STR("the biggest value")
-    );
-    test_insert(GGL_STR("component"), GGL_STR("bar/foo"), GGL_STR("value2"));
-    test_insert(GGL_STR("component"), GGL_STR("foo/baz"), GGL_STR("value"));
-    test_insert(GGL_STR("global"), GGL_STR("global"), GGL_STR("value"));
 
-    test_get(GGL_STR("component"), GGL_STR("foo/bar"));
+    test_insert(
+        GGL_STR("component"),
+        GGL_LIST(GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar")),
+        GGL_OBJ_MAP({ GGL_STR("key"), GGL_OBJ_STR("value") })
+    );
+    test_get(
+        GGL_STR("component"),
+        GGL_LIST(GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar"), GGL_OBJ_STR("key"))
+    );
+
+    test_subscribe(
+        GGL_STR("component"),
+        GGL_LIST(GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar"), GGL_OBJ_STR("key"))
+    );
+    test_insert(
+        GGL_STR("component"),
+        GGL_LIST(GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar")),
+        GGL_OBJ_MAP({ GGL_STR("key"), GGL_OBJ_STR("big value") })
+    );
+    test_insert(
+        GGL_STR("component"),
+        GGL_LIST(GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar")),
+        GGL_OBJ_MAP({ GGL_STR("key"), GGL_OBJ_STR("the biggest value") })
+    );
+    test_insert(
+        GGL_STR("component"),
+        GGL_LIST(GGL_OBJ_STR("bar")),
+        GGL_OBJ_MAP({ GGL_STR("foo"), GGL_OBJ_STR("value2") })
+    );
+    test_insert(
+        GGL_STR("component"),
+        GGL_LIST(GGL_OBJ_STR("foo")),
+        GGL_OBJ_MAP({ GGL_STR("baz"), GGL_OBJ_STR("value") })
+    );
+    // test_insert(
+    //     GGL_STR("global"),
+    //     GGL_LIST(GGL_OBJ_STR("global")),
+    //     GGL_OBJ_STR("value")  //TODO: Should something like this be possible?
+    // );
+
+    // TODO: verify If you have a subscriber on /foo and write
+    // /foo/bar/baz = {"alpha":"data","bravo":"data","charlie":"data"}
+    // , it should only signal the notification once.
+
+    // TODO: if a notified process writes to /foo/<someplace> we can trigger an
+    // infinite update loop?
 
     return 0;
 }
