@@ -125,10 +125,10 @@ add_cflags(
   -Wstack-protector
   -fvisibility=hidden
   -fno-semantic-interposition
-  -fstack-protector-strong
-  -fstack-clash-protection)
+  -fstack-protector-strong)
 
 try_add_cflag(zero-call-used-regs -fzero-call-used-regs=used-gpr)
+try_add_cflag(stack-clash-protection -fstack-clash-protection)
 
 add_cflags($<$<CONFIG:Debug>:-fno-omit-frame-pointer>)
 try_add_cflag_if(var-init-pattern $<CONFIG:Debug>

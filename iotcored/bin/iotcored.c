@@ -5,7 +5,6 @@
 #include "iotcored.h"
 #include <argp.h>
 #include <ggl/error.h>
-#include <stdlib.h>
 
 static char doc[] = "iotcored -- MQTT spooler for AWS IoT Core";
 
@@ -41,12 +40,7 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
         args->key = arg;
         break;
     case ARGP_KEY_END:
-        if ((args->endpoint == NULL) || (args->id == NULL)
-            || (args->rootca == NULL) || (args->cert == NULL)
-            || (args->key == NULL)) {
-            // NOLINTNEXTLINE(concurrency-mt-unsafe)
-            argp_usage(state);
-        }
+        // ALL keys have defaults further in.
         break;
     default:
         return ARGP_ERR_UNKNOWN;
