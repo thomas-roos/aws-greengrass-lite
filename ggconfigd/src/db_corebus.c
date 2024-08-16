@@ -4,8 +4,10 @@
 
 #include "ggconfigd.h"
 #include "helpers.h"
+#include <ggl/bump_alloc.h>
 #include <ggl/core_bus/server.h>
 #include <ggl/error.h>
+#include <ggl/json_decode.h>
 #include <ggl/json_encode.h>
 #include <ggl/log.h>
 #include <ggl/map.h>
@@ -17,6 +19,8 @@
 #include <stdint.h>
 
 #define MAX_KEY_PATH_DEPTH 25
+#define MAX_SUBOBJECTS 25
+#define MAXIMUM_VALUE_LENGTH (sizeof(GglObject) * MAX_SUBOBJECTS)
 
 typedef struct {
     GglBuffer component;
@@ -42,8 +46,16 @@ static void rpc_read(void *ctx, GglMap params, uint32_t handle) {
     GglBuffer value;
 
     if (ggconfig_get_value_from_key(key_list, &value) == GGL_ERR_OK) {
-        GglObject return_value = { .type = GGL_TYPE_BUF, .buf = value };
-        // use the data and then free it
+        static uint8_t big_memory[MAXIMUM_VALUE_LENGTH];
+        GglBumpAlloc bumper = ggl_bump_alloc_init(GGL_BUF(big_memory));
+        GglObject return_value;
+        ggl_json_decode_destructive(value, &bumper.alloc, &return_value);
+        GGL_LOGT(
+            "rpc_read",
+            "Read %.*s",
+            (int) return_value.buf.len,
+            (char *) return_value.buf.data
+        );
         ggl_respond(handle, return_value);
     } else {
         ggl_return_err(handle, GGL_ERR_FAILURE);
