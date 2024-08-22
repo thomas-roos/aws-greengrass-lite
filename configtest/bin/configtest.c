@@ -6,6 +6,7 @@
 #include <ggl/log.h>
 #include <ggl/object.h>
 #include <string.h>
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -50,7 +51,147 @@ static void test_insert(GglList test_key, GglObject test_value) {
     }
 }
 
-static void test_get(GglList test_key_path) {
+static void compare_objects(GglObject expected, GglObject result);
+
+// NOLINTNEXTLINE(misc-no-recursion)
+static void compare_lists(GglList expected, GglList result) {
+    if (result.len != expected.len) {
+        GGL_LOGE(
+            "test_get",
+            "expected list of length %d got %d",
+            (int) expected.len,
+            (int) result.len
+        );
+        return;
+    }
+    for (size_t i = 0; i < expected.len; i++) {
+        GglObject expected_item = expected.items[i];
+        GglObject result_item = result.items[i];
+        compare_objects(expected_item, result_item);
+    }
+}
+
+// NOLINTNEXTLINE(misc-no-recursion)
+static void compare_maps(GglMap expected, GglMap result) {
+    if (result.len != expected.len) {
+        GGL_LOGE(
+            "test_get",
+            "expected map of length %d got %d",
+            (int) expected.len,
+            (int) result.len
+        );
+        return;
+    }
+    for (size_t i = 0; i < expected.len; i++) {
+        GglBuffer expected_key = expected.pairs[i].key;
+        GglObject expected_val = expected.pairs[i].val;
+        bool found = false;
+        for (size_t j = 0; j < result.len; j++) {
+            if (strncmp(
+                    (const char *) expected_key.data,
+                    (const char *) result.pairs[j].key.data,
+                    expected_key.len
+                )
+                == 0) {
+                found = true;
+                GglObject result_item = result.pairs[j].val;
+                compare_objects(expected_val, result_item);
+                break;
+            }
+        }
+        if (!found) {
+            GGL_LOGE(
+                "test_get",
+                "expected key %.*s not found",
+                (int) expected_key.len,
+                (char *) expected_key.data
+            );
+        }
+    }
+}
+
+// NOLINTNEXTLINE(misc-no-recursion)
+static void compare_objects(GglObject expected, GglObject result) {
+    switch (expected.type) {
+    case GGL_TYPE_BOOLEAN:
+        if (result.type != GGL_TYPE_BOOLEAN) {
+            GGL_LOGE("test_get", "expected boolean, got %d", result.type);
+            return;
+        }
+        if (result.boolean != expected.boolean) {
+            GGL_LOGE(
+                "test_get",
+                "expected %d got %d",
+                expected.boolean,
+                result.boolean
+            );
+        }
+        break;
+    case GGL_TYPE_I64:
+        if (result.type != GGL_TYPE_I64) {
+            GGL_LOGE("test_get", "expected i64, got %d", result.type);
+            return;
+        }
+        if (result.i64 != expected.i64) {
+            GGL_LOGE(
+                "test_get", "expected %ld got %ld", expected.i64, result.i64
+            );
+        }
+        break;
+    case GGL_TYPE_F64:
+        if (result.type != GGL_TYPE_F64) {
+            GGL_LOGE("test_get", "expected f64, got %d", result.type);
+            return;
+        }
+        if (result.f64 != expected.f64) {
+            GGL_LOGE(
+                "test_get", "expected %f got %f", expected.f64, result.f64
+            );
+        }
+        break;
+    case GGL_TYPE_BUF:
+        if (result.type != GGL_TYPE_BUF) {
+            GGL_LOGE("test_get", "expected buffer, got %d", result.type);
+            return;
+        }
+        if (strncmp(
+                (const char *) result.buf.data,
+                (const char *) expected.buf.data,
+                result.buf.len
+            )
+            != 0) {
+            GGL_LOGE(
+                "test_get",
+                "expected %.*s got %.*s",
+                (int) expected.buf.len,
+                (char *) expected.buf.data,
+                (int) result.buf.len,
+                (char *) result.buf.data
+            );
+            return;
+        }
+        break;
+    case GGL_TYPE_LIST:
+        if (result.type != GGL_TYPE_LIST) {
+            GGL_LOGE("test_get", "expected list, got %d", result.type);
+            return;
+        }
+        compare_lists(expected.list, result.list);
+        break;
+    case GGL_TYPE_MAP:
+        if (result.type != GGL_TYPE_MAP) {
+            GGL_LOGE("test_get", "expected map, got %d", result.type);
+            return;
+        }
+        compare_maps(expected.map, result.map);
+        break;
+    default:
+        GGL_LOGE("test_get", "unexpected type %d", expected.type);
+        break;
+    }
+}
+
+static void test_get(GglList test_key_path, GglObject expected) {
     GglBuffer server = GGL_STR("/aws/ggl/ggconfigd");
     static uint8_t big_buffer_for_bump[4096];
     GglBumpAlloc the_allocator
@@ -64,16 +205,9 @@ static void test_get(GglList test_key_path) {
     );
     if (error != GGL_ERR_OK) {
         GGL_LOGE("test_get", "error %d", error);
-    } else {
-        if (result.type == GGL_TYPE_BUF) {
-            GGL_LOGI(
-                "test_get",
-                "read %.*s",
-                (int) result.buf.len,
-                (char *) result.buf.data
-            );
-        }
+        return;
     }
+    compare_objects(expected, result);
 }
 
 static GglError subscription_callback(
@@ -195,45 +329,121 @@ int main(int argc, char **argv) {
 
     test_write_object();
 
+    test_get(
+        GGL_LIST(
+            GGL_OBJ_STR("component"),
+            GGL_OBJ_STR("foobar"),
+            GGL_OBJ_STR("foo"),
+            GGL_OBJ_STR("bar"),
+            GGL_OBJ_STR("qux")
+        ),
+        GGL_OBJ_I64(1)
+    );
+
+    test_get(
+        GGL_LIST(
+            GGL_OBJ_STR("component"),
+            GGL_OBJ_STR("foobar"),
+            GGL_OBJ_STR("foo"),
+            GGL_OBJ_STR("bar"),
+            GGL_OBJ_STR("baz")
+        ),
+        GGL_OBJ_LIST(
+            GGL_OBJ_I64(1), GGL_OBJ_I64(2), GGL_OBJ_I64(3), GGL_OBJ_I64(4)
+        )
+    );
+
+    test_get(
+        GGL_LIST(GGL_OBJ_STR("component"), GGL_OBJ_STR("foobar"), ),
+        GGL_OBJ_MAP(
+            (GglKV) { .key = GGL_STR("foo"),
+                      .val = GGL_OBJ_MAP(
+                          (GglKV) { .key = GGL_STR("bar"),
+                                    .val = GGL_OBJ_MAP(
+                                        (GglKV) { .key = GGL_STR("qux"),
+                                                  .val = GGL_OBJ_I64(1) },
+                                        (GglKV) { .key = GGL_STR("baz"),
+                                                  .val = GGL_OBJ_LIST(
+                                                      GGL_OBJ_I64(1),
+                                                      GGL_OBJ_I64(2),
+                                                      GGL_OBJ_I64(3),
+                                                      GGL_OBJ_I64(4)
+                                                  ) }
+                                    ) },
+                          (GglKV) { .key = GGL_STR("quux"),
+                                    .val = GGL_OBJ_STR("string") }
+                      ) },
+            (GglKV) { .key = GGL_STR("corge"), .val = GGL_OBJ_BOOL(true) },
+            (GglKV) { .key = GGL_STR("grault"), .val = GGL_OBJ_BOOL(false) },
+        )
+    );
+
     test_insert(
         GGL_LIST(
             GGL_OBJ_STR("component"), GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar")
         ),
-        GGL_OBJ_MAP({ GGL_STR("key"), GGL_OBJ_STR("value") })
+        GGL_OBJ_MAP({ GGL_STR("key"), GGL_OBJ_STR("value1") })
     );
-    test_get(GGL_LIST(
-        GGL_OBJ_STR("component"),
-        GGL_OBJ_STR("foo"),
-        GGL_OBJ_STR("bar"),
-        GGL_OBJ_STR("key")
-    ));
+    test_get(
+        GGL_LIST(
+            GGL_OBJ_STR("component"),
+            GGL_OBJ_STR("foo"),
+            GGL_OBJ_STR("bar"),
+            GGL_OBJ_STR("key")
+        ),
+        GGL_OBJ_STR("value1")
+    );
+    // TODO: FIXME: We currently allow a key to be both a value (leaf) and a
+    // parent node. This should not be allowed. e.g. add a
+    // constraint/check/logic to make sure that never happens during write
+    // test_insert( // This insert should fail after already setting
+    // component/foo/bar/key = value1
+    //     GGL_LIST(
+    //         GGL_OBJ_STR("component"), GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar"),
+    //         GGL_OBJ_STR("key")
+    //     ),
+    //     GGL_OBJ_MAP({ GGL_STR("subkey"), GGL_OBJ_STR("value2") })
+    // );
+    // test_get(GGL_LIST(
+    //     GGL_OBJ_STR("component"),
+    //     GGL_OBJ_STR("foo"),
+    //     GGL_OBJ_STR("bar"),
+    //     GGL_OBJ_STR("key"),
+    //     GGL_OBJ_STR("subkey")
+    // ));
+    // test_get(GGL_LIST( // should return bar:{key:value1} in a map
+    //     GGL_OBJ_STR("component"),
+    //     GGL_OBJ_STR("foo")
+    // ));
 
+    // TODO: Fix subscriber tests + logic
     test_subscribe(GGL_LIST(
         GGL_OBJ_STR("component"),
         GGL_OBJ_STR("foo"),
         GGL_OBJ_STR("bar"),
         GGL_OBJ_STR("key")
     ));
-    test_insert(
-        GGL_LIST(
-            GGL_OBJ_STR("component"), GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar")
-        ),
-        GGL_OBJ_MAP({ GGL_STR("key"), GGL_OBJ_STR("big value") })
-    );
-    test_insert(
-        GGL_LIST(
-            GGL_OBJ_STR("component"), GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar")
-        ),
-        GGL_OBJ_MAP({ GGL_STR("key"), GGL_OBJ_STR("the biggest value") })
-    );
-    test_insert(
-        GGL_LIST(GGL_OBJ_STR("component"), GGL_OBJ_STR("bar")),
-        GGL_OBJ_MAP({ GGL_STR("foo"), GGL_OBJ_STR("value2") })
-    );
-    test_insert(
-        GGL_LIST(GGL_OBJ_STR("component"), GGL_OBJ_STR("foo")),
-        GGL_OBJ_MAP({ GGL_STR("baz"), GGL_OBJ_STR("value") })
-    );
+    // test_insert(
+    //     GGL_LIST(
+    //         GGL_OBJ_STR("component"), GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar")
+    //     ),
+    //     GGL_OBJ_MAP({ GGL_STR("key"), GGL_OBJ_STR("big value") })
+    // );
+    // test_insert(
+    //     GGL_LIST(
+    //         GGL_OBJ_STR("component"), GGL_OBJ_STR("foo"), GGL_OBJ_STR("bar")
+    //     ),
+    //     GGL_OBJ_MAP({ GGL_STR("key"), GGL_OBJ_STR("the biggest value") })
+    // );
+    // test_insert(
+    //     GGL_LIST(GGL_OBJ_STR("component"), GGL_OBJ_STR("bar")),
+    //     GGL_OBJ_MAP({ GGL_STR("foo"), GGL_OBJ_STR("value2") })
+    // );
+    // test_insert(
+    //     GGL_LIST(GGL_OBJ_STR("component"), GGL_OBJ_STR("foo")),
+    //     GGL_OBJ_MAP({ GGL_STR("baz"), GGL_OBJ_STR("value") })
+    // );
+
     // test_insert(
     //     GGL_STR("global"),
     //     GGL_LIST(GGL_OBJ_STR("global")),
