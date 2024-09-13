@@ -44,7 +44,7 @@ static GglError create_database(void) {
           "foreign key ( parentid ) references keyTable(keyid));"
           "CREATE TABLE valueTable( 'keyid' INT UNIQUE NOT NULL,"
           "'value' TEXT NOT NULL,"
-          "'timeStamp' TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,"
+          "'timeStamp' INTEGER NOT NULL,"
           "foreign key(keyid) references keyTable(keyid) );"
           "CREATE TABLE version('version' TEXT DEFAULT '0.1');"
           "INSERT INTO version(version) VALUES (0.1);";
@@ -359,13 +359,14 @@ static GglError relation_insert(int64_t id, int64_t parent) {
     return GGL_ERR_OK;
 }
 
-// TODO: add timestamp to the insert
-static GglError value_insert(int64_t key_id, GglBuffer *value) {
+static GglError value_insert(
+    int64_t key_id, GglBuffer *value, int64_t timestamp
+) {
     GglError return_err = GGL_ERR_FAILURE;
     sqlite3_stmt *value_insert_stmt;
     sqlite3_prepare_v2(
         config_database,
-        "INSERT INTO valueTable(keyid,value) VALUES (?,?);",
+        "INSERT INTO valueTable(keyid,value,timeStamp) VALUES (?,?,?);",
         -1,
         &value_insert_stmt,
         NULL
@@ -379,6 +380,7 @@ static GglError value_insert(int64_t key_id, GglBuffer *value) {
         (int) value->len,
         SQLITE_STATIC
     );
+    sqlite3_bind_int64(value_insert_stmt, 3, timestamp);
     int rc = sqlite3_step(value_insert_stmt);
     if (rc == SQLITE_DONE || rc == SQLITE_OK) {
         GGL_LOGD("value_insert", "value insert successful");
@@ -395,13 +397,15 @@ static GglError value_insert(int64_t key_id, GglBuffer *value) {
     return return_err;
 }
 
-static GglError value_update(int64_t key_id, GglBuffer *value) {
+static GglError value_update(
+    int64_t key_id, GglBuffer *value, int64_t timestamp
+) {
     GglError return_err = GGL_ERR_FAILURE;
 
     sqlite3_stmt *update_value_stmt;
     sqlite3_prepare_v2(
         config_database,
-        "UPDATE valueTable SET value = ? WHERE keyid = ?;",
+        "UPDATE valueTable SET value = ?, timeStamp = ? WHERE keyid = ?;",
         -1,
         &update_value_stmt,
         NULL
@@ -414,7 +418,8 @@ static GglError value_update(int64_t key_id, GglBuffer *value) {
         (int) value->len,
         SQLITE_STATIC
     );
-    sqlite3_bind_int64(update_value_stmt, 2, key_id);
+    sqlite3_bind_int64(update_value_stmt, 2, timestamp);
+    sqlite3_bind_int64(update_value_stmt, 3, key_id);
     int rc = sqlite3_step(update_value_stmt);
     if (rc == SQLITE_DONE || rc == SQLITE_OK) {
         GGL_LOGD("value_update", "value update successful");
@@ -429,6 +434,37 @@ static GglError value_update(int64_t key_id, GglBuffer *value) {
         return_err = GGL_ERR_FAILURE;
     }
     return return_err;
+}
+
+static GglError value_get_timestamp(
+    int64_t id, int64_t *existing_timestamp_output
+) {
+    sqlite3_stmt *get_timestamp_stmt;
+    sqlite3_prepare_v2(
+        config_database,
+        "SELECT timeStamp FROM valueTable WHERE keyid = ?;",
+        -1,
+        &get_timestamp_stmt,
+        NULL
+    );
+    GGL_DEFER(sqlite3_finalize, get_timestamp_stmt);
+    sqlite3_bind_int64(get_timestamp_stmt, 1, id);
+    int rc = sqlite3_step(get_timestamp_stmt);
+    if (rc == SQLITE_ROW) {
+        int64_t timestamp = sqlite3_column_int64(get_timestamp_stmt, 0);
+        *existing_timestamp_output = timestamp;
+        return GGL_ERR_OK;
+    }
+    if (rc == SQLITE_DONE) {
+        return GGL_ERR_NOENTRY;
+    }
+    GGL_LOGE(
+        "value_get_timestamp",
+        "getting timestamp for id %ld failed with error: %s",
+        id,
+        sqlite3_errmsg(config_database)
+    );
+    return GGL_ERR_FAILURE;
 }
 
 // key_ids_output must point to an empty GglObjVec with capacity
@@ -730,7 +766,9 @@ static GglError notify_multiple_keys(GglObjVec key_ids, GglBuffer *value) {
     return return_err;
 }
 
-GglError ggconfig_write_value_at_key(GglList *key_path, GglBuffer *value) {
+GglError ggconfig_write_value_at_key(
+    GglList *key_path, GglBuffer *value, int64_t timestamp
+) {
     if (config_initialized == false) {
         return GGL_ERR_FAILURE;
     }
@@ -755,7 +793,7 @@ GglError ggconfig_write_value_at_key(GglList *key_path, GglBuffer *value) {
             return err;
         }
 
-        value_insert(id, value);
+        value_insert(id, value, timestamp);
         sqlite3_exec(config_database, "END TRANSACTION", NULL, NULL, NULL);
         err = notify_multiple_keys(ids, value);
         if (err != GGL_ERR_OK) {
@@ -809,7 +847,34 @@ GglError ggconfig_write_value_at_key(GglList *key_path, GglBuffer *value) {
 
     // we now know that the key already exists and does not have a child.
     // Therefore, it stores a value currently.
-    err = value_update(id, value);
+
+    int64_t existing_timestamp;
+    err = value_get_timestamp(id, &existing_timestamp);
+    if (err != GGL_ERR_OK) {
+        GGL_LOGE(
+            "ggconfig_write_value_at_key",
+            "failed to get timestamp for key %s with id %ld with error %d",
+            print_key_path(key_path),
+            id,
+            (int) err
+        );
+        sqlite3_exec(config_database, "ROLLBACK", NULL, NULL, NULL);
+        return err;
+    }
+    if (existing_timestamp > timestamp) {
+        GGL_LOGI(
+            "ggconfig_write_value_at_key",
+            "key %s has an existing timestamp %ld newer than provided "
+            "timestamp %ld, so it will not be updated",
+            print_key_path(key_path),
+            existing_timestamp,
+            timestamp
+        );
+        sqlite3_exec(config_database, "END TRANSACTION", NULL, NULL, NULL);
+        return GGL_ERR_OK;
+    }
+
+    err = value_update(id, value, timestamp);
     if (err != GGL_ERR_OK) {
         GGL_LOGE(
             "ggconfig_write_value_at_key",

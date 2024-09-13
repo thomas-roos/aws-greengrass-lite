@@ -13,8 +13,8 @@
 #include <ggl/map.h>
 #include <ggl/object.h>
 #include <ggl/vector.h>
+#include <time.h>
 #include <stdbool.h>
-#include <stddef.h>
 #include <stdint.h>
 
 #define MAX_SUBOBJECTS 25
@@ -173,9 +173,12 @@ static void rpc_subscribe(void *ctx, GglMap params, uint32_t handle) {
     ggl_sub_accept(handle, sub_close_callback, NULL);
 }
 
+// TODO: This processing of maps should probably happen in the db_interface
+// layer so that merges can be made atomic. Currently it's possible for a subset
+// of the writes in a merge to fail while the rest succeed.
 // NOLINTNEXTLINE(misc-no-recursion)
 static GglError process_map(
-    GglObjVec *key_path, GglMap *the_map, long time_stamp
+    GglObjVec *key_path, GglMap *the_map, int64_t timestamp
 ) {
     GglError error = GGL_ERR_OK;
     for (size_t x = 0; x < the_map->len; x++) {
@@ -192,7 +195,7 @@ static GglError process_map(
         GGL_LOGT("rpc_write:process_map", "pushed the key");
         if (kv->val.type == GGL_TYPE_MAP) {
             GGL_LOGT("rpc_write:process_map", "value is a map");
-            error = process_map(key_path, &kv->val.map, time_stamp);
+            error = process_map(key_path, &kv->val.map, timestamp);
             if (error != GGL_ERR_OK) {
                 break;
             }
@@ -214,7 +217,9 @@ static GglError process_map(
                 break;
             }
             GGL_LOGT("rpc_write:process_map", "writing the value");
-            error = ggconfig_write_value_at_key(&key_path->list, &value_buffer);
+            error = ggconfig_write_value_at_key(
+                &key_path->list, &value_buffer, timestamp
+            );
 
             GGL_LOGT(
                 "rpc_write:process_map",
@@ -222,7 +227,7 @@ static GglError process_map(
                 path_string,
                 (int) value_buffer.len,
                 (char *) value_buffer.data,
-                time_stamp
+                timestamp
             );
         }
         ggl_obj_vec_pop(key_path, NULL);
@@ -232,7 +237,7 @@ static GglError process_map(
 
 static void rpc_write(void *ctx, GglMap params, uint32_t handle) {
     /// Receive the following parameters
-    int64_t time_stamp = 1;
+    int64_t timestamp = 1;
     (void) ctx;
 
     GglObject *val;
@@ -259,15 +264,22 @@ static void rpc_write(void *ctx, GglMap params, uint32_t handle) {
 
     if (ggl_map_get(params, GGL_STR("timestamp"), &val)
         && (val->type == GGL_TYPE_I64)) {
-        GGL_LOGI("rpc_write", "timeStamp %ld", val->i64);
+        timestamp = val->i64;
+        GGL_LOGD("rpc_write", "timestamp %ld", timestamp);
     } else {
-        time_stamp = 1; // TODO make a better default
+        struct timespec now;
+        clock_gettime(CLOCK_REALTIME, &now);
+        int64_t now_msec = (int64_t) now.tv_sec * 1000 + now.tv_nsec / 1000000;
+        timestamp = now_msec;
+        GGL_LOGD(
+            "rpc_write", "no timestamp was provided, using %ld", timestamp
+        );
     }
 
     if (ggl_map_get(params, GGL_STR("value"), &val)
         && (val->type == GGL_TYPE_MAP)) {
         GGL_LOGT("rpc_write", "value is a Map");
-        GglError error = process_map(&key_path, &val->map, time_stamp);
+        GglError error = process_map(&key_path, &val->map, timestamp);
         if (error != GGL_ERR_OK) {
             ggl_return_err(handle, error);
         } else {
