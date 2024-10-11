@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "component_store.h"
+#include <assert.h>
 #include <dirent.h>
 #include <fcntl.h>
 #include <ggl/buffer.h>
@@ -13,6 +14,7 @@
 #include <ggl/log.h>
 #include <ggl/object.h>
 #include <ggl/semver.h>
+#include <limits.h>
 #include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -100,7 +102,7 @@ GglError find_available_component(
             component_name_len++;
         }
         if (*dash_pos != '-') {
-            GGL_LOGW(
+            GGL_LOGD(
                 "Recipe file name formatted incorrectly. Continuing to next "
                 "file."
             );
@@ -134,9 +136,17 @@ GglError find_available_component(
 
         if (ggl_buffer_eq(component_name, recipe_component)
             && is_in_range(recipe_version, requirement)) {
-            *version = recipe_version;
+            assert(recipe_version.len <= NAME_MAX);
+            memcpy(
+                version->data,
+                &recipe_version.data,
+                (size_t) &recipe_version.len
+            );
+            version->len = recipe_version.len;
+            return GGL_ERR_OK;
         }
     }
 
-    return GGL_ERR_OK;
+    // component meeting version requirements not found
+    return GGL_ERR_NOENTRY;
 }
