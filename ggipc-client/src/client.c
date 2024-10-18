@@ -359,3 +359,17 @@ GglError ggipc_get_config_str(
     *value = resp.buf;
     return GGL_ERR_OK;
 }
+
+GglError ggipc_publish_to_iot_core(
+    int conn, GglBuffer topic_name, GglBuffer payload, uint8_t qos
+) {
+    GglMap args = GGL_MAP(
+        { GGL_STR("topicName"), GGL_OBJ(topic_name) },
+        { GGL_STR("payload"), GGL_OBJ(payload) },
+        { GGL_STR("qos"), GGL_OBJ_I64(qos) }
+    );
+
+    return ggipc_call(
+        conn, GGL_STR("aws.greengrass#PublishToIoTCore"), args, NULL, NULL
+    );
+}
