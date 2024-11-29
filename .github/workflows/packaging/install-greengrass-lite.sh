@@ -142,7 +142,7 @@ install() {
   echo "To start greengrass-lite, run: systemctl start greengrass-lite.target"
   echo "To disable greengrass-lite at boot, run: systemctl disable greengrass-lite.target"
   echo "To check the status, run: systemctl status --with-dependencies greengrass-lite.target"
-  echo "To follow to logs, just run: journalctl -f"
+  echo "To just follow the logs, just run: journalctl -f"
 }
 
 
