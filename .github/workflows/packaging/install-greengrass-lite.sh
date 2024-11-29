@@ -1,14 +1,6 @@
 #!/bin/bash
 
-gg_user="ggc_user"
-gg_group="ggc_group"
-gg_rundir_relative="aws-greengrass-v2"
-gg_workingdir="/var/lib/aws-greengrass-v2"
 gg_confdir="/etc/greengrass"
-gg_bindir="/usr/bin"
-service_file="/lib/systemd/system/greengrass-lite.service"
-config_file="${gg_confdir}/config.d/greengrass-lite.yaml"
-
 
 # Set default for uninstall to false
 UNINSTALL=false
@@ -115,70 +107,6 @@ check_existing_installation() {
     fi
 }
 
-
-# Function to create a group if it doesn't exist
-create_group() {
-    if ! getent group "$1" > /dev/null 2>&1; then
-        groupadd "$1"
-        echo "Group $1 created."
-    else
-        echo "Group $1 already exists."
-    fi
-}
-
-
-# Function to create a user if it doesn't exist
-create_user() {
-    if ! id "$1" &>/dev/null; then
-        useradd -m -g "$2" "$1"
-        echo "User $1 created and added to group $2."
-    else
-        echo "User $1 already exists."
-    fi
-}
-
-
-# Function to create systemd service file
-create_service_file() {
-    cat > "${service_file}" << EOL
-[Unit]
-Description=greengrass lite service
-
-[Service]
-ExecStart=${gg_bindir}/run_nucleus
-Type=simple
-User=${gg_user}
-Group=${gg_group}
-Restart=on-failure
-WorkingDirectory=${gg_workingdir}
-StateDirectory=${gg_rundir_relative}
-
-[Install]
-WantedBy=multi-user.target
-EOL
-    echo "Systemd service file created at $service_file"
-}
-
-
-# Function to create the configuration file
-create_config_file() {
-    cat > "$config_file" << EOL
----
-system:
-  rootPath: "${gg_workingdir}"
-services:
-  aws.greengrass.Nucleus-Lite:
-    componentType: "NUCLEUS"
-    configuration:
-      runWithDefault:
-        posixUser: "${gg_user}:${gg_group}"
-      greengrassDataPlanePort: "8443"
-      tesCredUrl: "http://127.0.0.1:8080/"
-EOL
-    echo "Configuration file created at $config_file"
-}
-
-
 # Function to unzip the Connection Kit, modify kit specifc greengrass-lite config
 process_connection_kit() {
     echo "Processing Connection Kit..."
@@ -186,26 +114,11 @@ process_connection_kit() {
         unzip -jo "${KIT}" -d "${gg_confdir}/"
         echo "Connection Kit unzipped to ${gg_confdir}/"
 
-        sudo sed -i -e s:{{config_dir}}:\/etc\/greengrass:g -e s:{{data_dir}}:\/var\/lib\/aws-greengrass-v2:g -e s:{{nucleus_component}}:aws.greengrass.Nucleus-Lite:g ${gg_confdir}/config.yaml
+        sudo sed -i -e s:{{config_dir}}:\/etc\/greengrass:g -e s:{{data_dir}}:\/var\/lib\/greengrass:g -e s:{{nucleus_component}}:aws.greengrass.Nucleus-Lite:g ${gg_confdir}/config.yaml
     else
         echo "Error: Connection Kit file not found: ${KIT}"
         exit 1
     fi
-}
-
-
-# Function to create sudoers file
-create_sudoers_file() {
-    local sudoers_dir="/etc/sudoers.d"
-    local sudoers_file="${sudoers_dir}/greengrass-lite"
-
-    # Create the sudoers file with the specified content
-    echo "${gg_user} ALL=(root) NOPASSWD:/usr/bin/systemctl *" > "${sudoers_file}"
-
-    # Set correct permissions for the sudoers file
-    chmod 0440 "${sudoers_file}"
-
-    echo "Sudoers file created at ${sudoers_file}"
 }
 
 
@@ -221,34 +134,15 @@ install() {
 
   apt install -y zip
 
-  apt install -y ./"${PACKAGE}"
-
-  mkdir -p "${gg_confdir}"/config.d
-
-  create_group "${gg_group}"
-
-  create_user "${gg_user}" "${gg_group}"
-
-  mkdir "${gg_workingdir}"
-
-  chown "${gg_user}":"${gg_group}" "${gg_workingdir}"
+  apt install --reinstall  -y ./"${PACKAGE}"
 
   process_connection_kit
 
-  create_service_file
-
-  create_config_file
-
-  create_sudoers_file
-
-  systemctl daemon-reload
-
-  systemctl enable greengrass-lite.service
-
-  systemctl start greengrass-lite
-
   echo "Installation completed."
-  echo "To check the logs, run: journalctl -u greengrass-lite -f"
+  echo "To start greengrass-lite, run: systemctl start greengrass-lite.target"
+  echo "To disable greengrass-lite at boot, run: systemctl disable greengrass-lite.target"
+  echo "To check the status, run: systemctl status --with-dependencies greengrass-lite.target"
+  echo "To just follow the logs, just run: journalctl -f"
 }
 
 
@@ -256,39 +150,27 @@ install() {
 uninstall() {
     echo "Uninstalling Greengrass Lite..."
 
-    systemctl disable greengrass-lite.service
-
-    systemctl stop greengrass-lite
-
-    echo "Removing systemd service file..."
-    rm -f "$service_file"
-
-    apt remove -y aws-greengrass-lite
-
-    echo "Removing configuration directory..."
-    if [ -z "${gg_confdir}" ]; then
-        echo "Error: gg_confdir is not set. Aborting removal of configuration directory."
-        exit 1
-    fi
-    rm -rf "${gg_confdir}"
-
-    echo "Removing user ${gg_user}..."
-    userdel "${gg_user}"
-
-    echo "Removing group ${gg_group}..."
-    groupdel "${gg_group}"
-
-    if [ -z "${gg_workingdir}" ]; then
-        echo "Error: gg_workingdir is not set. Aborting removal of working directory."
-        exit 1
-    fi
-    echo "Removing working directory..."
-    rm -rf "${gg_workingdir}"
-
+    systemctl stop greengrass-lite.target
+    systemctl disable greengrass-lite.target
+    systemctl disable ggl.aws_iot_tes.socket
+    systemctl disable ggl.aws_iot_mqtt.socket
+    systemctl disable ggl.gg_config.socket
+    systemctl disable ggl.gg_health.socket
+    systemctl disable ggl.gg_fleet_status.socket
+    systemctl disable ggl.gg_deployment.socket
+    systemctl disable ggl.gg_pubsub.socket
+    systemctl disable ggl.gg-ipc.socket.socket
+    systemctl disable ggl.core.ggconfigd.service
+    systemctl disable ggl.core.iotcored.service
+    systemctl disable ggl.core.tesd.service
+    systemctl disable ggl.core.ggdeploymentd.service
+    systemctl disable ggl.core.gg-fleet-statusd.service
+    systemctl disable ggl.core.ggpubsubd.service
+    systemctl disable ggl.core.gghealthd.service
+    systemctl disable ggl.core.ggipcd.service
     systemctl daemon-reload
 
-    echo "Removing sudoers file..."
-    rm -f "/etc/sudoers.d/greengrass-lite"
+    apt remove -y --purge aws-greengrass-lite
 
     echo "Uninstallation completed."
 }

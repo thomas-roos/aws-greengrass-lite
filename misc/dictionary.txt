@@ -17,6 +17,7 @@ DGGL
 DIOTCORED
 dont
 EFAILURE
+elif
 EOK
 epoll
 EPOLLIN
@@ -30,6 +31,7 @@ FOWNER
 Fssd
 fstrict
 gencb
+getent
 ggconfig
 ggconfigd
 ggconfiglib
@@ -80,6 +82,7 @@ pidfd
 pkgs
 pname
 posix
+postrm
 ptid
 PTRACE
 respfd
