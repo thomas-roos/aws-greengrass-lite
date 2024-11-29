@@ -58,23 +58,5 @@ using the (initial-) installation script.
 sudo apt install ./aws-greengrass-lite-x.x.x-Linux.deb
 
 ###############################################################################
-# LOCAL COMPONENT DEPLOYMENT HELLO WORLD (component included)
-###############################################################################
-
-To deploy a local component, run this on your device:
-
-sudo -u ggc_user ggl-cli deploy  \
-    --recipe-dir /usr/components/recipes \
-    --artifacts-dir /usr/components/artifacts \
-    --add-component com.example.LiteHelloWorld=0.1.0
-
-
-Check after successful deployment:
-journalctl -f -u \
-    ggl.com.example.LiteHelloWorld.service \
-    -f -u ggl.com.example.LiteHelloWorld.service
-
-
-###############################################################################
 # LICENSE
 ###############################################################################
