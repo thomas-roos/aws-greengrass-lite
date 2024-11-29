@@ -41,7 +41,7 @@ if [ "$1" = "purge" ]; then
             rm -rf "$dir"
         fi
     done
-elif [ "$1" = "remove" ]; then    
+elif [ "$1" = "remove" ]; then
     echo "Removing user ${gg_user}..."
     delete_user "${gg_user}"
 
