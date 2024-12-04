@@ -139,10 +139,10 @@ install() {
   process_connection_kit
 
   echo "Installation completed."
-  echo "To start greengrass-lite, run: systemctl start greengrass-lite.target"
-  echo "To disable greengrass-lite at boot, run: systemctl disable greengrass-lite.target"
-  echo "To check the status, run: systemctl status --with-dependencies greengrass-lite.target"
-  echo "To just follow the logs, just run: journalctl -f"
+  echo "To start greengrass-lite, run: sudo systemctl start greengrass-lite.target"
+  echo "To disable greengrass-lite at boot, run: sudo systemctl disable greengrass-lite.target"
+  echo "To check the status, run: sudo systemctl status --with-dependencies greengrass-lite.target"
+  echo "To just follow the logs, just run: sudo journalctl -f"
 }
 
 
