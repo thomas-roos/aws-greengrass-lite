@@ -36,6 +36,7 @@
 #include <ggl/uri.h>
 #include <ggl/utils.h>
 #include <ggl/vector.h>
+#include <ggl/version.h>
 #include <ggl/zip.h>
 #include <limits.h>
 #include <string.h>
@@ -1154,6 +1155,24 @@ static GglError resolve_dependencies(
                 return GGL_ERR_INVALID;
             }
             component_version = val->buf;
+        }
+
+        if (ggl_buffer_eq(pair->key, GGL_STR("aws.greengrass.NucleusLite"))) {
+            GglBuffer software_version = GGL_STR(GGL_VERSION);
+            if (!ggl_buffer_eq(component_version, software_version)) {
+                GGL_LOGE(
+                    "The deployment failed. The aws.greengrass.NucleusLite "
+                    "component version specified in the deployment is %.*s, "
+                    "but the version of the GG Lite software is %.*s. Please "
+                    "ensure that the version in the deployment matches before "
+                    "attempting the deployment again.",
+                    (int) component_version.len,
+                    component_version.data,
+                    (int) software_version.len,
+                    software_version.data
+                );
+                return GGL_ERR_INVALID;
+            }
         }
 
         ret = ggl_kv_vec_push(
