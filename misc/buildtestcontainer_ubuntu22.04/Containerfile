@@ -3,7 +3,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update
 
-RUN apt-get install -y software-properties-common ca-certificates gpg wget
+RUN apt-get install -y software-properties-common ca-certificates gpg wget git
 
 RUN add-apt-repository ppa:savoury1/backports
 
@@ -14,7 +14,7 @@ RUN echo 'deb [signed-by=/usr/share/keyrings/kitware-archive-keyring.gpg] https:
 RUN apt-get update \
   && apt-get -y install --no-install-recommends \
     systemd systemd-sysv dbus ca-certificates sudo nano bash-completion \
-    build-essential pkg-config cmake git curl file gdb python3 \
+    build-essential pkg-config cmake curl file gdb python3 \
     libssl-dev libcurl4-openssl-dev libsqlite3-dev sqlite3 libyaml-dev \
     libsystemd-dev liburiparser-dev uuid-dev libevent-dev libzip-dev \
   && apt-get clean
