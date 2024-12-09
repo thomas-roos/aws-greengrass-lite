@@ -24,7 +24,7 @@ jobs:
       - name: Build container for x86-64
         if: matrix.architecture == ''
         run: |
-          podman build misc/buildtestcontainer_ubuntu22 -t container
+          podman build misc/buildtestcontainer_ubuntu22.04 -t container
       - name: Run build in container
         shell: bash
         run: |
