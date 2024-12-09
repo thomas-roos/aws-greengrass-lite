@@ -31,7 +31,7 @@ jobs:
           podman run -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
             cd /aws-greengrass-lite && \
             rm -rf build/ && \
-            bootstrap-cmake.sh && \
+            ./bootstrap-cmake.sh && \
             build/cmake -B . \
             -DGGL_LOG_LEVEL=DEBUG \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
