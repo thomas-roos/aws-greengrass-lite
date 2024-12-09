@@ -20,7 +20,7 @@ jobs:
       - name: Build container for aarch64-linux-gnu
         if: matrix.architecture == 'aarch64-linux-gnu'
         run: |
-          podman build --from=docker.io/arm64v8/ubuntu:22.04 --arch=arm64 misc/buildtestcontainer -t container
+          podman build --from=docker.io/arm64v8/ubuntu:22.04 --arch=arm64 misc/buildtestcontainer_ubuntu22.04 -t container
       - name: Build container for x86-64
         if: matrix.architecture == ''
         run: |
@@ -30,15 +30,8 @@ jobs:
         run: |
           podman run -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
             cd /aws-greengrass-lite && \
-            rm -rf build/ && \
-            ./bootstrap-cmake.sh && \
-            wget https://curl.se/download/curl-7.87.0.tar.gz &&
-            tar -xzvf curl-7.87.0.tar.gz &&
-            cd curl-7.87.0 &&
-            ./configure &&
-            make install &&
-            cd .. &&
-            build/cmake -B . \
+            rm -rf build/ &&
+            build/cmake -B build \
             -DGGL_LOG_LEVEL=DEBUG \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_FIND_DEBUG_MODE=ON \

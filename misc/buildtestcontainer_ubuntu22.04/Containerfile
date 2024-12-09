@@ -1,6 +1,10 @@
 FROM ubuntu:24.04
 ARG DEBIAN_FRONTEND=noninteractive
 
+RUN add-apt-repository ppa:savoury1/curl34
+
+RUN add-apt-repository ppa:kitware/cmake
+
 RUN apt-get update \
   && apt-get -y install --no-install-recommends \
     systemd systemd-sysv dbus ca-certificates sudo nano bash-completion \
