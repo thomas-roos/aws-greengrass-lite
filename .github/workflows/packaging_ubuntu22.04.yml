@@ -24,14 +24,14 @@ jobs:
       - name: Build container for x86-64
         if: matrix.architecture == ''
         run: |
-          podman build misc/buildtestcontainer -t container
+          podman build misc/buildtestcontainer_ubuntu22 -t container
       - name: Run build in container
         shell: bash
         run: |
           podman run -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
             cd /aws-greengrass-lite && \
             rm -rf build/ &&
-            build/cmake -B build \
+            cmake -B build \
             -DGGL_LOG_LEVEL=DEBUG \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_FIND_DEBUG_MODE=ON \
