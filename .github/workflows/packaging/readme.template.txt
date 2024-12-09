@@ -22,6 +22,13 @@ This package has been built from this source revision:
 {{ VERSION_LINK }}
 
 ###############################################################################
+# INSTALLATION UBUNTU 24.04 ON RASPBERRY PI
+###############################################################################
+Download rpi imager for your OS (mac, win, linux)
+https://www.raspberrypi.com/documentation/computers/getting-started.html#raspberry-pi-imager
+Select “Ubuntu Server 24.04.1 LTS”.
+
+###############################################################################
 # INSTALLATION
 ###############################################################################
 
@@ -43,7 +50,7 @@ sudo ./install-greengrass-lite.sh
 ###############################################################################
 
 Add a parameter "-u" to the script. Be careful this will delete /etc/greengrass
-and /var/lib/aws-greengrass-v2!
+and /var/lib/greengrass!
 
 sudo ./install-greengrass-lite.sh -u
 

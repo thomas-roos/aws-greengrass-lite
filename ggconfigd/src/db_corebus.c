@@ -28,7 +28,7 @@ static GglError decode_object_destructive(
 ) {
     GglError return_err = GGL_ERR_FAILURE;
     if (obj->type == GGL_TYPE_BUF) {
-        GGL_LOGD(
+        GGL_LOGT(
             "given buffer to decode: %.*s", (int) obj->buf.len, obj->buf.data
         );
         GglObject return_object;
@@ -73,7 +73,7 @@ static GglError decode_object_destructive(
             break;
         }
     } else if (obj->type == GGL_TYPE_MAP) {
-        GGL_LOGD("given map to decode with length: %d", (int) obj->map.len);
+        GGL_LOGT("given map to decode with length: %d", (int) obj->map.len);
         for (size_t i = 0; i < obj->map.len; i++) {
             GglError decode_err = decode_object_destructive(
                 &(obj->map.pairs[i].val), bump_alloc
@@ -114,7 +114,9 @@ static GglError rpc_read(void *ctx, GglMap params, uint32_t handle) {
         return GGL_ERR_RANGE;
     }
 
-    GGL_LOGD("reading key %s", print_key_path(&key_path->list));
+    GGL_LOGD(
+        "Processing request to read key %s", print_key_path(&key_path->list)
+    );
 
     GglObject value;
     GglError err = ggconfig_get_value_from_key(&key_path->list, &value);
@@ -131,10 +133,8 @@ static GglError rpc_read(void *ctx, GglMap params, uint32_t handle) {
     return GGL_ERR_OK;
 }
 
-static GglError rpc_subscribe(void *ctx, GglMap params, uint32_t handle) {
+static GglError rpc_list(void *ctx, GglMap params, uint32_t handle) {
     (void) ctx;
-
-    GGL_LOGD("subscribing");
 
     GglObject *key_path;
     if (!ggl_map_get(params, GGL_STR("key_path"), &key_path)
@@ -148,6 +148,74 @@ static GglError rpc_subscribe(void *ctx, GglMap params, uint32_t handle) {
         GGL_LOGE("key_path elements must be strings.");
         return GGL_ERR_RANGE;
     }
+
+    GGL_LOGD(
+        "Processing request to list subkeys of key %s",
+        print_key_path(&key_path->list)
+    );
+
+    GglList subkeys;
+    GglError err = ggconfig_list_subkeys(&key_path->list, &subkeys);
+    if (err != GGL_ERR_OK) {
+        return err;
+    }
+
+    ggl_respond(handle, GGL_OBJ_LIST(subkeys));
+    return GGL_ERR_OK;
+}
+
+static GglError rpc_delete(void *ctx, GglMap params, uint32_t handle) {
+    (void) ctx;
+
+    GglObject *key_path;
+    if (!ggl_map_get(params, GGL_STR("key_path"), &key_path)
+        || (key_path->type != GGL_TYPE_LIST)) {
+        GGL_LOGE("read received invalid key_path argument.");
+        return GGL_ERR_INVALID;
+    }
+
+    GglError err = ggl_list_type_check(key_path->list, GGL_TYPE_BUF);
+    if (err != GGL_ERR_OK) {
+        GGL_LOGE("key_path elements must be strings.");
+        return GGL_ERR_RANGE;
+    }
+
+    GGL_LOGD(
+        "Processing request to delete key %s (recursively)",
+        print_key_path(&key_path->list)
+    );
+    err = ggconfig_delete_key(&key_path->list);
+    if (err != GGL_ERR_OK) {
+        return err;
+    }
+
+    ggl_respond(handle, GGL_OBJ_NULL());
+    return GGL_ERR_OK;
+}
+
+static GglError rpc_subscribe(void *ctx, GglMap params, uint32_t handle) {
+    (void) ctx;
+
+    GglObject *key_path;
+    if (!ggl_map_get(params, GGL_STR("key_path"), &key_path)
+        || (key_path->type != GGL_TYPE_LIST)) {
+        GGL_LOGE("read received invalid key_path argument.");
+        return GGL_ERR_INVALID;
+    }
+
+    GglError ret = ggl_list_type_check(key_path->list, GGL_TYPE_BUF);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("key_path elements must be strings.");
+        return GGL_ERR_RANGE;
+    }
+
+    GGL_LOGD(
+        "Processing request to subscribe handle %" PRIu32 ":%" PRIu32
+        " to key %s",
+        handle & (0xFFFF0000 >> 16),
+        handle & 0x0000FFFF,
+        print_key_path(&key_path->list)
+    );
 
     ret = ggconfig_get_key_notification(&key_path->list, handle);
     if (ret != GGL_ERR_OK) {
@@ -196,6 +264,10 @@ GglError process_nonmap(
 // NOLINTNEXTLINE(misc-no-recursion)
 GglError process_map(GglObjVec *key_path, GglMap *the_map, int64_t timestamp) {
     GglError error = GGL_ERR_OK;
+    if (the_map->len == 0) {
+        GGL_LOGT("Map is empty, merging in.");
+        return ggconfig_write_empty_map(&key_path->list);
+    }
     for (size_t x = 0; x < the_map->len; x++) {
         GglKV *kv = &the_map->pairs[x];
         GGL_LOGT("Preparing %zu, %.*s", x, (int) kv->key.len, kv->key.data);
@@ -260,7 +332,12 @@ static GglError rpc_write(void *ctx, GglMap params, uint32_t handle) {
         clock_gettime(CLOCK_REALTIME, &now);
         timestamp = (int64_t) now.tv_sec * 1000 + now.tv_nsec / 1000000;
     }
-    GGL_LOGD("Timestamp %." PRId64, timestamp);
+
+    GGL_LOGD(
+        "Processing request to merge a value to key %s with timestamp %" PRId64,
+        print_key_path(&key_path.list),
+        timestamp
+    );
 
     if (value_obj->type == GGL_TYPE_MAP) {
         GglError error = process_map(&key_path, &value_obj->map, timestamp);
@@ -281,9 +358,12 @@ static GglError rpc_write(void *ctx, GglMap params, uint32_t handle) {
 void ggconfigd_start_server(void) {
     GglRpcMethodDesc handlers[]
         = { { GGL_STR("read"), false, rpc_read, NULL },
+            { GGL_STR("list"), false, rpc_list, NULL },
             { GGL_STR("write"), false, rpc_write, NULL },
+            { GGL_STR("delete"), false, rpc_delete, NULL },
             { GGL_STR("subscribe"), true, rpc_subscribe, NULL } };
     size_t handlers_len = sizeof(handlers) / sizeof(handlers[0]);
 
+    GGL_LOGI("Starting listening for requests");
     ggl_listen(GGL_STR("gg_config"), handlers, handlers_len);
 }

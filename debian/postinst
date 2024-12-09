@@ -8,8 +8,8 @@ gg_user="ggcore"
 gg_group="ggcore"
 
 # default user and group for greengrass components
-ggc_user="ggc_user"
-ggc_group="ggc_group"
+ggc_user="gg_component"
+ggc_group="gg_component"
 
 gg_workingdir="/var/lib/greengrass"
 gg_confdir="/etc/greengrass"
@@ -51,7 +51,6 @@ services:
       runWithDefault:
         posixUser: "${gg_user}:${gg_group}"
       greengrassDataPlanePort: "8443"
-      tesCredUrl: "http://127.0.0.1:8080/"
 EOL
     echo "Configuration file created at $config_file"
 }

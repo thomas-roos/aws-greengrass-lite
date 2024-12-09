@@ -34,6 +34,92 @@ static GglError try_open_extension(
     return ggl_file_read_path_at(recipe_dir, full.buf, content);
 }
 
+static GglError parse_requiresprivilege_section(
+    bool *is_root, GglMap lifecycle_step
+) {
+    GglObject *key_object;
+    if (ggl_map_get(
+            lifecycle_step, GGL_STR("RequiresPrivilege"), &key_object
+        )) {
+        if (key_object->type != GGL_TYPE_BUF) {
+            GGL_LOGE("RequiresPrivilege needs to be a (true/false) value");
+            return GGL_ERR_INVALID;
+        }
+
+        // TODO: Check if 0 and 1 are valid
+        if (strncmp((char *) key_object->buf.data, "true", key_object->buf.len)
+            == 0) {
+            *is_root = true;
+        } else if (strncmp(
+                       (char *) key_object->buf.data,
+                       "false",
+                       key_object->buf.len
+                   )
+                   == 0) {
+            *is_root = false;
+        } else {
+            GGL_LOGE("RequiresPrivilege needs to be a"
+                     "(true/false) value");
+            return GGL_ERR_INVALID;
+        }
+    }
+    return GGL_ERR_OK;
+}
+
+GglError fetch_script_section(
+    GglMap selected_lifecycle,
+    GglBuffer selected_phase,
+    bool *is_root,
+    GglBuffer *out_selected_script_as_buf,
+    GglMap *out_set_env_as_map
+) {
+    GglObject *val;
+    if (ggl_map_get(selected_lifecycle, selected_phase, &val)) {
+        if (val->type == GGL_TYPE_BUF) {
+            *out_selected_script_as_buf = val->buf;
+        } else if (val->type == GGL_TYPE_MAP) {
+            GglObject *key_object;
+
+            GglError ret = parse_requiresprivilege_section(is_root, val->map);
+            if (ret != GGL_ERR_OK) {
+                return ret;
+            }
+
+            if (ggl_map_get(val->map, GGL_STR("Script"), &key_object)) {
+                if (key_object->type != GGL_TYPE_BUF) {
+                    GGL_LOGE("Script section needs to be string buffer");
+                    return GGL_ERR_INVALID;
+                }
+                *out_selected_script_as_buf = key_object->buf;
+            } else {
+                GGL_LOGW("Script is not in the map");
+                return GGL_ERR_NOENTRY;
+            }
+
+            if (ggl_map_get(val->map, GGL_STR("Setenv"), &key_object)) {
+                if (key_object->type != GGL_TYPE_MAP) {
+                    GGL_LOGE("Setenv needs to be a dictionary map");
+                    return GGL_ERR_INVALID;
+                }
+                *out_set_env_as_map = key_object->map;
+            }
+
+        } else {
+            GGL_LOGE("Script section section is of invalid list type");
+            return GGL_ERR_INVALID;
+        }
+    } else {
+        GGL_LOGW(
+            "%.*s section is not in the lifecycle",
+            (int) selected_phase.len,
+            selected_phase.data
+        );
+        return GGL_ERR_NOENTRY;
+    }
+
+    return GGL_ERR_OK;
+};
+
 static GglError lifecycle_selection(
     GglObject *selection_obj,
     GglMap recipe_map,
@@ -184,7 +270,7 @@ static GglError manifest_selection(
     return GGL_ERR_OK;
 }
 
-GglError select_linux_manifest(
+GglError select_linux_lifecycle(
     GglMap recipe_map, GglMap *out_selected_lifecycle_map
 ) {
     GglObject *val;
@@ -194,7 +280,7 @@ GglError select_linux_manifest(
             return GGL_ERR_INVALID;
         }
     } else {
-        GGL_LOGI("Manifest not found in the recipe");
+        GGL_LOGI("No Manifest found in the recipe");
         return GGL_ERR_INVALID;
     }
 
@@ -233,8 +319,58 @@ GglError select_linux_manifest(
     return GGL_ERR_OK;
 }
 
+GglError select_linux_manifest(
+    GglMap recipe_map, GglMap *out_selected_linux_manifest
+) {
+    GglObject *val;
+    if (ggl_map_get(recipe_map, GGL_STR("Manifests"), &val)) {
+        if (val->type != GGL_TYPE_LIST) {
+            GGL_LOGI("Invalid Manifest within the recipe file.");
+            return GGL_ERR_INVALID;
+        }
+    } else {
+        GGL_LOGI("No Manifest found in the recipe");
+        return GGL_ERR_INVALID;
+    }
+
+    GglObject *selected_lifecycle_object = NULL;
+    for (size_t platform_index = 0; platform_index < val->list.len;
+         platform_index++) {
+        if (val->list.items[platform_index].type != GGL_TYPE_MAP) {
+            GGL_LOGE("Provided manifest section is in invalid format.");
+            return GGL_ERR_INVALID;
+        }
+        GglError ret = manifest_selection(
+            &val->list.items[platform_index].map,
+            recipe_map,
+            &selected_lifecycle_object
+        );
+        if (ret != GGL_ERR_OK) {
+            return ret;
+        }
+
+        if (selected_lifecycle_object != NULL) {
+            // If a lifecycle is successfully selected then look no futher
+            // If the lifecycle is found then the manifest will also be the same
+            if (selected_lifecycle_object->type == GGL_TYPE_MAP) {
+                *out_selected_linux_manifest
+                    = val->list.items[platform_index].map;
+                break;
+            }
+        }
+    }
+
+    if ((selected_lifecycle_object == NULL)
+        || (selected_lifecycle_object->type != GGL_TYPE_MAP)) {
+        GGL_LOGE("No Manifest was found for linux");
+        return GGL_ERR_FAILURE;
+    }
+
+    return GGL_ERR_OK;
+}
+
 GglError ggl_recipe_get_from_file(
-    int root_path,
+    int root_path_fd,
     GglBuffer component_name,
     GglBuffer component_version,
     GglAlloc *alloc,
@@ -245,7 +381,7 @@ GglError ggl_recipe_get_from_file(
 
     int recipe_dir;
     GglError ret = ggl_dir_openat(
-        root_path, GGL_STR("packages/recipes"), O_PATH, false, &recipe_dir
+        root_path_fd, GGL_STR("packages/recipes"), O_PATH, false, &recipe_dir
     );
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Failed to open recipe dir.");

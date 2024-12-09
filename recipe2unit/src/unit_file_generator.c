@@ -3,7 +3,6 @@
 // SPDX - License - Identifier : Apache - 2.0
 
 #include "unit_file_generator.h"
-#include "file_operation.h"
 #include "ggl/recipe2unit.h"
 #include <sys/types.h>
 #include <errno.h>
@@ -83,6 +82,22 @@ static GglError dependency_parser(GglObject *dependency_obj, GglByteVec *out) {
     }
     for (size_t count = 0; count < dependency_obj->map.len; count++) {
         if (dependency_obj->map.pairs[count].val.type == GGL_TYPE_MAP) {
+            if (ggl_buffer_eq(
+                    dependency_obj->map.pairs[count].key,
+                    GGL_STR("aws.greengrass.Nucleus")
+                )
+                || ggl_buffer_eq(
+                    dependency_obj->map.pairs[count].key,
+                    GGL_STR("aws.greengrass.NucleusLite")
+                )) {
+                GGL_LOGD(
+                    "Skipping dependency on %.*s for the current unit file",
+                    (int) dependency_obj->map.pairs[count].key.len,
+                    dependency_obj->map.pairs[count].key.data
+                );
+                continue;
+            }
+
             GglError ret
                 = parse_dependency_type(dependency_obj->map.pairs[count], out);
             if (ret != GGL_ERR_OK) {
@@ -132,11 +147,6 @@ static GglError fill_unit_section(
     }
 
     if (phase == RUN_STARTUP) {
-        if (ggl_map_get(recipe_map, GGL_STR("ComponentDependencies"), &val)) {
-            if ((val->type == GGL_TYPE_MAP) || (val->type == GGL_TYPE_LIST)) {
-                return dependency_parser(val, concat_unit_vector);
-            }
-        }
         ret = ggl_byte_vec_append(
             concat_unit_vector,
             GGL_STR(
@@ -146,96 +156,16 @@ static GglError fill_unit_section(
         if (ret != GGL_ERR_OK) {
             return ret;
         }
+
+        if (ggl_map_get(recipe_map, GGL_STR("ComponentDependencies"), &val)) {
+            if ((val->type == GGL_TYPE_MAP) || (val->type == GGL_TYPE_LIST)) {
+                return dependency_parser(val, concat_unit_vector);
+            }
+        }
     }
 
     return GGL_ERR_OK;
 }
-
-static GglError parse_requiresprivilege_section(
-    bool *is_root, GglMap lifecycle_step
-) {
-    GglObject *key_object;
-    if (ggl_map_get(
-            lifecycle_step, GGL_STR("RequiresPrivilege"), &key_object
-        )) {
-        if (key_object->type != GGL_TYPE_BUF) {
-            GGL_LOGE("RequiresPrivilege needs to be a (true/false) value");
-            return GGL_ERR_INVALID;
-        }
-
-        // TODO: Check if 0 and 1 are valid
-        if (strncmp((char *) key_object->buf.data, "true", key_object->buf.len)
-            == 0) {
-            *is_root = true;
-        } else if (strncmp(
-                       (char *) key_object->buf.data,
-                       "false",
-                       key_object->buf.len
-                   )
-                   == 0) {
-            *is_root = false;
-        } else {
-            GGL_LOGE("RequiresPrivilege needs to be a"
-                     "(true/false) value");
-            return GGL_ERR_INVALID;
-        }
-    }
-    return GGL_ERR_OK;
-}
-
-static GglError fetch_script_section(
-    GglMap selected_lifecycle,
-    GglBuffer selected_phase,
-    bool *is_root,
-    GglBuffer *selected_script_as_buf,
-    GglMap *set_env_as_map
-) {
-    GglObject *val;
-    if (ggl_map_get(selected_lifecycle, selected_phase, &val)) {
-        if (val->type == GGL_TYPE_BUF) {
-            *selected_script_as_buf = val->buf;
-        } else if (val->type == GGL_TYPE_MAP) {
-            GglObject *key_object;
-
-            GglError ret = parse_requiresprivilege_section(is_root, val->map);
-            if (ret != GGL_ERR_OK) {
-                return ret;
-            }
-
-            if (ggl_map_get(val->map, GGL_STR("Script"), &key_object)) {
-                if (key_object->type != GGL_TYPE_BUF) {
-                    GGL_LOGE("Script section needs to be string buffer");
-                    return GGL_ERR_INVALID;
-                }
-                *selected_script_as_buf = key_object->buf;
-            } else {
-                GGL_LOGW("Script is not in the map");
-                return GGL_ERR_NOENTRY;
-            }
-
-            if (ggl_map_get(val->map, GGL_STR("Setenv"), &key_object)) {
-                if (key_object->type != GGL_TYPE_MAP) {
-                    GGL_LOGE("Setenv needs to be a dictionary map");
-                    return GGL_ERR_INVALID;
-                }
-                *set_env_as_map = key_object->map;
-            }
-
-        } else {
-            GGL_LOGE("Script section section is of invalid list type");
-            return GGL_ERR_INVALID;
-        }
-    } else {
-        GGL_LOGW(
-            "%.*s section is not in the lifecycle",
-            (int) selected_phase.len,
-            selected_phase.data
-        );
-        return GGL_ERR_NOENTRY;
-    }
-
-    return GGL_ERR_OK;
-};
 
 static GglError concat_script_name_prefix_vec(
     const GglMap *recipe_map, GglByteVec *script_name_prefix_vec
@@ -327,57 +257,20 @@ static GglError concat_exec_start_section_vec(
     ggl_byte_vec_chain_append(&ret, exec_start_section_vec, component_version);
     ggl_byte_vec_chain_append(&ret, exec_start_section_vec, GGL_STR(" -p "));
 
-    GglBuffer cwd = ggl_byte_vec_remaining_capacity(*exec_start_section_vec);
-    // Get the current working directory
-    if (getcwd((char *) cwd.data, cwd.len) == NULL) {
-        GGL_LOGE("Failed to get current working directory.");
-        return GGL_ERR_FAILURE;
-    }
-    cwd.len = strlen((char *) cwd.data);
-    exec_start_section_vec->buf.len += cwd.len;
-    GGL_LOGD("%.*s (%zu)", (int) cwd.len, cwd.data, cwd.len);
-
-    ggl_byte_vec_chain_append(&ret, exec_start_section_vec, GGL_STR("/"));
-    if (ret != GGL_ERR_OK) {
-        return ret;
-    }
-
-    return GGL_ERR_OK;
-}
-
-static GglError add_set_env_to_unit(GglMap set_env_as_map, GglByteVec *out) {
-    for (size_t env_var_count = 0; env_var_count < set_env_as_map.len;
-         env_var_count++) {
-        if (set_env_as_map.pairs[env_var_count].val.type != GGL_TYPE_BUF) {
-            GGL_LOGE("Invalid environment var's value, value must be a string");
-            return GGL_ERR_INVALID;
-        }
-
-        GglError ret = ggl_byte_vec_append(out, GGL_STR("Environment=\""));
-        ggl_byte_vec_chain_append(
-            &ret, out, set_env_as_map.pairs[env_var_count].key
-        );
-        ggl_byte_vec_chain_append(&ret, out, GGL_STR("="));
-        ggl_byte_vec_chain_append(
-            &ret, out, set_env_as_map.pairs[env_var_count].val.buf
-        );
-        ggl_byte_vec_chain_append(&ret, out, GGL_STR("\"\n"));
-    }
     return GGL_ERR_OK;
 }
 
 static GglError update_unit_file_buffer(
     GglByteVec *out,
     GglByteVec exec_start_section_vec,
-    GglByteVec script_name_vec,
     char *arg_user,
     char *arg_group,
     bool is_root,
-    GglMap set_env_as_map
+    GglBuffer selected_phase
 ) {
     GglError ret = ggl_byte_vec_append(out, GGL_STR("ExecStart="));
     ggl_byte_vec_chain_append(&ret, out, exec_start_section_vec.buf);
-    ggl_byte_vec_chain_append(&ret, out, script_name_vec.buf);
+    ggl_byte_vec_chain_append(&ret, out, selected_phase);
     ggl_byte_vec_chain_append(&ret, out, GGL_STR("\n"));
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Failed to write ExecStart portion of unit files");
@@ -411,15 +304,16 @@ static GglError update_unit_file_buffer(
         }
     }
 
-    if (set_env_as_map.len != 0) {
-        ret = add_set_env_to_unit(set_env_as_map, out);
-        if (ret != GGL_ERR_OK) {
-            GGL_LOGE("Failed to write setenv's environment portion to unit "
-                     "files");
-            return ret;
-        }
-    }
     return GGL_ERR_OK;
+}
+
+static void compatibility_check(GglMap selected_lifecycle_map) {
+    if (ggl_map_get(selected_lifecycle_map, GGL_STR("shutdown"), NULL)) {
+        GGL_LOGI("'shutdown' phase isn't currently supported by GGLite");
+    }
+    if (ggl_map_get(selected_lifecycle_map, GGL_STR("recover"), NULL)) {
+        GGL_LOGI("'recover' phase isn't currently supported by GGLite");
+    }
 }
 
 // TODO: Refactor it
@@ -427,7 +321,6 @@ static GglError update_unit_file_buffer(
 static GglError manifest_builder(
     GglMap recipe_map,
     GglByteVec *out,
-    GglByteVec script_name_prefix_vec,
     GglByteVec exec_start_section_vec,
     Recipe2UnitArgs *args,
     PhaseSelection current_phase
@@ -436,38 +329,74 @@ static GglError manifest_builder(
 
     GglMap selected_lifecycle_map = { 0 };
 
-    GglError ret = select_linux_manifest(recipe_map, &selected_lifecycle_map);
+    GglError ret = select_linux_lifecycle(recipe_map, &selected_lifecycle_map);
     if (ret != GGL_ERR_OK) {
         return ret;
     }
-
-    GglObject *selected_set_env_as_obj = { 0 };
-    GglMap set_env_as_map = { 0 };
-    if (ggl_map_get(
-            selected_lifecycle_map, GGL_STR("Setenv"), &selected_set_env_as_obj
-        )) {
-        if (selected_set_env_as_obj->type != GGL_TYPE_MAP) {
-            GGL_LOGE("Setenv section needs to be a dictionary map type");
-            return GGL_ERR_INVALID;
-        }
-        set_env_as_map = selected_set_env_as_obj->map;
-    } else {
-        GGL_LOGI("Setenv section not found within the linux lifecycle");
+    if (selected_lifecycle_map.len == 0) {
+        GGL_LOGE("Lifecycle with no phase is not supported");
+        return GGL_ERR_UNSUPPORTED;
     }
 
-    //****************************************************************
-    // Note: Everything below this should only deal with run or startup
-    // ****************************************************************
+    GglMap set_env_as_map = { 0 };
+
     GglBuffer lifecycle_script_selection = { 0 };
     GglObject *startup_or_run_section;
+    GglObject *obj_for_if_exists;
 
-    if (current_phase == INSTALL) {
-        lifecycle_script_selection = GGL_STR("install");
+    if (current_phase == BOOTSTRAP) {
+        // Check if there are any unsupported phases first
+        // Inside this if block as we do not want to keep on checking on each
+        // phase lookup
+        compatibility_check(selected_lifecycle_map);
+
+        lifecycle_script_selection = GGL_STR("bootstrap");
         ggl_byte_vec_chain_append(&ret, out, GGL_STR("Type=oneshot\n"));
+        ggl_byte_vec_chain_append(&ret, out, GGL_STR("RemainAfterExit=true\n"));
+        ggl_byte_vec_chain_append(
+            &ret, out, GGL_STR("SuccessExitStatus=100 101\n")
+        );
         if (ret != GGL_ERR_OK) {
             GGL_LOGE("Failed to add unit type information");
             return GGL_ERR_FAILURE;
         }
+        if (ggl_map_get(
+                selected_lifecycle_map, GGL_STR("bootstrap"), &obj_for_if_exists
+            )) {
+            if (obj_for_if_exists->type == GGL_TYPE_LIST) {
+                GGL_LOGE("bootstrap is a list type");
+                return GGL_ERR_INVALID;
+            }
+        } else {
+            GGL_LOGW("No bootstrap phase found");
+            GGL_LOGW("Note that in GG Lite, keys are case sensitive. Check the "
+                     "recipe reference for the correct casing.");
+            return GGL_ERR_NOENTRY;
+        }
+
+    } else if (current_phase == INSTALL) {
+        lifecycle_script_selection = GGL_STR("install");
+        ggl_byte_vec_chain_append(&ret, out, GGL_STR("Type=oneshot\n"));
+        ggl_byte_vec_chain_append(&ret, out, GGL_STR("RemainAfterExit=true\n"));
+        if (ret != GGL_ERR_OK) {
+            GGL_LOGE("Failed to add unit type information");
+            return GGL_ERR_FAILURE;
+        }
+
+        if (ggl_map_get(
+                selected_lifecycle_map, GGL_STR("install"), &obj_for_if_exists
+            )) {
+            if (obj_for_if_exists->type == GGL_TYPE_LIST) {
+                GGL_LOGE("install is a list type");
+                return GGL_ERR_INVALID;
+            }
+        } else {
+            GGL_LOGW("No install phase found");
+            GGL_LOGW("Note that in GG Lite, keys are case sensitive. Check the "
+                     "recipe reference for the correct casing.");
+            return GGL_ERR_NOENTRY;
+        }
+
     } else if (current_phase == RUN_STARTUP) {
         if (ggl_map_get(
                 selected_lifecycle_map,
@@ -475,7 +404,7 @@ static GglError manifest_builder(
                 &startup_or_run_section
             )) {
             if (startup_or_run_section->type == GGL_TYPE_LIST) {
-                GGL_LOGE("Startup is a list type");
+                GGL_LOGE("'startup' field in the lifecycle is of List type.");
                 return GGL_ERR_INVALID;
             }
             lifecycle_script_selection = GGL_STR("startup");
@@ -495,6 +424,7 @@ static GglError manifest_builder(
                 GGL_LOGE("'run' field in the lifecycle is of List type.");
                 return GGL_ERR_INVALID;
             }
+            GGL_LOGD("Found run phase");
             lifecycle_script_selection = GGL_STR("run");
             ret = ggl_byte_vec_append(out, GGL_STR("Type=exec\n"));
             if (ret != GGL_ERR_OK) {
@@ -502,8 +432,10 @@ static GglError manifest_builder(
                 return GGL_ERR_FAILURE;
             }
         } else {
-            GGL_LOGI("No startup or run provided");
-            return GGL_ERR_OK;
+            GGL_LOGW("No startup or run phase found");
+            GGL_LOGW("Note that in GG Lite, keys are case sensitive. Check the "
+                     "recipe reference for the correct casing.");
+            return GGL_ERR_NOENTRY;
         }
     }
 
@@ -519,31 +451,13 @@ static GglError manifest_builder(
         return ret;
     }
 
-    static uint8_t script_name_buf[PATH_MAX - 1];
-    GglByteVec script_name_vec = GGL_BYTE_VEC(script_name_buf);
-    ret = ggl_byte_vec_append(&script_name_vec, script_name_prefix_vec.buf);
-    ggl_byte_vec_chain_append(
-        &ret, &script_name_vec, lifecycle_script_selection
-    );
-    if (ret != GGL_ERR_OK) {
-        return GGL_ERR_FAILURE;
-    }
-    ret = write_to_file(
-        args->root_dir, script_name_vec.buf, selected_script, 0755
-    );
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Failed to create and write the script file");
-        return ret;
-    }
-
     ret = update_unit_file_buffer(
         out,
         exec_start_section_vec,
-        script_name_vec,
         args->user,
         args->group,
         is_root,
-        set_env_as_map
+        lifecycle_script_selection
     );
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Failed to write ExecStart portion of unit files");
@@ -556,7 +470,7 @@ static GglError manifest_builder(
 static GglError fill_install_section(
     GglByteVec *out, PhaseSelection current_phase
 ) {
-    if (current_phase != INSTALL) {
+    if (current_phase == RUN_STARTUP) {
         GglError ret = ggl_byte_vec_append(out, GGL_STR("\n[Install]\n"));
         ggl_byte_vec_chain_append(
             &ret, out, GGL_STR("WantedBy=greengrass-lite.target\n")
@@ -699,12 +613,7 @@ static GglError fill_service_section(
     }
 
     ret = manifest_builder(
-        *recipe_map,
-        out,
-        script_name_prefix_vec,
-        exec_start_section_vec,
-        args,
-        phase
+        *recipe_map, out, exec_start_section_vec, args, phase
     );
     if (ret != GGL_ERR_OK) {
         return ret;

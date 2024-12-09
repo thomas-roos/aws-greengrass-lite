@@ -33,6 +33,12 @@ static void test_insert(
     int64_t timestamp,
     GglError expected_result
 ) {
+    GGL_LOGD(
+        "test_insert: key=%s, timestamp=%d, expected_result=%s",
+        print_key_path(&test_key),
+        (int) timestamp,
+        ggl_strerror(expected_result)
+    );
     GglBuffer server = GGL_STR("gg_config");
 
     static uint8_t big_buffer_for_bump[4096];
@@ -229,6 +235,11 @@ static void compare_objects(GglObject expected, GglObject result) {
 static void test_get(
     GglList test_key_path, GglObject expected_object, GglError expected_result
 ) {
+    GGL_LOGD(
+        "test_get %s, expecting %s",
+        print_key_path(&test_key_path),
+        ggl_strerror(expected_result)
+    );
     GglBuffer server = GGL_STR("gg_config");
     static uint8_t big_buffer_for_bump[4096];
     GglBumpAlloc the_allocator
@@ -257,7 +268,7 @@ static void test_get(
     }
     if (expected_result == GGL_ERR_OK && error != GGL_ERR_OK) {
         GGL_LOGE(
-            "insert of key %s did not expect error but got error %s and remote "
+            "get key %s did not expect error but got error %s and remote "
             "error %s",
             print_key_path(&test_key_path),
             ggl_strerror(error),
@@ -277,6 +288,109 @@ static void test_get(
     }
     if (expected_result == GGL_ERR_OK) {
         compare_objects(expected_object, result);
+    }
+}
+
+static void test_list(
+    GglList test_key_path, GglObject expected_object, GglError expected_result
+) {
+    GGL_LOGD(
+        "test_list %s, expecting %s",
+        print_key_path(&test_key_path),
+        ggl_strerror(expected_result)
+    );
+    GglBuffer server = GGL_STR("gg_config");
+    static uint8_t big_buffer_for_bump[4096];
+    GglBumpAlloc the_allocator
+        = ggl_bump_alloc_init(GGL_BUF(big_buffer_for_bump));
+
+    GglMap params
+        = GGL_MAP({ GGL_STR("key_path"), GGL_OBJ_LIST(test_key_path) }, );
+    GglObject result;
+
+    GglError remote_error = GGL_ERR_OK;
+    GglError error = ggl_call(
+        server,
+        GGL_STR("list"),
+        params,
+        &remote_error,
+        &the_allocator.alloc,
+        &result
+    );
+    if (expected_result != GGL_ERR_OK && error != GGL_ERR_REMOTE) {
+        GGL_LOGE(
+            "list key %s expected result %s but there was not a remote error",
+            print_key_path(&test_key_path),
+            ggl_strerror(expected_result)
+        );
+        assert(0);
+    }
+    if (expected_result == GGL_ERR_OK && error != GGL_ERR_OK) {
+        GGL_LOGE(
+            "list key %s did not expect error but got error %s and remote "
+            "error %s",
+            print_key_path(&test_key_path),
+            ggl_strerror(error),
+            ggl_strerror(remote_error)
+        );
+        assert(0);
+    }
+    if (remote_error != expected_result) {
+        GGL_LOGE(
+            "list key %s expected result %s but got %s",
+            print_key_path(&test_key_path),
+            ggl_strerror(expected_result),
+            ggl_strerror(remote_error)
+        );
+        assert(0);
+        return;
+    }
+    if (expected_result == GGL_ERR_OK) {
+        compare_objects(expected_object, result);
+    }
+}
+
+static void test_delete(GglList key_path, GglError expected_result) {
+    GGL_LOGD(
+        "test_delete %s, expecting %s",
+        print_key_path(&key_path),
+        ggl_strerror(expected_result)
+    );
+    GglBuffer server = GGL_STR("gg_config");
+
+    GglMap params = GGL_MAP({ GGL_STR("key_path"), GGL_OBJ_LIST(key_path) }, );
+
+    GglError remote_error = GGL_ERR_OK;
+    GglError error = ggl_call(
+        server, GGL_STR("delete"), params, &remote_error, NULL, NULL
+    );
+    if (expected_result != GGL_ERR_OK && error != GGL_ERR_REMOTE) {
+        GGL_LOGE(
+            "delete key %s expected result %s but there was not a remote error",
+            print_key_path(&key_path),
+            ggl_strerror(expected_result)
+        );
+        assert(0);
+    }
+    if (expected_result == GGL_ERR_OK && error != GGL_ERR_OK) {
+        GGL_LOGE(
+            "delete key %s did not expect error but got error %s and remote "
+            "error %s",
+            print_key_path(&key_path),
+            ggl_strerror(error),
+            ggl_strerror(remote_error)
+        );
+        assert(0);
+    }
+    if (remote_error != expected_result) {
+        GGL_LOGE(
+            "delete key %s expected result %s but got %s",
+            print_key_path(&key_path),
+            ggl_strerror(expected_result),
+            ggl_strerror(remote_error)
+        );
+        assert(0);
+        return;
     }
 }
 
@@ -301,6 +415,11 @@ static void subscription_close(void *ctx, unsigned int handle) {
 }
 
 static void test_subscribe(GglList key, GglError expected_response) {
+    GGL_LOGD(
+        "test_subscribe %s, expecting %s",
+        print_key_path(&key),
+        ggl_strerror(expected_response)
+    );
     GglBuffer server = GGL_STR("gg_config");
 
     GglMap params = GGL_MAP({ GGL_STR("key_path"), GGL_OBJ_LIST(key) }, );
@@ -880,6 +999,283 @@ int main(int argc, char **argv) {
             GGL_OBJ_BUF(GGL_STR("component12")), GGL_OBJ_BUF(GGL_STR("foo"))
         ),
         GGL_OBJ_NULL(),
+        GGL_ERR_OK
+    );
+
+    // Test to ensure a key can be deleted, not affecting its parent
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component13")), GGL_OBJ_BUF(GGL_STR("key"))
+        ),
+        GGL_OBJ_BUF(GGL_STR("value")),
+        -1,
+        GGL_ERR_OK
+    );
+    test_delete(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component13")), GGL_OBJ_BUF(GGL_STR("key"))
+        ),
+        GGL_ERR_OK
+    );
+    test_get(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component13")), GGL_OBJ_BUF(GGL_STR("key"))
+        ),
+        GGL_OBJ_NULL(),
+        GGL_ERR_NOENTRY
+    );
+    test_get(
+        GGL_LIST(GGL_OBJ_BUF(GGL_STR("component13"))),
+        GGL_OBJ_MAP(GGL_MAP()),
+        GGL_ERR_OK
+    );
+
+    // Test to ensure deletes are recursive
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component14")),
+            GGL_OBJ_BUF(GGL_STR("foo")),
+            GGL_OBJ_BUF(GGL_STR("bar"))
+        ),
+        GGL_OBJ_BUF(GGL_STR("value")),
+        -1,
+        GGL_ERR_OK
+    );
+    test_delete(GGL_LIST(GGL_OBJ_BUF(GGL_STR("component14"))), GGL_ERR_OK);
+    test_get(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component14")),
+            GGL_OBJ_BUF(GGL_STR("foo")),
+            GGL_OBJ_BUF(GGL_STR("bar"))
+        ),
+        GGL_OBJ_NULL(),
+        GGL_ERR_NOENTRY
+    );
+    test_get(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component14")), GGL_OBJ_BUF(GGL_STR("foo"))
+        ),
+        GGL_OBJ_NULL(),
+        GGL_ERR_NOENTRY
+    );
+    test_get(
+        GGL_LIST(GGL_OBJ_BUF(GGL_STR("component14"))),
+        GGL_OBJ_NULL(),
+        GGL_ERR_NOENTRY
+    );
+
+    // Test to ensure an empty map can be written and read
+    test_insert(
+        GGL_LIST(GGL_OBJ_BUF(GGL_STR("component15"))),
+        GGL_OBJ_MAP(GGL_MAP()),
+        -1,
+        GGL_ERR_OK
+    );
+    test_get(
+        GGL_LIST(GGL_OBJ_BUF(GGL_STR("component15"))),
+        GGL_OBJ_MAP(GGL_MAP()),
+        GGL_ERR_OK
+    );
+
+    // Test to ensure an empty map can be merged into an existing empty map
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component16")), GGL_OBJ_BUF(GGL_STR("foo"))
+        ),
+        GGL_OBJ_MAP(GGL_MAP()),
+        -1,
+        GGL_ERR_OK
+    );
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component16")), GGL_OBJ_BUF(GGL_STR("foo"))
+        ),
+        GGL_OBJ_MAP(GGL_MAP()),
+        -1,
+        GGL_ERR_OK
+    );
+    test_get(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component16")), GGL_OBJ_BUF(GGL_STR("foo"))
+        ),
+        GGL_OBJ_MAP(GGL_MAP()),
+        GGL_ERR_OK
+    );
+
+    // Test to ensure an empty map can be merged into an existing populated map
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component17")), GGL_OBJ_BUF(GGL_STR("foo"))
+        ),
+        GGL_OBJ_MAP(GGL_MAP({ GGL_STR("key"), GGL_OBJ_NULL() })),
+        -1,
+        GGL_ERR_OK
+    );
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component17")), GGL_OBJ_BUF(GGL_STR("foo"))
+        ),
+        GGL_OBJ_MAP(GGL_MAP()),
+        -1,
+        GGL_ERR_OK
+    );
+    test_get(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component17")), GGL_OBJ_BUF(GGL_STR("foo"))
+        ),
+        GGL_OBJ_MAP(GGL_MAP({ GGL_STR("key"), GGL_OBJ_NULL() })),
+        GGL_ERR_OK
+    );
+
+    // Test to ensure an empty map can not be merged into an existing value
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component18")), GGL_OBJ_BUF(GGL_STR("foo"))
+        ),
+        GGL_OBJ_MAP(GGL_MAP({ GGL_STR("key"), GGL_OBJ_NULL() })),
+        -1,
+        GGL_ERR_OK
+    );
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component18")),
+            GGL_OBJ_BUF(GGL_STR("foo")),
+            GGL_OBJ_BUF(GGL_STR("key"))
+        ),
+        GGL_OBJ_MAP(GGL_MAP()),
+        -1,
+        GGL_ERR_FAILURE
+    );
+
+    // Test to ensure an value can not be merged into an existing empty map
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component19")),
+            GGL_OBJ_BUF(GGL_STR("foo")),
+            GGL_OBJ_BUF(GGL_STR("key"))
+        ),
+        GGL_OBJ_MAP(GGL_MAP()),
+        -1,
+        GGL_ERR_OK
+    );
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component19")),
+            GGL_OBJ_BUF(GGL_STR("foo")),
+            GGL_OBJ_BUF(GGL_STR("key"))
+        ),
+        GGL_OBJ_NULL(),
+        -1,
+        GGL_ERR_FAILURE
+    );
+
+    // Test to check subscriber behavior on deleted keys
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component20")),
+            GGL_OBJ_BUF(GGL_STR("foo")),
+            GGL_OBJ_BUF(GGL_STR("key"))
+        ),
+        GGL_OBJ_BUF(GGL_STR("value1")),
+        -1,
+        GGL_ERR_OK
+    );
+    test_subscribe(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component20")),
+            GGL_OBJ_BUF(GGL_STR("foo")),
+            GGL_OBJ_BUF(GGL_STR("key"))
+        ),
+        GGL_ERR_OK
+    );
+    test_subscribe(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component20")), GGL_OBJ_BUF(GGL_STR("foo"))
+        ),
+        GGL_ERR_OK
+    );
+    test_delete(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component20")),
+            GGL_OBJ_BUF(GGL_STR("foo")),
+            GGL_OBJ_BUF(GGL_STR("key"))
+        ),
+        GGL_ERR_OK
+    );
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component20")),
+            GGL_OBJ_BUF(GGL_STR("foo")),
+            GGL_OBJ_BUF(GGL_STR("key"))
+        ),
+        GGL_OBJ_BUF(GGL_STR("value2")),
+        -1,
+        GGL_ERR_OK
+    ); // Should see one `read component20/foo/key` on the callback handle
+       // created for component20/foo
+    // Currently, the other subscription callback for component20/foo/key is not
+    // notified. In the future, it would be good to have that behavior too. See
+    // the docs/design/ggconfigd.md section "Subscription behavior for keys
+    // which become deleted" for more info.
+
+    // Test to ensure list reads all children, but not nested keys
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component21")), GGL_OBJ_BUF(GGL_STR("key1"))
+        ),
+        GGL_OBJ_BUF(GGL_STR("value1")),
+        -1,
+        GGL_ERR_OK
+    );
+    test_insert(
+        GGL_LIST(
+            GGL_OBJ_BUF(GGL_STR("component21")), GGL_OBJ_BUF(GGL_STR("key2"))
+        ),
+        GGL_OBJ_MAP(GGL_MAP(
+            { GGL_STR("nested_key1"), GGL_OBJ_BUF(GGL_STR("value2")) },
+            { GGL_STR("nested_key2"), GGL_OBJ_BUF(GGL_STR("value3")) }
+        )),
+        -1,
+        GGL_ERR_OK
+    );
+    test_list(
+        GGL_LIST(GGL_OBJ_BUF(GGL_STR("component21"))),
+        GGL_OBJ_LIST(
+            GGL_LIST(GGL_OBJ_BUF(GGL_STR("key1")), GGL_OBJ_BUF(GGL_STR("key2")))
+        ),
+        GGL_ERR_OK
+    );
+
+    // Test to ensure list returns no entry if the key doesn't exist
+    test_list(
+        GGL_LIST(GGL_OBJ_BUF(GGL_STR("non-existent")), ),
+        GGL_OBJ_NULL(),
+        GGL_ERR_NOENTRY
+    );
+
+    // Test to ensure list returns invalid if the key is a value
+    test_insert(
+        GGL_LIST(GGL_OBJ_BUF(GGL_STR("component22"))),
+        GGL_OBJ_BUF(GGL_STR("value")),
+        -1,
+        GGL_ERR_OK
+    );
+    test_list(
+        GGL_LIST(GGL_OBJ_BUF(GGL_STR("component22"))),
+        GGL_OBJ_NULL(),
+        GGL_ERR_INVALID
+    );
+
+    // Test to ensure list returns an empty list if the key is an empty map
+    test_insert(
+        GGL_LIST(GGL_OBJ_BUF(GGL_STR("component23"))),
+        GGL_OBJ_MAP(GGL_MAP()),
+        -1,
+        GGL_ERR_OK
+    );
+    test_list(
+        GGL_LIST(GGL_OBJ_BUF(GGL_STR("component23"))),
+        GGL_OBJ_LIST(GGL_LIST()),
         GGL_ERR_OK
     );
 

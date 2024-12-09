@@ -6,6 +6,7 @@ ggl_init_module(
   ggdeploymentd
   LIBS ggl-lib
        core-bus
+       ggl-constants
        ggl-file
        ggl-http
        ggl-json
@@ -20,6 +21,4 @@ ggl_init_module(
        core-bus-aws-iot-mqtt
        core-bus-sub-response
        recipe2unit
-       PkgConfig::uuid
-       SOCKETS
-       gg_deployment)
+       PkgConfig::uuid)
