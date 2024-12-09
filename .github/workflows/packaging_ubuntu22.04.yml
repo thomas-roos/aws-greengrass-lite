@@ -37,6 +37,7 @@ jobs:
             cd curl-7.87.0 &&
             ./configure --disable-shared --enable-static --disable-ldap --without-ssl &&
             make install &&
+            cd .. &&
             build/cmake -B . \
             -DGGL_LOG_LEVEL=DEBUG \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
