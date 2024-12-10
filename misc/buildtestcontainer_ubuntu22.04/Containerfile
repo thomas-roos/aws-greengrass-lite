@@ -19,6 +19,8 @@ RUN apt-get update \
     libsystemd-dev liburiparser-dev uuid-dev libevent-dev libzip-dev \
   && apt-get clean
 
+RUN apt-get upgrade -y
+
 COPY ./getty-override.conf \
   /etc/systemd/system/console-getty.service.d/override.conf
 
