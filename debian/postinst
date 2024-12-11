@@ -51,6 +51,7 @@ services:
       runWithDefault:
         posixUser: "${gg_user}:${gg_group}"
       greengrassDataPlanePort: "8443"
+      platformOverride: {}
 EOL
     echo "Configuration file created at $config_file"
 }
