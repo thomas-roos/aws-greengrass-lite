@@ -2234,6 +2234,31 @@ static void handle_deployment(
             continue;
         }
 
+        // check config to see if bootstrap steps have already been run for this
+        // component
+        if (component_bootstrap_phase_completed(pair->key)) {
+            GGL_LOGD(
+                "Bootstrap component %.*s encountered. Bootstrap phase has "
+                "already been completed. Adding to list of components to "
+                "process to complete any other lifecycle stages.",
+                (int) pair->key.len,
+                pair->key.data
+            );
+            ret = ggl_kv_vec_push(
+                &components_to_deploy, (GglKV) { pair->key, pair->val }
+            );
+            if (ret != GGL_ERR_OK) {
+                GGL_LOGE(
+                    "Failed to add component info for %.*s to deployment "
+                    "vector.",
+                    (int) pair->key.len,
+                    pair->key.data
+                );
+                return;
+            }
+            continue;
+        }
+
         int component_artifacts_fd = -1;
         ret = open_component_artifacts_dir(
             artifact_store_fd, pair->key, pair->val.buf, &component_artifacts_fd
@@ -2419,7 +2444,11 @@ static void handle_deployment(
         );
 
         if (ret != GGL_ERR_OK) {
-            GGL_LOGE("Failed to write component version to ggconfigd.");
+            GGL_LOGE(
+                "Failed to write version of %.*s to ggconfigd.",
+                (int) pair->key.len,
+                pair->key.data
+            );
             return;
         }
 
@@ -2428,7 +2457,11 @@ static void handle_deployment(
         );
 
         if (ret != GGL_ERR_OK) {
-            GGL_LOGE("Failed to write configuration arn to ggconfigd.");
+            GGL_LOGE(
+                "Failed to write configuration arn of %.*s to ggconfigd.",
+                (int) pair->key.len,
+                pair->key.data
+            );
             return;
         }
 
@@ -2436,7 +2469,11 @@ static void handle_deployment(
             deployment, component_name->buf, GGL_STR("reset")
         );
         if (ret != GGL_ERR_OK) {
-            GGL_LOGE("Failed to apply reset configuration update.");
+            GGL_LOGE(
+                "Failed to apply reset configuration update for %.*s.",
+                (int) pair->key.len,
+                pair->key.data
+            );
             return;
         }
 
@@ -2473,17 +2510,29 @@ static void handle_deployment(
                     return;
                 }
             } else {
-                GGL_LOGI("DefaultConfiguration not found in the recipe.");
+                GGL_LOGI(
+                    "DefaultConfiguration not found in the recipe of %.*s.",
+                    (int) pair->key.len,
+                    pair->key.data
+                );
             }
         } else {
-            GGL_LOGI("ComponentConfiguration not found in the recipe");
+            GGL_LOGI(
+                "ComponentConfiguration not found in the recipe of %.*s.",
+                (int) pair->key.len,
+                pair->key.data
+            );
         }
 
         ret = apply_configurations(
             deployment, component_name->buf, GGL_STR("merge")
         );
         if (ret != GGL_ERR_OK) {
-            GGL_LOGE("Failed to apply merge configuration update.");
+            GGL_LOGE(
+                "Failed to apply merge configuration update for %.*s.",
+                (int) pair->key.len,
+                pair->key.data
+            );
             return;
         }
 
