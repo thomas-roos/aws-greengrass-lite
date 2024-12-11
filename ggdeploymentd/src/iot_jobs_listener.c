@@ -212,10 +212,16 @@ static GglError update_job(
     }
     ++(*version);
 
-    // save jobs ID to config in case of bootstrap
+    // save jobs ID and version to config in case of bootstrap
     ret = save_iot_jobs_id(job_id);
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Failed to save job ID to config.");
+        return ret;
+    }
+
+    ret = save_iot_jobs_version(current_job_version);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to save job version to config.");
         return ret;
     }
 
@@ -484,4 +490,15 @@ GglError update_current_jobs_deployment(
     // Subscription thread gets a cancellation and then a new job,
     // overwriting current_job_id while deployment thread updates job state
     return update_job(current_job_id.buf, status, &current_job_version);
+}
+
+GglError update_bootstrap_jobs_deployment(
+    GglBuffer deployment_id, GglBuffer status, int64_t version
+) {
+    if (!ggl_buffer_eq(deployment_id, current_deployment_id.buf)) {
+        return GGL_ERR_NOENTRY;
+    }
+
+    current_job_version = version;
+    return update_job(current_job_id.buf, status, &version);
 }

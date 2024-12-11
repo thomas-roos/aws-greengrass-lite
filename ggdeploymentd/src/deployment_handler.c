@@ -27,6 +27,7 @@
 #include <ggl/file.h>
 #include <ggl/http.h>
 #include <ggl/json_decode.h>
+#include <ggl/json_encode.h>
 #include <ggl/list.h>
 #include <ggl/log.h>
 #include <ggl/map.h>
@@ -817,33 +818,83 @@ static GglError get_device_thing_groups(GglBuffer *response) {
 static GglError generate_resolve_component_candidates_body(
     GglBuffer component_name,
     GglBuffer component_requirements,
-    GglByteVec *body_vec
+    GglByteVec *body_vec,
+    GglAlloc *alloc
 ) {
+    GglObject architecture_detail_read_value;
+    GglError ret = ggl_gg_config_read(
+        GGL_BUF_LIST(
+            GGL_STR("services"),
+            GGL_STR("aws.greengrass.NucleusLite"),
+            GGL_STR("configuration"),
+            GGL_STR("platformOverride"),
+            GGL_STR("architecture.detail")
+        ),
+        alloc,
+        &architecture_detail_read_value
+    );
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGD("No architecture.detail found, using empty string as a "
+                 "default value.");
+        architecture_detail_read_value = GGL_OBJ_BUF(GGL_STR(""));
+    }
+
+    if (architecture_detail_read_value.type != GGL_TYPE_BUF) {
+        GGL_LOGD("architecture.detail platformOverride in the config is not a "
+                 "buffer, so using an empty string as a default value.");
+        architecture_detail_read_value = GGL_OBJ_BUF(GGL_STR(""));
+    }
+
+    // TODO: Support platform attributes for platformOverride configuration
+    GglMap platform_attributes = GGL_MAP(
+        { GGL_STR("runtime"), GGL_OBJ_BUF(GGL_STR("aws_nucleus_lite")) },
+        { GGL_STR("os"), GGL_OBJ_BUF(GGL_STR("linux")) },
+        { GGL_STR("architecture"), GGL_OBJ_BUF(get_current_architecture()) },
+    );
+
+    if (architecture_detail_read_value.buf.len != 0) {
+        platform_attributes = GGL_MAP(
+            { GGL_STR("runtime"), GGL_OBJ_BUF(GGL_STR("aws_nucleus_lite")) },
+            { GGL_STR("os"), GGL_OBJ_BUF(GGL_STR("linux")) },
+            { GGL_STR("architecture"),
+              GGL_OBJ_BUF(get_current_architecture()) },
+            { GGL_STR("architecture.detail"), architecture_detail_read_value }
+        );
+    }
+
+    GglMap platform_info = GGL_MAP(
+        { GGL_STR("name"), GGL_OBJ_BUF(GGL_STR("linux")) },
+        { GGL_STR("attributes"), GGL_OBJ_MAP(platform_attributes) }
+    );
+
+    GglMap version_requirements_map
+        = GGL_MAP({ GGL_STR("requirements"),
+                    GGL_OBJ_BUF(component_requirements) });
+
+    GglMap component_map = GGL_MAP(
+        { GGL_STR("componentName"), GGL_OBJ_BUF(component_name) },
+        { GGL_STR("versionRequirements"),
+          GGL_OBJ_MAP(version_requirements_map) }
+    );
+
+    GglList candidates_list = GGL_LIST(GGL_OBJ_MAP(component_map));
+
+    GglMap request_body = GGL_MAP(
+        { GGL_STR("componentCandidates"), GGL_OBJ_LIST(candidates_list) },
+        { GGL_STR("platform"), GGL_OBJ_MAP(platform_info) }
+    );
+
+    static uint8_t rcc_buf[4096];
+    GglBuffer rcc_body = GGL_BUF(rcc_buf);
+    ret = ggl_json_encode(GGL_OBJ_MAP(request_body), &rcc_body);
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Error while encoding body for ResolveComponentCandidates call"
+        );
+        return ret;
+    }
+
     GglError byte_vec_ret = GGL_ERR_OK;
-    ggl_byte_vec_chain_append(
-        &byte_vec_ret, body_vec, GGL_STR("{\"componentCandidates\": [")
-    );
-
-    ggl_byte_vec_chain_append(
-        &byte_vec_ret, body_vec, GGL_STR("{\"componentName\": \"")
-    );
-    ggl_byte_vec_chain_append(&byte_vec_ret, body_vec, component_name);
-    ggl_byte_vec_chain_append(
-        &byte_vec_ret,
-        body_vec,
-        GGL_STR("\",\"versionRequirements\": {\"requirements\": \"")
-    );
-    ggl_byte_vec_chain_append(&byte_vec_ret, body_vec, component_requirements);
-    ggl_byte_vec_chain_append(&byte_vec_ret, body_vec, GGL_STR("\"}}"));
-
-    // TODO: Include architecture requirements if any
-    ggl_byte_vec_chain_append(
-        &byte_vec_ret,
-        body_vec,
-        GGL_STR("],\"platform\": { \"attributes\": { \"os\" : \"linux\", "
-                "\"runtime\" : \"aws_nucleus_lite\" "
-                "},\"name\": \"linux\"}}")
-    );
+    ggl_byte_vec_chain_append(&byte_vec_ret, body_vec, rcc_body);
     ggl_byte_vec_chain_push(&byte_vec_ret, body_vec, '\0');
 
     GGL_LOGD("Body for call: %s", body_vec->buf.data);
@@ -858,8 +909,11 @@ static GglError resolve_component_with_cloud(
 ) {
     static char resolve_candidates_body_buf[2048];
     GglByteVec body_vec = GGL_BYTE_VEC(resolve_candidates_body_buf);
+    static uint8_t rcc_body_config_read_mem[128];
+    GglBumpAlloc rcc_balloc
+        = ggl_bump_alloc_init(GGL_BUF(rcc_body_config_read_mem));
     GglError ret = generate_resolve_component_candidates_body(
-        component_name, version_requirements, &body_vec
+        component_name, version_requirements, &body_vec, &rcc_balloc.alloc
     );
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Failed to generate body for resolveComponentCandidates call");
@@ -1982,6 +2036,11 @@ static GglError wait_for_phase_status(
         GglError ret = ggl_byte_vec_append(
             &full_comp_name_vec, component_vec.buf_list.bufs[i]
         );
+        ggl_byte_vec_chain_push(&ret, &full_comp_name_vec, '.');
+        if (ret != GGL_ERR_OK) {
+            GGL_LOGE("Failed to push '.' character to component name vector.");
+            return ret;
+        }
         ggl_byte_vec_append(&full_comp_name_vec, phase);
         if (ret != GGL_ERR_OK) {
             GGL_LOGE(
@@ -2480,7 +2539,8 @@ static void handle_deployment(
             }
 
             // Skip redeploying components in a RUNNING state
-            if (ggl_buffer_eq(component_status, GGL_STR("RUNNING"))) {
+            if (ggl_buffer_eq(component_status, GGL_STR("RUNNING"))
+                || ggl_buffer_eq(component_status, GGL_STR("FINISHED"))) {
                 GGL_LOGD(
                     "Component %.*s is already running. Will not redeploy.",
                     (int) pair->key.len,
@@ -2586,7 +2646,7 @@ static void handle_deployment(
                         component_name.data
                     );
                 } else { // relevant install service file exists
-
+                    disable_and_unlink_service(&component_name, INSTALL);
                     // add relevant component name into the vector
                     ret = ggl_buf_vec_push(
                         &install_comp_name_buf_vec, component_name
@@ -2750,6 +2810,7 @@ static void handle_deployment(
                         component_name.data
                     );
                 } else {
+                    disable_and_unlink_service(&component_name, RUN_STARTUP);
                     // run link command
                     static uint8_t link_command_buf[PATH_MAX];
                     GglByteVec link_command_vec
@@ -2890,9 +2951,11 @@ static GglError ggl_deployment_listen(GglDeploymentHandlerThreadArgs *args) {
     GglDeployment bootstrap_deployment = { 0 };
     uint8_t jobs_id_resp_mem[64] = { 0 };
     GglBuffer jobs_id = GGL_BUF(jobs_id_resp_mem);
+    int64_t jobs_version = 0;
 
-    GglError ret
-        = retrieve_in_progress_deployment(&bootstrap_deployment, &jobs_id);
+    GglError ret = retrieve_in_progress_deployment(
+        &bootstrap_deployment, &jobs_id, &jobs_version
+    );
     if (ret != GGL_ERR_OK) {
         GGL_LOGD("No deployments previously in progress detected.");
     } else {
@@ -2902,8 +2965,10 @@ static GglError ggl_deployment_listen(GglDeploymentHandlerThreadArgs *args) {
             (int) bootstrap_deployment.deployment_id.len,
             bootstrap_deployment.deployment_id.data
         );
-        update_current_jobs_deployment(
-            bootstrap_deployment.deployment_id, GGL_STR("IN_PROGRESS")
+        update_bootstrap_jobs_deployment(
+            bootstrap_deployment.deployment_id,
+            GGL_STR("IN_PROGRESS"),
+            jobs_version
         );
 
         bool bootstrap_deployment_succeeded = false;
@@ -2916,14 +2981,18 @@ static GglError ggl_deployment_listen(GglDeploymentHandlerThreadArgs *args) {
         if (bootstrap_deployment_succeeded) {
             GGL_LOGI("Completed deployment processing and reporting job as "
                      "SUCCEEDED.");
-            update_current_jobs_deployment(
-                bootstrap_deployment.deployment_id, GGL_STR("SUCCEEDED")
+            update_bootstrap_jobs_deployment(
+                bootstrap_deployment.deployment_id,
+                GGL_STR("SUCCEEDED"),
+                jobs_version
             );
         } else {
             GGL_LOGW("Completed deployment processing and reporting job as "
                      "FAILED.");
-            update_current_jobs_deployment(
-                bootstrap_deployment.deployment_id, GGL_STR("FAILED")
+            update_bootstrap_jobs_deployment(
+                bootstrap_deployment.deployment_id,
+                GGL_STR("FAILED"),
+                jobs_version
             );
         }
         // clear any potential saved deployment info for next deployment

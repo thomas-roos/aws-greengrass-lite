@@ -5,6 +5,7 @@
 #include "bootstrap_manager.h"
 #include "deployment_model.h"
 #include "deployment_queue.h"
+#include "stale_component.h"
 #include <fcntl.h>
 #include <ggl/buffer.h>
 #include <ggl/bump_alloc.h>
@@ -16,6 +17,7 @@
 #include <ggl/map.h>
 #include <ggl/object.h>
 #include <ggl/vector.h>
+#include <inttypes.h>
 #include <limits.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -111,6 +113,29 @@ GglError save_iot_jobs_id(GglBuffer jobs_id) {
     return GGL_ERR_OK;
 }
 
+GglError save_iot_jobs_version(int64_t jobs_version) {
+    GGL_LOGD(
+        "Saving IoT Jobs version %" PRIi64 " in case of bootstrap.",
+        jobs_version
+    );
+
+    GglError ret = ggl_gg_config_write(
+        GGL_BUF_LIST(
+            GGL_STR("services"),
+            GGL_STR("DeploymentService"),
+            GGL_STR("deploymentState"),
+            GGL_STR("jobsVersion")
+        ),
+        GGL_OBJ_I64(jobs_version),
+        &(int64_t) { 0 }
+    );
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to write IoT Jobs Version to config.");
+        return ret;
+    }
+    return GGL_ERR_OK;
+}
+
 GglError save_deployment_info(GglDeployment *deployment) {
     GGL_LOGD("Encountered component requiring bootstrap. Saving deployment "
              "state to config.");
@@ -171,7 +196,7 @@ GglError save_deployment_info(GglDeployment *deployment) {
 }
 
 GglError retrieve_in_progress_deployment(
-    GglDeployment *deployment, GglBuffer *jobs_id
+    GglDeployment *deployment, GglBuffer *jobs_id, int64_t *jobs_version
 ) {
     GGL_LOGD("Searching config for any in progress deployment.");
 
@@ -189,6 +214,29 @@ GglError retrieve_in_progress_deployment(
         return ret;
     }
 
+    GglBuffer version_mem = GGL_BUF((uint8_t[10]) { 0 });
+    GglBumpAlloc version_balloc = ggl_bump_alloc_init(version_mem);
+    GglObject jobs_version_obj;
+    ret = ggl_gg_config_read(
+        GGL_BUF_LIST(
+            GGL_STR("services"),
+            GGL_STR("DeploymentService"),
+            GGL_STR("deploymentState"),
+            GGL_STR("jobsVersion")
+        ),
+        &version_balloc.alloc,
+        &jobs_version_obj
+    );
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to retrieve IoT jobs version from config.");
+        return ret;
+    }
+    if (jobs_version_obj.type != GGL_TYPE_I64) {
+        GGL_LOGE("Did not receive an int64_t for IoT jobs version.");
+        return GGL_ERR_INVALID;
+    }
+    *jobs_version = jobs_version_obj.i64;
+
     GglBuffer config_mem = GGL_BUF((uint8_t[2500]) { 0 });
     GglBumpAlloc balloc = ggl_bump_alloc_init(config_mem);
     GglObject deployment_config;
@@ -203,6 +251,7 @@ GglError retrieve_in_progress_deployment(
         &deployment_config
     );
     if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to retrieve deployment map from config.");
         return ret;
     }
     if (deployment_config.type != GGL_TYPE_MAP) {
@@ -409,6 +458,7 @@ GglError process_bootstrap_phase(
                     component_name.data
                 );
             } else { // relevant bootstrap service file exists
+                disable_and_unlink_service(&component_name, BOOTSTRAP);
                 GGL_LOGI(
                     "Found bootstrap service file for %.*s. Processing.",
                     (int) component_name.len,
