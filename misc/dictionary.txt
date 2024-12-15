@@ -1,7 +1,9 @@
 aarch64
 ALLOCN
 argp
+armv
 awsiotsdk
+boto
 cgexec
 clientfd
 clientv
@@ -39,6 +41,7 @@ ggconfigd
 ggconfiglib
 ggconflib
 ggcore
+ggcredentials
 GGDEPLOYMENT
 ggdeploymentd
 gghealthd
@@ -97,7 +100,9 @@ semp
 serde
 serverd
 SERVUNAVAIL
+Setenv
 sigv4
+Skipif
 ssssssouso
 statusd
 stdenv

@@ -1,6 +1,8 @@
 
 #include "stale_component.h"
 #include "component_store.h"
+#include "deployment_model.h"
+#include <assert.h>
 #include <dirent.h>
 #include <errno.h>
 #include <ftw.h>
@@ -183,23 +185,26 @@ static GglError delete_component(
         (int) version_number.len,
         version_number.data
     );
+    GglError ret;
 
     // Remove component from config as we use that as source of truth for active
     // running components
-    GglError ret
-        = ggl_gg_config_delete(GGL_BUF_LIST(GGL_STR("services"), component_name)
+    if (delete_all_versions) {
+        ret = ggl_gg_config_delete(
+            GGL_BUF_LIST(GGL_STR("services"), component_name)
         );
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE(
-            "Failed to delete component information from the configuration."
+        if (ret != GGL_ERR_OK) {
+            GGL_LOGE(
+                "Failed to delete component information from the configuration."
+            );
+            return ret;
+        }
+        GGL_LOGD(
+            "Removed configuration of stale component %.*s",
+            (int) component_name.len,
+            component_name.data
         );
-        return ret;
     }
-    GGL_LOGD(
-        "Removed configuration of stale component %.*s",
-        (int) component_name.len,
-        component_name.data
-    );
 
     static uint8_t root_path_mem[PATH_MAX];
     memset(root_path_mem, 0, sizeof(root_path_mem));
@@ -260,7 +265,8 @@ static GglError delete_recipe_script_and_service_files(GglBuffer *component_name
     // Store index so that we can restore the vector to this state.
     const size_t INDEX_BEFORE_FILE_EXTENTION = root_path.buf.len;
 
-    char *extentions[] = { ".script.install.json", ".script.run", ".service" };
+    char *extentions[]
+        = { ".bootstrap.service", ".install.service", ".service" };
 
     for (size_t i = 0; i < (sizeof(extentions) / sizeof(char *)); i++) {
         GglBuffer buf = { .data = (uint8_t *) extentions[i],
@@ -301,7 +307,9 @@ static GglError delete_recipe_script_and_service_files(GglBuffer *component_name
 }
 
 // NOLINTNEXTLINE(readability-function-cognitive-complexity)
-static GglError disable_and_unlink_service(GglBuffer *component_name) {
+GglError disable_and_unlink_service(
+    GglBuffer *component_name, PhaseSelection phase
+) {
     static uint8_t command_array[PATH_MAX];
     GglByteVec command_vec = GGL_BYTE_VEC(command_array);
 
@@ -309,6 +317,14 @@ static GglError disable_and_unlink_service(GglBuffer *component_name) {
         = ggl_byte_vec_append(&command_vec, GGL_STR("systemctl stop "));
     ggl_byte_vec_chain_append(&ret, &command_vec, GGL_STR("ggl."));
     ggl_byte_vec_chain_append(&ret, &command_vec, *component_name);
+    if (phase == INSTALL) {
+        ggl_byte_vec_chain_append(&ret, &command_vec, GGL_STR(".install"));
+    } else if (phase == BOOTSTRAP) {
+        ggl_byte_vec_chain_append(&ret, &command_vec, GGL_STR(".bootstrap"));
+    } else {
+        // Incase of startup/run nothing to append
+        assert(phase == RUN_STARTUP);
+    }
     ggl_byte_vec_chain_append(&ret, &command_vec, GGL_STR(".service"));
     ggl_byte_vec_chain_push(&ret, &command_vec, '\0');
     if (ret != GGL_ERR_OK) {
@@ -320,8 +336,7 @@ static GglError disable_and_unlink_service(GglBuffer *component_name) {
     int system_ret = system((char *) command_vec.buf.data);
     if (WIFEXITED(system_ret)) {
         if (WEXITSTATUS(system_ret) != 0) {
-            GGL_LOGE("systemctl stop failed");
-            return GGL_ERR_FAILURE;
+            GGL_LOGD("systemctl stop failed");
         }
         GGL_LOGI(
             "systemctl stop exited with child status %d\n",
@@ -329,7 +344,6 @@ static GglError disable_and_unlink_service(GglBuffer *component_name) {
         );
     } else {
         GGL_LOGE("systemctl stop did not exit normally");
-        return GGL_ERR_FAILURE;
     }
 
     memset(command_array, 0, sizeof(command_array));
@@ -350,8 +364,7 @@ static GglError disable_and_unlink_service(GglBuffer *component_name) {
     system_ret = system((char *) command_vec.buf.data);
     if (WIFEXITED(system_ret)) {
         if (WEXITSTATUS(system_ret) != 0) {
-            GGL_LOGE("systemctl disable failed");
-            return GGL_ERR_FAILURE;
+            GGL_LOGD("systemctl disable failed");
         }
         GGL_LOGI(
             "systemctl disable exited with child status %d\n",
@@ -359,7 +372,6 @@ static GglError disable_and_unlink_service(GglBuffer *component_name) {
         );
     } else {
         GGL_LOGE("systemctl disable did not exit normally");
-        return GGL_ERR_FAILURE;
     }
 
     memset(command_array, 0, sizeof(command_array));
@@ -381,8 +393,7 @@ static GglError disable_and_unlink_service(GglBuffer *component_name) {
     system_ret = system((char *) command_vec.buf.data);
     if (WIFEXITED(system_ret)) {
         if (WEXITSTATUS(system_ret) != 0) {
-            GGL_LOGE("removing symlink failed");
-            return GGL_ERR_FAILURE;
+            GGL_LOGD("removing symlink failed");
         }
         GGL_LOGI(
             "rm /etc/systemd/system/[service] exited with child status %d\n",
@@ -390,7 +401,6 @@ static GglError disable_and_unlink_service(GglBuffer *component_name) {
         );
     } else {
         GGL_LOGE("rm /etc/systemd/system/[service] did not exit normally");
-        return GGL_ERR_FAILURE;
     }
 
     memset(command_array, 0, sizeof(command_array));
@@ -416,8 +426,7 @@ static GglError disable_and_unlink_service(GglBuffer *component_name) {
     system_ret = system((char *) command_vec.buf.data);
     if (WIFEXITED(system_ret)) {
         if (WEXITSTATUS(system_ret) != 0) {
-            GGL_LOGE("removing symlink failed");
-            return GGL_ERR_FAILURE;
+            GGL_LOGD("removing symlink failed");
         }
         GGL_LOGI(
             "rm /usr/lib/systemd/system/[service] exited with child status "
@@ -426,7 +435,6 @@ static GglError disable_and_unlink_service(GglBuffer *component_name) {
         );
     } else {
         GGL_LOGE("rm /usr/lib/systemd/system/[service] did not exit normally");
-        return GGL_ERR_FAILURE;
     }
 
     memset(command_array, 0, sizeof(command_array));
@@ -547,7 +555,15 @@ GglError cleanup_stale_versions(GglMap latest_components_map) {
             );
 
             // Also stop any running service for this component.
-            disable_and_unlink_service(&component_name_buffer_iterator);
+            disable_and_unlink_service(
+                &component_name_buffer_iterator, RUN_STARTUP
+            );
+            disable_and_unlink_service(
+                &component_name_buffer_iterator, INSTALL
+            );
+            disable_and_unlink_service(
+                &component_name_buffer_iterator, BOOTSTRAP
+            );
 
             // Also delete the .script.install and .script.run and .service
             // files.

@@ -1,11 +1,5 @@
 # AWS Greengrass Nucleus Lite
 
-🚧 🚧 🚧 WORK IN PROGRESS 🚧 🚧 🚧
-
-> This software does not yet have an official release. Feel free to test and
-> report issues you find, but some functionality may be buggy and there may be
-> breaking changes before the initial release.
-
 AWS IoT Greengrass runtime for constrained devices.
 
 The Greengrass Nucleus Lite provides a smaller alternative to the Classic
@@ -66,6 +60,13 @@ corebus. This table identifies the corebus component that does the work.
 | VerifyClientDeviceIdentity              | _Future_                     |
 | GetClientDeviceAuthToken                | _Future_                     |
 | AuthorizeClientDeviceAction             | _Future_                     |
+
+## Additional Details
+
+Known issues are documented [here](./docs/KNOWN_ISSUES.md) with some potential
+workarounds. Additionally only basic recipe types are supported, more
+information on missing features can be found
+[here](./docs/RECIPE_SUPPORT_CHANGES.md).
 
 ## Security
 

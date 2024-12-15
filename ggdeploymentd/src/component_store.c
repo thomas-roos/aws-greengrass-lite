@@ -79,18 +79,29 @@ GglError iterate_over_components(
     GglBuffer *version,
     struct dirent **entry
 ) {
+    GGL_LOGT("Iterating over component recipes in directory");
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     while ((*entry = readdir(dir)) != NULL) {
         GglBuffer entry_buf = ggl_buffer_from_null_term((*entry)->d_name);
+        GGL_LOGT(
+            "Found directory entry %.*s", (int) entry_buf.len, entry_buf.data
+        );
         // recipe file names follow this format:
         // <component_name>-<version>.<extension>
-        // Split directory entry on the index of the "-" character.
+        // Split the last "-" character to retrieve the component name
         GglBuffer recipe_component;
         GglBuffer rest = GGL_STR("");
-        for (size_t i = 0; i < entry_buf.len; ++i) {
-            if (entry_buf.data[i] == '-') {
-                recipe_component = ggl_buffer_substr(entry_buf, 0, i);
-                rest = ggl_buffer_substr(entry_buf, i + 1, SIZE_MAX);
+        for (size_t i = entry_buf.len; i > 0; --i) {
+            if (entry_buf.data[i - 1] == '-') {
+                recipe_component = ggl_buffer_substr(entry_buf, 0, i - 1);
+                rest = ggl_buffer_substr(entry_buf, i, SIZE_MAX);
+                GGL_LOGT(
+                    "Split entry on '-': component: %.*s rest: %.*s",
+                    (int) recipe_component.len,
+                    recipe_component.data,
+                    (int) rest.len,
+                    rest.data
+                );
                 break;
             }
         }
@@ -107,6 +118,11 @@ GglError iterate_over_components(
         for (size_t i = rest.len; i > 0; i--) {
             if (rest.data[i - 1] == '.') {
                 recipe_version = ggl_buffer_substr(rest, 0, i - 1);
+                GGL_LOGT(
+                    "Found version: %.*s",
+                    (int) recipe_version.len,
+                    recipe_version.data
+                );
                 break;
             }
         }
@@ -133,6 +149,11 @@ GglError iterate_over_components(
 GglError find_available_component(
     GglBuffer component_name, GglBuffer requirement, GglBuffer *version
 ) {
+    GGL_LOGT(
+        "Searching for component %.*s",
+        (int) component_name.len,
+        component_name.data
+    );
     int recipe_dir_fd;
     GglError ret = get_recipe_dir_fd(&recipe_dir_fd);
     if (ret != GGL_ERR_OK) {

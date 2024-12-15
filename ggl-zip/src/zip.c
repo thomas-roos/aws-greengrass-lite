@@ -13,7 +13,9 @@
 #include <inttypes.h>
 #include <zip.h>
 #include <zipconf.h>
+#include <stdbool.h>
 #include <stddef.h>
+#include <stdint.h>
 
 static inline void cleanup_zip_fclose(zip_file_t **zip_entry) {
     if (*zip_entry != NULL) {
@@ -50,6 +52,35 @@ static GglError write_entry_to_fd(zip_file_t *entry, int fd) {
     }
 }
 
+static bool validate_path(GglBuffer path) {
+    if (path.len == 0) {
+        GGL_LOGW("Skipping empty path");
+        return false;
+    }
+
+    if (path.data[0] == '/') {
+        GGL_LOGW(
+            "Skipping absolute path in \"%.*s\"", (int) path.len, path.data
+        );
+        return false;
+    }
+
+    for (size_t i = 0; i + 2 < path.len; ++i) {
+        if (ggl_buffer_has_prefix(
+                ggl_buffer_substr(path, i, SIZE_MAX), GGL_STR("../")
+            )) {
+            GGL_LOGW(
+                "Skipping path with \"../\" component(s) in \"%.*s\"",
+                (int) path.len,
+                path.data
+            );
+            return false;
+        }
+    }
+
+    return true;
+}
+
 GglError ggl_zip_unarchive(
     int source_dest_dir_fd, GglBuffer zip_path, int dest_dir_fd, mode_t mode
 ) {
@@ -71,7 +102,6 @@ GglError ggl_zip_unarchive(
     }
     GGL_CLEANUP(cleanup_zip_close, zip);
 
-    GglBuffer init_name;
     zip_uint64_t num_entries = (zip_uint64_t) zip_get_num_entries(zip, 0);
     for (zip_uint64_t i = 0; i < num_entries; i++) {
         const char *name = zip_get_name(zip, i, 0);
@@ -85,19 +115,10 @@ GglError ggl_zip_unarchive(
             return GGL_ERR_FAILURE;
         }
 
-        // Avoid creating duplicate zip file name
-        if (i == 0) {
-            init_name = ggl_buffer_from_null_term((char *) name);
+        GglBuffer name_buf = ggl_buffer_from_null_term((char *) name);
+        if (!validate_path(name_buf)) {
             continue;
         }
-
-        // Remove the first segment from the path
-        GglBuffer name_buf = ggl_buffer_from_null_term((char *) name);
-        GglBuffer trunc_name = name_buf;
-        if (ggl_buffer_has_prefix(name_buf, init_name)) {
-            trunc_name
-                = ggl_buffer_substr(name_buf, init_name.len, name_buf.len);
-        };
 
         zip_file_t *entry = zip_fopen_index(zip, i, 0);
         if (entry == NULL) {
@@ -105,7 +126,7 @@ GglError ggl_zip_unarchive(
             GGL_LOGE(
                 "Failed to open file \"%s\" (index %" PRIu64
                 ") from zip with error %d.",
-                trunc_name.data,
+                name_buf.data,
                 i,
                 err
             );
@@ -115,14 +136,14 @@ GglError ggl_zip_unarchive(
 
         GglError ret;
         int dest_file_fd;
-        if (ggl_buffer_has_suffix(trunc_name, GGL_STR("/"))) {
+        if (ggl_buffer_has_suffix(name_buf, GGL_STR("/"))) {
             ret = ggl_dir_openat(
-                dest_dir_fd, trunc_name, O_PATH, mode, &dest_file_fd
+                dest_dir_fd, name_buf, O_PATH, mode, &dest_file_fd
             );
         } else {
             ret = ggl_file_openat(
                 dest_dir_fd,
-                trunc_name,
+                name_buf,
                 O_WRONLY | O_CREAT | O_TRUNC,
                 mode,
                 &dest_file_fd

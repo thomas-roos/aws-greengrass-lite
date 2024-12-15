@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #include "fleet-provisioning.h"
+#include <sys/types.h>
 #include <argp.h>
 #include <ggl/error.h>
+#include <ggl/exec.h>
 #include <ggl/log.h>
 #include <ggl/version.h>
 #include <string.h>
@@ -83,7 +85,7 @@ static void parse_path(char **argv, char *path) {
     // worry about null termination
     //  NOLINTNEXTLINE(bugprone-not-null-terminated-result)
     memcpy(path, argv[0], strlen(argv[0]) - strlen(COMPONENT_NAME));
-    strncat(path, "iotcored", strlen("iotcored"));
+    strncat(path, "iotcored", sizeof("iotcored") - 1U);
 
     GGL_LOGD("iotcored path: %.*s", (int) strlen(path), path);
 }
@@ -98,8 +100,13 @@ int main(int argc, char **argv) {
     argp_parse(&argp, argc, argv, 0, 0, &args);
     args.iotcored_path = iotcored_path;
 
-    GglError ret = run_fleet_prov(&args);
+    pid_t pid = -1;
+    GglError ret = run_fleet_prov(&args, &pid);
     if (ret != GGL_ERR_OK) {
+        if (pid != -1) {
+            GGL_LOGE("Something went wrong. Killing iotcored");
+            ggl_exec_kill_process(pid);
+        }
         return 1;
     }
 }

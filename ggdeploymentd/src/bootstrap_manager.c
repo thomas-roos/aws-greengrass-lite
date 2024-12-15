@@ -5,21 +5,50 @@
 #include "bootstrap_manager.h"
 #include "deployment_model.h"
 #include "deployment_queue.h"
+#include "stale_component.h"
+#include <assert.h>
 #include <fcntl.h>
 #include <ggl/buffer.h>
 #include <ggl/bump_alloc.h>
 #include <ggl/core_bus/gg_config.h>
 #include <ggl/error.h>
-#include <ggl/exec.h>
 #include <ggl/file.h>
 #include <ggl/log.h>
 #include <ggl/map.h>
 #include <ggl/object.h>
 #include <ggl/vector.h>
+#include <inttypes.h>
 #include <limits.h>
+#include <string.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
+
+bool component_bootstrap_phase_completed(GglBuffer component_name) {
+    // check config to see if component bootstrap steps have already been
+    // completed
+    uint8_t resp_mem[128] = { 0 };
+    GglBuffer resp = GGL_BUF(resp_mem);
+    GglError ret = ggl_gg_config_read_str(
+        GGL_BUF_LIST(
+            GGL_STR("services"),
+            GGL_STR("DeploymentService"),
+            GGL_STR("deploymentState"),
+            GGL_STR("bootstrapComponents"),
+            component_name
+        ),
+        &resp
+    );
+    if (ret == GGL_ERR_OK) {
+        GGL_LOGD(
+            "Bootstrap steps have already been run for %.*s.",
+            (int) component_name.len,
+            component_name.data
+        );
+        return true;
+    }
+    return false;
+}
 
 GglError save_component_info(
     GglBuffer component_name, GglBuffer component_version, GglBuffer type
@@ -44,7 +73,7 @@ GglError save_component_info(
                 component_name
             ),
             GGL_OBJ_BUF(component_version),
-            &(int64_t) { 0 }
+            &(int64_t) { 3 }
         );
         if (ret != GGL_ERR_OK) {
             GGL_LOGE(
@@ -64,7 +93,7 @@ GglError save_component_info(
                 component_name
             ),
             GGL_OBJ_BUF(component_version),
-            &(int64_t) { 0 }
+            &(int64_t) { 3 }
         );
         if (ret != GGL_ERR_OK) {
             GGL_LOGE(
@@ -102,10 +131,33 @@ GglError save_iot_jobs_id(GglBuffer jobs_id) {
             GGL_STR("jobsID")
         ),
         GGL_OBJ_BUF(jobs_id),
-        &(int64_t) { 0 }
+        &(int64_t) { 3 }
     );
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Failed to write IoT Jobs ID to config.");
+        return ret;
+    }
+    return GGL_ERR_OK;
+}
+
+GglError save_iot_jobs_version(int64_t jobs_version) {
+    GGL_LOGD(
+        "Saving IoT Jobs version %" PRIi64 " in case of bootstrap.",
+        jobs_version
+    );
+
+    GglError ret = ggl_gg_config_write(
+        GGL_BUF_LIST(
+            GGL_STR("services"),
+            GGL_STR("DeploymentService"),
+            GGL_STR("deploymentState"),
+            GGL_STR("jobsVersion")
+        ),
+        GGL_OBJ_I64(jobs_version),
+        &(int64_t) { 3 }
+    );
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Failed to write IoT Jobs Version to config.");
         return ret;
     }
     return GGL_ERR_OK;
@@ -135,7 +187,7 @@ GglError save_deployment_info(GglDeployment *deployment) {
             GGL_STR("deploymentDoc")
         ),
         deployment_doc,
-        &(int64_t) { 0 }
+        &(int64_t) { 3 }
     );
 
     if (ret != GGL_ERR_OK) {
@@ -159,7 +211,7 @@ GglError save_deployment_info(GglDeployment *deployment) {
             GGL_STR("deploymentType")
         ),
         GGL_OBJ_BUF(deployment_type),
-        &(int64_t) { 0 }
+        &(int64_t) { 3 }
     );
 
     if (ret != GGL_ERR_OK) {
@@ -171,29 +223,15 @@ GglError save_deployment_info(GglDeployment *deployment) {
 }
 
 GglError retrieve_in_progress_deployment(
-    GglDeployment *deployment, GglBuffer *jobs_id
+    GglDeployment *deployment, GglBuffer *jobs_id, int64_t *jobs_version
 ) {
     GGL_LOGD("Searching config for any in progress deployment.");
-
-    GglError ret = ggl_gg_config_read_str(
-        GGL_BUF_LIST(
-            GGL_STR("services"),
-            GGL_STR("DeploymentService"),
-            GGL_STR("deploymentState"),
-            GGL_STR("jobsID")
-        ),
-        jobs_id
-    );
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGW("Failed to retrieve IoT Jobs ID from config.");
-        return ret;
-    }
 
     GglBuffer config_mem = GGL_BUF((uint8_t[2500]) { 0 });
     GglBumpAlloc balloc = ggl_bump_alloc_init(config_mem);
     GglObject deployment_config;
 
-    ret = ggl_gg_config_read(
+    GglError ret = ggl_gg_config_read(
         GGL_BUF_LIST(
             GGL_STR("services"),
             GGL_STR("DeploymentService"),
@@ -210,11 +248,34 @@ GglError retrieve_in_progress_deployment(
         return GGL_ERR_INVALID;
     }
 
+    GglObject *jobs_id_obj;
+    ret = ggl_map_validate(
+        deployment_config.map,
+        GGL_MAP_SCHEMA({ GGL_STR("jobsID"), true, GGL_TYPE_BUF, &jobs_id_obj })
+    );
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+    assert(jobs_id_obj->buf.len < 64);
+    memcpy(jobs_id->data, jobs_id_obj->buf.data, jobs_id_obj->buf.len);
+
+    GglObject *jobs_version_obj;
+    ret = ggl_map_validate(
+        deployment_config.map,
+        GGL_MAP_SCHEMA(
+            { GGL_STR("jobsVersion"), true, GGL_TYPE_I64, &jobs_version_obj }
+        )
+    );
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+    *jobs_version = jobs_version_obj->i64;
+
     GglObject *deployment_type;
     ret = ggl_map_validate(
         deployment_config.map,
         GGL_MAP_SCHEMA(
-            { GGL_STR("deploymentType"), false, GGL_TYPE_BUF, &deployment_type }
+            { GGL_STR("deploymentType"), true, GGL_TYPE_BUF, &deployment_type }
         )
     );
     if (ret != GGL_ERR_OK) {
@@ -233,7 +294,7 @@ GglError retrieve_in_progress_deployment(
     ret = ggl_map_validate(
         deployment_config.map,
         GGL_MAP_SCHEMA(
-            { GGL_STR("deploymentDoc"), false, GGL_TYPE_MAP, &deployment_doc }
+            { GGL_STR("deploymentDoc"), true, GGL_TYPE_MAP, &deployment_doc }
         )
     );
     if (ret != GGL_ERR_OK) {
@@ -358,32 +419,16 @@ GglError process_bootstrap_phase(
 
         // check config to see if component bootstrap steps have already been
         // completed
-        uint8_t resp_mem[128] = { 0 };
-        GglBuffer resp = GGL_BUF(resp_mem);
-        GglError ret = ggl_gg_config_read_str(
-            GGL_BUF_LIST(
-                GGL_STR("services"),
-                GGL_STR("DeploymentService"),
-                GGL_STR("deploymentState"),
-                GGL_STR("bootstrapComponents"),
-                component_name
-            ),
-            &resp
-        );
-        if (ret == GGL_ERR_OK) {
-            GGL_LOGD(
-                "Bootstrap steps have already been run for %.*s. Skipping "
-                "component.",
-                (int) component_name.len,
-                component_name.data
-            );
+        if (component_bootstrap_phase_completed(component_name)) {
+            GGL_LOGD("Bootstrap processed. Skipping component.");
             continue;
         }
 
         static uint8_t bootstrap_service_file_path_buf[PATH_MAX];
         GglByteVec bootstrap_service_file_path_vec
             = GGL_BYTE_VEC(bootstrap_service_file_path_buf);
-        ret = ggl_byte_vec_append(&bootstrap_service_file_path_vec, root_path);
+        GglError ret
+            = ggl_byte_vec_append(&bootstrap_service_file_path_vec, root_path);
         ggl_byte_vec_append(&bootstrap_service_file_path_vec, GGL_STR("/"));
         ggl_byte_vec_append(&bootstrap_service_file_path_vec, GGL_STR("ggl."));
         ggl_byte_vec_chain_append(
@@ -409,6 +454,7 @@ GglError process_bootstrap_phase(
                     component_name.data
                 );
             } else { // relevant bootstrap service file exists
+                disable_and_unlink_service(&component_name, BOOTSTRAP);
                 GGL_LOGI(
                     "Found bootstrap service file for %.*s. Processing.",
                     (int) component_name.len,
@@ -554,11 +600,18 @@ GglError process_bootstrap_phase(
         }
 
         GGL_LOGI("Rebooting device for bootstrap.");
-        char *reboot_args[] = { "reboot", NULL };
-        ret = ggl_exec_command_async(reboot_args, NULL);
-        if (ret != GGL_ERR_OK) {
-            GGL_LOGE("Failed to reboot system for bootstrap.");
-            return ret;
+        // NOLINTNEXTLINE(concurrency-mt-unsafe)
+        int system_ret = system("systemctl reboot");
+        if (WIFEXITED(system_ret)) {
+            if (WEXITSTATUS(system_ret) != 0) {
+                GGL_LOGE("systemctl reboot failed");
+            }
+            GGL_LOGI(
+                "systemctl reboot exited with child status %d\n",
+                WEXITSTATUS(system_ret)
+            );
+        } else {
+            GGL_LOGE("systemctl reboot did not exit normally");
         }
     }
 

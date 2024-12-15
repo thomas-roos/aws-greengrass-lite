@@ -5,6 +5,7 @@
 #include "ggl/recipe2unit.h"
 #include "unit_file_generator.h"
 #include "validate_args.h"
+#include <assert.h>
 #include <fcntl.h>
 #include <ggl/alloc.h>
 #include <ggl/buffer.h>
@@ -49,6 +50,9 @@ static GglError create_unit_file(
         ggl_byte_vec_chain_append(
             &ret, &file_name_vector, GGL_STR(".bootstrap")
         );
+    } else {
+        // Incase of startup/run nothing to append
+        assert(phase == RUN_STARTUP);
     }
     ggl_byte_vec_chain_append(&ret, &file_name_vector, GGL_STR(".service\0"));
     if (ret != GGL_ERR_OK) {
@@ -97,7 +101,7 @@ GglError convert_to_unit(
         recipe_obj
     );
     if (ret != GGL_ERR_OK) {
-        GGL_LOGI("No recipe found");
+        GGL_LOGE("No recipe found");
         return ret;
     }
 
@@ -122,7 +126,7 @@ GglError convert_to_unit(
     }
 
     if (ret == GGL_ERR_NOENTRY) {
-        GGL_LOGW("No bootstrap phase present");
+        GGL_LOGD("No bootstrap phase present");
 
     } else if (ret != GGL_ERR_OK) {
         return ret;
@@ -154,7 +158,7 @@ GglError convert_to_unit(
     }
 
     if (ret == GGL_ERR_NOENTRY) {
-        GGL_LOGW("No Install phase present");
+        GGL_LOGD("No Install phase present");
 
     } else if (ret != GGL_ERR_OK) {
         return ret;
@@ -181,7 +185,7 @@ GglError convert_to_unit(
         RUN_STARTUP
     );
     if (ret == GGL_ERR_NOENTRY) {
-        GGL_LOGW("Neither run nor startup phase present");
+        GGL_LOGD("Neither run nor startup phase present");
     } else if (ret != GGL_ERR_OK) {
         return ret;
     } else {
@@ -201,6 +205,9 @@ GglError convert_to_unit(
         && existing_phases->has_run_startup == false) {
         GGL_LOGE("Recipes without at least 1 valid lifecycle step aren't "
                  "currently supported by GGLite");
+
+        GGL_LOGW("Note that in GG Lite, keys are case sensitive. Check the "
+                 "recipe reference for the correct casing.");
         return GGL_ERR_INVALID;
     }
 

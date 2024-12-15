@@ -10,6 +10,8 @@
 #include <ggl/error.h>
 #include <ggl/object.h>
 #include <ggl/vector.h>
+#include <stdbool.h>
+#include <stdint.h>
 
 /*
   deployment info will be saved to config in the following format:
@@ -25,7 +27,10 @@
           deploymentType: local/IoT Jobs
           deploymentDoc:
           jobsID:
+          jobsVersion:
 */
+
+bool component_bootstrap_phase_completed(GglBuffer component_name);
 
 // type can be "bootstrap" or "completed"
 // bootstrap type indicates that the component's bootstrap steps have completed
@@ -35,9 +40,10 @@ GglError save_component_info(
 );
 
 GglError save_iot_jobs_id(GglBuffer jobs_id);
+GglError save_iot_jobs_version(int64_t jobs_version);
 GglError save_deployment_info(GglDeployment *deployment);
 GglError retrieve_in_progress_deployment(
-    GglDeployment *deployment, GglBuffer *jobs_id
+    GglDeployment *deployment, GglBuffer *jobs_id, int64_t *jobs_version
 );
 GglError delete_saved_deployment_from_config(void);
 GglError process_bootstrap_phase(

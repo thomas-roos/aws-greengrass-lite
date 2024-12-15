@@ -13,6 +13,7 @@
 #include <ggl/constants.h>
 #include <ggl/error.h>
 #include <ggl/file.h>
+#include <ggl/json_encode.h>
 #include <ggl/json_pointer.h>
 #include <ggl/log.h>
 #include <ggl/map.h>
@@ -28,7 +29,7 @@
 
 #define MAX_SCRIPT_LENGTH 10000
 #define MAX_THING_NAME_LEN 128
-#define MAX_RECIPE_LEN 256000
+#define MAX_RECIPE_LEN 25000
 
 pid_t child_pid = -1; // To store child process ID
 
@@ -46,14 +47,20 @@ static GglError insert_config_value(int conn, int out_fd, GglBuffer json_ptr) {
     }
 
     static uint8_t config_value[10000];
-    GglBuffer result = GGL_BUF(config_value);
-    ret = ggipc_get_config_str(conn, key_path.buf_list, NULL, &result);
+    static uint8_t copy_config_value[10000];
+    GglBumpAlloc buffer = ggl_bump_alloc_init(GGL_BUF(config_value));
+    GglObject result = { 0 };
+    ret = ggipc_get_config_obj(
+        conn, key_path.buf_list, NULL, &buffer.alloc, &result
+    );
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Failed to get config value for substitution.");
         return ret;
     }
+    GglBuffer final_result = GGL_BUF(copy_config_value);
+    ggl_json_encode(result, &final_result);
 
-    return ggl_file_write(out_fd, result);
+    return ggl_file_write(out_fd, final_result);
 }
 
 static GglError split_escape_seq(
@@ -492,6 +499,23 @@ static GglError write_script_with_replacement(
         return ret;
     }
 
+    // if startup, send a ready notification before exiting
+    // otherwise, simple startup scripts will fail with 'protocol' by systemd
+    if (ggl_buffer_eq(GGL_STR("startup"), phase)) {
+        ret = ggl_file_write(out_fd, GGL_STR("\n"));
+        if (ret != GGL_ERR_OK) {
+            return ret;
+        }
+        ret = ggl_file_write(out_fd, GGL_STR("systemd-notify --ready\n"));
+        if (ret != GGL_ERR_OK) {
+            return ret;
+        }
+        ret = ggl_file_write(out_fd, GGL_STR("systemd-notify --stopping\n"));
+        if (ret != GGL_ERR_OK) {
+            return ret;
+        }
+    }
+
     return GGL_ERR_OK;
 }
 
@@ -566,46 +590,6 @@ GglError runner(const RecipeRunnerArgs *args) {
         GGL_LOGE("setenv failed: %d.", errno);
     }
 
-    // TODO: Check if TES is dependency within the recipe
-    GglByteVec resp_vec = GGL_BYTE_VEC(resp_mem);
-    ret = ggl_byte_vec_append(&resp_vec, GGL_STR("http://localhost:"));
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Failed to append http://localhost:");
-        return ret;
-    }
-    GglBuffer rest = ggl_byte_vec_remaining_capacity(resp_vec);
-
-    ret = ggipc_get_config_str(
-        conn,
-        GGL_BUF_LIST(GGL_STR("port")),
-        &GGL_STR("aws.greengrass.TokenExchangeService"),
-        &rest
-    );
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGW("Failed to get port from config. errono: %d", ret);
-    } else {
-        // Only set the env var if port number is valid
-        resp_vec.buf.len += rest.len;
-        ret = ggl_byte_vec_append(
-            &resp_vec, GGL_STR("/2016-11-01/credentialprovider/\0")
-        );
-        if (ret != GGL_ERR_OK) {
-            GGL_LOGE("Failed to append /2016-11-01/credentialprovider/");
-            return ret;
-        }
-
-        sys_ret = setenv(
-            "AWS_CONTAINER_CREDENTIALS_FULL_URI",
-            (char *) resp_vec.buf.data,
-            true
-        );
-        if (sys_ret != 0) {
-            GGL_LOGE(
-                "setenv AWS_CONTAINER_CREDENTIALS_FULL_URI failed: %d.", errno
-            );
-        }
-    }
-
     sys_ret = setenv("GGC_VERSION", GGL_VERSION, true);
     if (sys_ret != 0) {
         GGL_LOGE("setenv failed: %d.", errno);
@@ -665,6 +649,61 @@ GglError runner(const RecipeRunnerArgs *args) {
         return ret;
     }
 
+    // Check if TES is the dependency within the recipe
+    GglObject *val;
+    if (ggl_map_get(recipe.map, GGL_STR("ComponentDependencies"), &val)) {
+        if (val->type != GGL_TYPE_MAP) {
+            return GGL_ERR_PARSE;
+        }
+        GglObject *inner_val;
+        GglMap inner_map = val->map;
+        if (ggl_map_get(
+                inner_map,
+                GGL_STR("aws.greengrass.TokenExchangeService"),
+                &inner_val
+            )) {
+            static uint8_t resp_mem2[PATH_MAX];
+            GglByteVec resp_vec = GGL_BYTE_VEC(resp_mem2);
+            ret = ggl_byte_vec_append(&resp_vec, GGL_STR("http://localhost:"));
+            if (ret != GGL_ERR_OK) {
+                GGL_LOGE("Failed to append http://localhost:");
+                return ret;
+            }
+            GglBuffer rest = ggl_byte_vec_remaining_capacity(resp_vec);
+
+            ret = ggipc_get_config_str(
+                conn,
+                GGL_BUF_LIST(GGL_STR("port")),
+                &GGL_STR("aws.greengrass.TokenExchangeService"),
+                &rest
+            );
+            if (ret != GGL_ERR_OK) {
+                GGL_LOGW("Failed to get port from config. errono: %d", ret);
+            } else {
+                resp_vec.buf.len += rest.len;
+                ret = ggl_byte_vec_append(
+                    &resp_vec, GGL_STR("/2016-11-01/credentialprovider/\0")
+                );
+                if (ret != GGL_ERR_OK) {
+                    GGL_LOGE("Failed to append /2016-11-01/credentialprovider/"
+                    );
+                    return ret;
+                }
+
+                sys_ret = setenv(
+                    "AWS_CONTAINER_CREDENTIALS_FULL_URI",
+                    (char *) resp_vec.buf.data,
+                    true
+                );
+                if (sys_ret != 0) {
+                    GGL_LOGE(
+                        "setenv AWS_CONTAINER_CREDENTIALS_FULL_URI failed: %d.",
+                        errno
+                    );
+                }
+            }
+        }
+    }
     int dir_fd;
     ret = ggl_dir_open(root_path, O_PATH, false, &dir_fd);
     if (ret != GGL_ERR_OK) {
