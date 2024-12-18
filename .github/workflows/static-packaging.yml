@@ -21,7 +21,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.local/share/containers/
-          key: ${{ runner.os }}-${{ matrix.architecture }}-podman-${{ hashFiles('**/Containerfile') }}
+          key: ${{ runner.os }}-${{ matrix.architecture }}-podman-${{ hashFiles('misc/staticbuildtestcontainer/*') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.architecture }}-podman-
       - name: Build container for aarch64-linux-gnu
