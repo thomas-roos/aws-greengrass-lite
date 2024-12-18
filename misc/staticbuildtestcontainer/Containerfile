@@ -1,0 +1,106 @@
+FROM ubuntu:22.04
+ARG DEBIAN_FRONTEND=noninteractive
+
+# Update and install necessary packages
+RUN apt-get update && apt-get -y install --no-install-recommends \
+    systemd systemd-sysv dbus ca-certificates sudo nano bash-completion \
+    build-essential pkg-config git file gdb python3 wget \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+# Create a non-root user for building
+RUN useradd -m builder && \
+    echo "builder ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Switch to the non-root user
+USER builder
+WORKDIR /home/builder
+
+# Function to download, build and install packages
+RUN echo '#!/bin/bash' > /home/builder/build_package.sh && \
+    echo 'set -ex' >> /home/builder/build_package.sh && \
+    echo 'mkdir -p src && cd src' >> /home/builder/build_package.sh && \
+    echo 'wget $1 -O package.tar.gz' >> /home/builder/build_package.sh && \
+    echo 'tar xzf package.tar.gz' >> /home/builder/build_package.sh && \
+    echo 'cd $(find . -maxdepth 1 -type d | grep -v "^\.$" | head -1)' >> /home/builder/build_package.sh && \
+    echo 'eval "$2"' >> /home/builder/build_package.sh && \
+    echo 'make' >> /home/builder/build_package.sh && \
+    echo 'sudo make install' >> /home/builder/build_package.sh && \
+    echo 'cd /home/builder && rm -rf src' >> /home/builder/build_package.sh && \
+    chmod +x /home/builder/build_package.sh
+
+
+# Build and install zlib
+RUN /home/builder/build_package.sh \
+    "https://github.com/madler/zlib/releases/download/v1.3.1/zlib-1.3.1.tar.gz" \
+    './configure --static'
+
+# Build and install OpenSSL
+RUN /home/builder/build_package.sh \
+    "https://www.openssl.org/source/openssl-3.0.8.tar.gz" \
+    'export ARCH=$(uname -m); \
+     case $ARCH in \
+       x86_64) TARGET="linux-x86_64";; \
+       aarch64) TARGET="linux-aarch64";; \
+       armv7l) TARGET="linux-armv4";; \
+       *) echo "Unsupported architecture: $ARCH"; exit 1;; \
+     esac; \
+     ./Configure no-shared no-async $TARGET -static'
+
+# Build and install CMake
+RUN /home/builder/build_package.sh \
+    "https://github.com/Kitware/CMake/releases/download/v3.26.3/cmake-3.26.3.tar.gz" \
+    './bootstrap'
+
+# Build and install libzip
+RUN /home/builder/build_package.sh \
+    "https://libzip.org/download/libzip-1.8.0.tar.gz" \
+    'mkdir build && cd build && cmake .. -DBUILD_SHARED_LIBS=OFF'
+
+# Build and install libcurl
+RUN /home/builder/build_package.sh \
+    "https://curl.se/download/curl-7.88.1.tar.gz" \
+    './configure --with-openssl --enable-static --disable-shared'
+
+# Build and install SQLite
+RUN /home/builder/build_package.sh \
+    "https://www.sqlite.org/2021/sqlite-autoconf-3370000.tar.gz" \
+    './configure --enable-static --disable-shared'
+
+# Build and install libyaml
+RUN /home/builder/build_package.sh \
+    "https://github.com/yaml/libyaml/releases/download/0.2.5/yaml-0.2.5.tar.gz" \
+    './configure --enable-static --disable-shared'
+
+# Build and install libevent
+RUN /home/builder/build_package.sh \
+    "https://github.com/libevent/libevent/releases/download/release-2.1.12-stable/libevent-2.1.12-stable.tar.gz" \
+    './configure --enable-static --disable-shared'
+
+# Build and install libzip
+RUN /home/builder/build_package.sh \
+    "https://libzip.org/download/libzip-1.8.0.tar.gz" \
+    'mkdir build && cd build && cmake .. -DBUILD_SHARED_LIBS=OFF'
+
+# Build and install uuid
+RUN /home/builder/build_package.sh \
+    "https://sourceforge.net/projects/libuuid/files/libuuid-1.0.3.tar.gz" \
+    './configure --enable-static --disable-shared'
+
+USER root
+
+# Update environment variables and pkg-config files
+RUN echo "export LD_LIBRARY_PATH=/usr/local/lib64:/usr/local/lib:\$LD_LIBRARY_PATH" >> /etc/environment && \
+    echo "export LIBRARY_PATH=/usr/local/lib64:/usr/local/lib:\$LIBRARY_PATH" >> /etc/environment && \
+    echo "export PKG_CONFIG_PATH=/usr/local/lib64/pkgconfig:/usr/local/lib/pkgconfig:\$PKG_CONFIG_PATH" >> /etc/environment
+
+# Install libsystemd-dev
+RUN apt-get update && apt-get -y install --no-install-recommends \
+    libsystemd-dev liburiparser-dev \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY ./getty-override.conf \
+  /etc/systemd/system/console-getty.service.d/override.conf
+
+RUN echo "export MAKEFLAGS=-j$(nproc)" >> /root/.profile
+
+CMD ["/lib/systemd/systemd"]
