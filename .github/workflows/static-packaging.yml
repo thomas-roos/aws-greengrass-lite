@@ -17,6 +17,13 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
+      - name: Cache Podman storage
+        uses: actions/cache@v2
+        with:
+          path: ~/.local/share/containers/
+          key: ${{ runner.os }}-${{ matrix.architecture }}-podman-${{ hashFiles('**/Containerfile') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.architecture }}-podman-
       - name: Build container for aarch64-linux-gnu
         if: matrix.architecture == 'aarch64-linux-gnu'
         run: |
