@@ -2,8 +2,8 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# To enable static linking of core libraries (OpenSSL, libcurl, SQLite3):
-# cmake -DBUILD_SHARED_LIBS=OFF -DSTATIC_LINK_CORE_LIBS=ON ...
+# To enable static linking of core libraries (OpenSSL, libcurl, SQLite3): cmake
+# -DBUILD_SHARED_LIBS=OFF -DSTATIC_LINK_CORE_LIBS=ON ...
 
 cmake_minimum_required(VERSION 3.25)
 project(aws-greengrass-lite C ASM)
@@ -33,7 +33,8 @@ set(GGL_SYSTEMD_SYSTEM_GROUP
     "ggcore"
     CACHE STRING "Core service group")
 
-option(STATIC_LINK_CORE_LIBS "Statically link core libraries (OpenSSL, libcurl, SQLite3)" OFF)
+option(STATIC_LINK_CORE_LIBS
+       "Statically link core libraries (OpenSSL, libcurl, SQLite3)" OFF)
 
 #
 # Misc
@@ -287,27 +288,23 @@ check_c_source_compiles(
 
 function(setup_static_linking target)
   if(STATIC_LINK_CORE_LIBS)
-    target_link_libraries(${target} PRIVATE
-      $<LINK_ONLY:${openssl_STATIC_LIBRARIES}>
-      $<LINK_ONLY:${libcurl_STATIC_LIBRARIES}>
-      $<LINK_ONLY:${sqlite3_STATIC_LIBRARIES}>
-    )
-    target_include_directories(${target} PRIVATE
-      ${openssl_STATIC_INCLUDE_DIRS}
-      ${libcurl_STATIC_INCLUDE_DIRS}
-      ${sqlite3_STATIC_INCLUDE_DIRS}
-    )
-    target_compile_options(${target} PRIVATE
-      ${openssl_STATIC_CFLAGS_OTHER}
-      ${libcurl_STATIC_CFLAGS_OTHER}
-      ${sqlite3_STATIC_CFLAGS_OTHER}
-    )
+    target_link_libraries(
+      ${target}
+      PRIVATE $<LINK_ONLY:${openssl_STATIC_LIBRARIES}>
+              $<LINK_ONLY:${libcurl_STATIC_LIBRARIES}>
+              $<LINK_ONLY:${sqlite3_STATIC_LIBRARIES}>)
+    target_include_directories(
+      ${target}
+      PRIVATE ${openssl_STATIC_INCLUDE_DIRS} ${libcurl_STATIC_INCLUDE_DIRS}
+              ${sqlite3_STATIC_INCLUDE_DIRS})
+    target_compile_options(
+      ${target}
+      PRIVATE ${openssl_STATIC_CFLAGS_OTHER} ${libcurl_STATIC_CFLAGS_OTHER}
+              ${sqlite3_STATIC_CFLAGS_OTHER})
   else()
-    target_link_libraries(${target} PRIVATE
-      PkgConfig::openssl
-      PkgConfig::libcurl
-      PkgConfig::sqlite3
-    )
+    target_link_libraries(
+      ${target} PRIVATE PkgConfig::openssl PkgConfig::libcurl
+                        PkgConfig::sqlite3)
   endif()
 endfunction()
 
