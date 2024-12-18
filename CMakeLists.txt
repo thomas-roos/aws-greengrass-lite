@@ -286,6 +286,7 @@ check_c_source_compiles(
 # Add components
 #
 
+# Setup static linking for target
 function(setup_static_linking target)
   if(STATIC_LINK_CORE_LIBS)
     target_link_libraries(

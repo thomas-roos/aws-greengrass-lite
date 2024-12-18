@@ -13,6 +13,7 @@ corge
 coverity
 cpack
 cpus
+DBUILD
 dbus
 depl
 DFETCHCONTENT
@@ -24,6 +25,7 @@ elif
 EOK
 epoll
 EPOLLIN
+esac
 evbuffer
 eventfd
 evhttp
