@@ -46,7 +46,7 @@ jobs:
             make -C build -j$(nproc) && \
             cd build && cpack -v -G DEB && cd - \
             "
-          sudo chown -R $UID: ~/.local/share/containers
+          sudo chown -R $UID:$(id -g) ~/.local/share/containers
       - name: Save package
         run: |
           mkdir ${{ github.workspace }}/zipfile/
