@@ -15,6 +15,7 @@ cpack
 cpus
 DBUILD
 dbus
+dearmor
 depl
 DFETCHCONTENT
 DGGL

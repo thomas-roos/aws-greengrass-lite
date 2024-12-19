@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
-      - name: Cache Podman storage (excluding overlay)
+      - name: Cache Podman storage
         uses: actions/cache@v4
         with:
           path: |

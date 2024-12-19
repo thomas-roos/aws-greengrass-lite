@@ -17,6 +17,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Set up QEMU
         uses: docker/setup-qemu-action@v3
+      - name: Cache Podman storage
+        uses: actions/cache@v4
+        with:
+          path: |
+            ../../../.local/share/containers/
+          key: ${{ runner.os }}-${{ matrix.architecture }}-podman-${{ hashFiles('misc/staticbuildtestcontainer/*') }}
+          restore-keys: |
+            ${{ runner.os }}-${{ matrix.architecture }}-podman-
       - name: Build container for aarch64-linux-gnu
         if: matrix.architecture == 'aarch64-linux-gnu'
         run: |
@@ -28,7 +36,7 @@ jobs:
       - name: Run build in container
         shell: bash
         run: |
-          podman run -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
+          podman run --userns=keep-id -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
             cd /aws-greengrass-lite && \
             rm -rf build/ && \
             cmake -B build \
