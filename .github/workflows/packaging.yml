@@ -20,9 +20,8 @@ jobs:
       - name: Cache Podman storage
         uses: actions/cache@v4
         with:
-          path: |
-            ../../../.local/share/containers/
-          key: ${{ runner.os }}-${{ matrix.architecture }}-podman-${{ hashFiles('misc/staticbuildtestcontainer/*') }}
+          path: ~/.local/share/containers/
+          key: ${{ runner.os }}-${{ matrix.architecture }}-podman-${{ hashFiles('misc/buildtestcontainer/*') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.architecture }}-podman-
       - name: Build container for aarch64-linux-gnu
