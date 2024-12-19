@@ -32,7 +32,7 @@ jobs:
         shell: bash
         run: |
           # this will link static if no shared alternative lib is available
-          podman run --userns=keep-id -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
+          podman run -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
             cd /aws-greengrass-lite && \
             rm -rf build/ && \
             cmake -B build \
@@ -46,6 +46,7 @@ jobs:
             make -C build -j$(nproc) && \
             cd build && cpack -v -G DEB && cd - \
             "
+          podman stop ggl
       - name: Save package
         run: |
           mkdir ${{ github.workspace }}/zipfile/
