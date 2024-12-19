@@ -47,6 +47,7 @@ jobs:
             cd build && cpack -v -G DEB && cd - \
             "
           podman stop ggl
+          podman rm ggl
       - name: Save package
         run: |
           mkdir ${{ github.workspace }}/zipfile/
