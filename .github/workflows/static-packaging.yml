@@ -33,6 +33,7 @@ jobs:
       - name: Run build in container
         shell: bash
         run: |
+          # this will link static if no shared alternative lib is available
           podman run -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
             cd /aws-greengrass-lite && \
             rm -rf build/ && \
@@ -40,8 +41,6 @@ jobs:
             -DGGL_LOG_LEVEL=DEBUG \
             -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
             -DCMAKE_FIND_DEBUG_MODE=ON \
-            -DBUILD_SHARED_LIBS=OFF \
-            -DSTATIC_LINK_CORE_LIBS=ON \
             -DGGL_SYSTEMD_SYSTEM_USER=ggcore \
             -DGGL_SYSTEMD_SYSTEM_GROUP=ggcore  \
             -DGGL_SYSTEMD_SYSTEM_DIR=/lib/systemd/system \

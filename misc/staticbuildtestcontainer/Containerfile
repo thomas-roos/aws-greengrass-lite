@@ -27,6 +27,7 @@ RUN apt-get update && apt-get -y install --no-install-recommends \
     systemd-sysv \
     uuid-dev \
     zlib1g-dev \
+    libzip-dev \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Create a non-root user for building
@@ -50,9 +51,9 @@ RUN echo '#!/bin/bash' > /home/builder/build_package.sh && \
     echo 'cd /home/builder && rm -rf src' >> /home/builder/build_package.sh && \
     chmod +x /home/builder/build_package.sh
 
-# Build and install OpenSSL
+# Build and install OpenSSL, using same version as Ubuntu 24.04. (Noble Numbat)
 RUN /home/builder/build_package.sh \
-    "https://www.openssl.org/source/openssl-3.0.8.tar.gz" \
+    "https://www.openssl.org/source/openssl-3.0.13.tar.gz" \
     'export ARCH=$(uname -m); \
      case $ARCH in \
        x86_64) TARGET="linux-x86_64";; \
@@ -63,15 +64,10 @@ RUN /home/builder/build_package.sh \
      ./Configure no-shared no-async $TARGET -static --prefix=/usr/local --openssldir=/usr/local/ssl' \
     'install_sw'
 
-# Build and install libcurl
+# Build and install libcurl, using same version as Ubuntu 24.04. (Noble Numbat)
 RUN /home/builder/build_package.sh \
-    "https://curl.se/download/curl-7.88.1.tar.gz" \
+    "https://curl.se/download/curl-8.5.0.tar.gz" \
     './configure --with-openssl=/usr/local --enable-static --disable-shared --prefix=/usr/local'
-
-# Build and install libzip
-RUN /home/builder/build_package.sh \
-    "https://libzip.org/download/libzip-1.8.0.tar.gz" \
-    'mkdir build && cd build && cmake .. -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=/usr/local -DOPENSSL_ROOT_DIR=/usr/local'
 
 USER root
 
