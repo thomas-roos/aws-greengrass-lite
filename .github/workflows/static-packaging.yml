@@ -46,8 +46,7 @@ jobs:
             make -C build -j$(nproc) && \
             cd build && cpack -v -G DEB && cd - \
             "
-          podman stop ggl
-          podman rm ggl
+          sudo chown -R $UID: ~/.local/share/containers
       - name: Save package
         run: |
           mkdir ${{ github.workspace }}/zipfile/
