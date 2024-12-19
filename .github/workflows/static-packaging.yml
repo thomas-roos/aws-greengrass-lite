@@ -24,7 +24,9 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/podman-image.tar
-          key: ${{ runner.os }}-${{ matrix.architecture }}-podman-${{ hashFiles('misc/staticbuildtestcontainer/*') }}
+          key:
+            ${{ runner.os }}-${{ matrix.architecture }}-podman-${{
+            hashFiles('misc/staticbuildtestcontainer/*') }}
 
       - name: Build and save container for aarch64-linux-gnu
         if: matrix.architecture == 'aarch64-linux-gnu'

@@ -428,9 +428,12 @@ string(STRIP "${VERSION_STRING}" VERSION_STRING)
 
 set(CPACK_PACKAGE_VERSION "${VERSION_STRING}")
 
-string(REGEX REPLACE "^([0-9]+)\\.[0-9]+\\.[0-9]+$" "\\1" CPACK_PACKAGE_VERSION_MAJOR "${VERSION_STRING}")
-string(REGEX REPLACE "^[0-9]+\\.([0-9]+)\\.[0-9]+$" "\\1" CPACK_PACKAGE_VERSION_MINOR "${VERSION_STRING}")
-string(REGEX REPLACE "^[0-9]+\\.[0-9]+\\.([0-9]+)$" "\\1" CPACK_PACKAGE_VERSION_PATCH "${VERSION_STRING}")
+string(REGEX REPLACE "^([0-9]+)\\.[0-9]+\\.[0-9]+$" "\\1"
+                     CPACK_PACKAGE_VERSION_MAJOR "${VERSION_STRING}")
+string(REGEX REPLACE "^[0-9]+\\.([0-9]+)\\.[0-9]+$" "\\1"
+                     CPACK_PACKAGE_VERSION_MINOR "${VERSION_STRING}")
+string(REGEX REPLACE "^[0-9]+\\.[0-9]+\\.([0-9]+)$" "\\1"
+                     CPACK_PACKAGE_VERSION_PATCH "${VERSION_STRING}")
 
 set(CPACK_GENERATOR DEB)
 
