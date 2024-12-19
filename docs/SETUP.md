@@ -33,29 +33,35 @@ This project uses the following third party library dependencies:
 ## Configuring Greengrass
 
 You may configure a single device with the instruction below or a fleet of
-devices with the steps from [Fleet Provisioning guide](Fleet-provisioning.md).
+devices with the steps from [Fleet Provisioning guide](FLEET_PROVISIONING.md).
 Choose one or the other.
 
 To configure Greengrass, you will need a config YAML file, in the same format as
 the Classic nucleus config. An example config file is available in
-[`doc/examples/sample_nucleus_config.yml`](examples/sample_nucleus_config.yml).
+[`docs/examples/sample_nucleus_config.yaml`](examples/sample_nucleus_config.yaml).
 If this is the first time you are creating a GG device, please follow the
 instruction in the [TES setup instructions](./TES.md) to get a role alias,
 thing, certificate, private key, and endpoints for your device.
 
-Make a copy of the [sample configuration](./examples/sample_nucleus_config.yml).
+Make a copy of the [sample configuration](./examples/sample_nucleus_config.yaml)
+as `config.yaml`.
+
+```sh
+cp docs/examples/sample_nucleus_config.yaml ./config.yaml
+```
 
 Configure the following in your config file
 
 - privateKeyPath: Path to private key for the Thing
 - certificateFilePath: Path to Thing certificate
-- thingName: Name of the Thing
+- rootCaPath: Path to Amazon Root CA certificate
 - rootPath: Absolute path to the Greengrass rootpath directory
+- thingName: Name of the Thing
 - awsRegion: The AWS region with the Thing
 - iotCredEndpoint: The IoT Core endpoint
 - iotDataEndpoint: The IoT Core endpoint
-- posixUser: Colon separated user/group that generic components should run as
 - iotRoleAlias: The name of the role alias for accessing TES
+- posixUser: Colon separated user/group that generic components should run as
 
 `posixUser` must be set to a valid user and group. If no colon and group is
 provided, the user's default group is used. If not running Greengrass as root,
@@ -67,11 +73,13 @@ as `/etc/greengrass/config.yaml`, and/or in one or more files in
 
 The config daemon will initially load `/etc/greengrass/config.yaml` and then
 update the initial configuration with any other config files present in
-`/etc/greengrass/config.d/`
+`/etc/greengrass/config.d/`. Copy your configuration file to the above directory
+( Note: you might need to run with `sudo` in case you are getting
+`permission denied` error) -
 
 ```sh
 mkdir -p /etc/greengrass
-cp ./init_config.yml /etc/greengrass/config.yaml
+cp ./config.yaml /etc/greengrass/config.yaml
 ```
 
 ## Running the nucleus
@@ -120,8 +128,3 @@ With the above, you can start a local deployment with:
   --artifacts-dir ~/sample-component/artifacts \
   --add-component com.example.SampleComponent=1.0.0
 ```
-
-## Local-Deploying the sample Hello World component
-
-See the
-[com.example.LiteHelloWorld component README](../hello-world-component/README.md)

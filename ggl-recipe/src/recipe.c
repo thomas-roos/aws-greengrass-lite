@@ -5,6 +5,7 @@
 #include "ggl/recipe.h"
 #include <sys/types.h>
 #include <ctype.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <ggl/alloc.h>
 #include <ggl/buffer.h>
@@ -316,10 +317,10 @@ static GglError manifest_selection(
                         }
                     }
 
-                    GglList selection_deafult
+                    GglList selection_default
                         = GGL_LIST(GGL_OBJ_BUF(GGL_STR("all")));
                     return lifecycle_selection(
-                        &GGL_OBJ_LIST(selection_deafult),
+                        &GGL_OBJ_LIST(selection_default),
                         recipe_map,
                         selected_lifecycle_object
                     );
@@ -485,6 +486,12 @@ GglError ggl_recipe_get_from_file(
                 recipe_dir, GGL_STR("yml"), base_name, &content
             );
             if (ret != GGL_ERR_OK) {
+                GGL_LOGE(
+                    "Err %d could not open recipe file for: %.*s",
+                    errno,
+                    (int) base_name.buf.len,
+                    base_name.buf.data
+                );
                 return ret;
             }
         }
