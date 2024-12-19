@@ -30,9 +30,6 @@ set(GGL_SYSTEMD_SYSTEM_GROUP
     "ggcore"
     CACHE STRING "Core service group")
 
-option(STATIC_LINK_CORE_LIBS
-       "Statically link core libraries (OpenSSL, libcurl)" OFF)
-
 #
 # Misc
 #
@@ -283,29 +280,6 @@ check_c_source_compiles(
 # Add components
 #
 
-# Setup static linking for target
-function(setup_static_linking target)
-  if(STATIC_LINK_CORE_LIBS)
-    target_link_libraries(
-      ${target}
-      PRIVATE $<LINK_ONLY:${openssl_STATIC_LIBRARIES}>
-              $<LINK_ONLY:${libcurl_STATIC_LIBRARIES}>
-              $<LINK_ONLY:${sqlite3_STATIC_LIBRARIES}>)
-    target_include_directories(
-      ${target}
-      PRIVATE ${openssl_STATIC_INCLUDE_DIRS} ${libcurl_STATIC_INCLUDE_DIRS}
-              ${sqlite3_STATIC_INCLUDE_DIRS})
-    target_compile_options(
-      ${target}
-      PRIVATE ${openssl_STATIC_CFLAGS_OTHER} ${libcurl_STATIC_CFLAGS_OTHER}
-              ${sqlite3_STATIC_CFLAGS_OTHER})
-  else()
-    target_link_libraries(
-      ${target} PRIVATE PkgConfig::openssl PkgConfig::libcurl
-                        PkgConfig::sqlite3)
-  endif()
-endfunction()
-
 # Common setup for a GGL module
 function(ggl_init_module name)
   # TODO: special-case the socket permissions and directory for ggipcd
@@ -343,7 +317,6 @@ function(ggl_init_module name)
     target_include_directories(${name} PRIVATE ${COMP_ARG_INCDIRS})
     target_include_directories(${name} SYSTEM INTERFACE ${COMP_ARG_INCDIRS})
     target_link_libraries(${name} PRIVATE ${COMP_ARG_LIBS})
-    setup_static_linking(${name})
   endif()
 
   if(GGL_SYSTEMD_SERVICE_BUILD)
@@ -370,7 +343,6 @@ function(ggl_init_module name)
       target_link_libraries(${bin_name}-bin PRIVATE ${name})
     endif()
     target_link_libraries(${bin_name}-bin PRIVATE ${COMP_ARG_LIBS})
-    setup_static_linking(${bin_name}-bin)
     if(NOT has_argp)
       target_link_libraries(${bin_name}-bin PRIVATE argp)
     endif()

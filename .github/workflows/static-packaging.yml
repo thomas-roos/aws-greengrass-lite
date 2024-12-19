@@ -21,8 +21,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/.local/share/containers
-            !~/.local/share/containers/storage/overlay
+            ../../../.local/share/containers/
           key: ${{ runner.os }}-${{ matrix.architecture }}-podman-${{ hashFiles('misc/staticbuildtestcontainer/*') }}
           restore-keys: |
             ${{ runner.os }}-${{ matrix.architecture }}-podman-
@@ -34,7 +33,7 @@ jobs:
         shell: bash
         run: |
           # this will link static if no shared alternative lib is available
-          podman run -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
+          podman run --userns=keep-id -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
             cd /aws-greengrass-lite && \
             rm -rf build/ && \
             cmake -B build \
