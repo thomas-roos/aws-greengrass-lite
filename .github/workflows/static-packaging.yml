@@ -1,4 +1,4 @@
-name: Build static deb packages and put them in zip files
+name: Build static deb arm64 packages and put them in zip files
 on:
   push:
     branches:
@@ -7,11 +7,11 @@ on:
   pull_request:
 jobs:
   build:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
-        architecture: [aarch64-linux-gnu, ""]
+        architecture: [aarch64-linux-gnu]
         build_type: [RelWithDebInfo, MinSizeRel]
     steps:
       - uses: actions/checkout@v4
@@ -30,10 +30,6 @@ jobs:
         if: matrix.architecture == 'aarch64-linux-gnu'
         run: |
           podman build --from=docker.io/arm64v8/ubuntu:22.04 --arch=arm64 misc/staticbuildtestcontainer -t container
-      - name: Build container for x86-64
-        if: matrix.architecture == ''
-        run: |
-          podman build misc/staticbuildtestcontainer -t container
       - name: Run build in container
         shell: bash
         run: |
@@ -59,9 +55,10 @@ jobs:
           cp ${{ github.workspace }}/build/*.deb ${{ github.workspace }}/zipfile/
       - name: Generate readme / install file
         run: |
-          cat ${{ github.workspace }}/.github/workflows/packaging/readme.template.txt >> ${{ github.workspace }}/zipfile/readme.txt
+          cat ${{ github.workspace }}/.github/workflows/static-packaging/readme.template.txt >> ${{ github.workspace }}/zipfile/readme.txt
           cp ${{ github.workspace }}/.github/workflows/packaging/install-greengrass-lite.sh ${{ github.workspace }}/zipfile/
           sed -i 's|{{ VERSION_LINK }}|${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|g' ${{ github.workspace }}/zipfile/readme.txt
+          sed -i 's| {{ UBUNTU_VERSION }}|22.04|g' ${{ github.workspace }}/zipfile/install-greengrass-lite.sh
           cat ${{ github.workspace }}/LICENSE >> ${{ github.workspace }}/zipfile/readme.txt
       - name: md5sums
         run: |
@@ -72,17 +69,6 @@ jobs:
           name:
             aws-greengrass-lite-ubuntu-${{ matrix.architecture || 'x86-64'}}_${{
             matrix.build_type }}-static
-          path: |
-            ${{ github.workspace }}/zipfile/*
-          retention-days: 1
-      - name:
-          Save x86-64 package without build type - default package to download
-        if: matrix.build_type  == 'MinSizeRel' && matrix.architecture == ''
-        uses: actions/upload-artifact@v4
-        with:
-          name:
-            aws-greengrass-lite-ubuntu-${{ matrix.architecture ||
-            'x86-64'}}-static
           path: |
             ${{ github.workspace }}/zipfile/*
           retention-days: 1

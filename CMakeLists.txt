@@ -2,9 +2,6 @@
 # Copyright Amazon.com, Inc. or its affiliates. All Rights Reserved.
 # SPDX-License-Identifier: Apache-2.0
 
-# To enable static linking of core libraries (OpenSSL, libcurl, SQLite3): cmake
-# -DBUILD_SHARED_LIBS=OFF -DSTATIC_LINK_CORE_LIBS=ON ...
-
 cmake_minimum_required(VERSION 3.25)
 project(aws-greengrass-lite C ASM)
 
@@ -34,7 +31,7 @@ set(GGL_SYSTEMD_SYSTEM_GROUP
     CACHE STRING "Core service group")
 
 option(STATIC_LINK_CORE_LIBS
-       "Statically link core libraries (OpenSSL, libcurl, SQLite3)" OFF)
+       "Statically link core libraries (OpenSSL, libcurl)" OFF)
 
 #
 # Misc
