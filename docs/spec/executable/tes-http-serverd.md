@@ -6,39 +6,43 @@ credentials for other processes to acquire.
 For information on TES, see
 <https://docs.aws.amazon.com/greengrass/v2/developerguide/interact-with-aws-services.html>.
 
-The following is the current daemon implementation flow:
+The following are the requirements for the `tes-http-serverd`:
 
 - [tes-http-serverd-1] The `tes-http-serverd` daemon will use the `tes` daemon
-  for acquiring credentials.
-- [tes-http-serverd-2] On connection, the `tes-http-serverd` daemon will
-  validate the provided token and establish an http connection with the server.
-- [tes-http-serverd-3] On request, the `tes-http-serverd` daemon will validate
+  for acquiring TES credentials.
+- [tes-http-serverd-2] On request, the `tes-http-serverd` daemon will validate
   the request and headers.
-- [tes-http-serverd-4] On request, the `tes-http-serverd` daemon will make a
+- [tes-http-serverd-3] On request, the `tes-http-serverd` daemon will make a
   request to the `tes` daemon to acquire the temporary credentials vended, and
   return to the caller.
+- [tes-http-serverd-4] The `tes-http-serverd` will accept the argument --version
+  (-v) to display the version number of the serverd executable.
+- [tes-http-serverd-5] The `tes-http-serverd` will accept the argument --help
+  (-h) to display all the supported arguments and their use.
+- [tes-http-serverd-6] The server socket port shall be OS selected at random
+  from a free port.
+- [tes-http-serverd-7] After the server socket is created & bound, the socket
+  port must be written to the config key
+  `services/aws.greengrass.TokenExchangeService/configuration/port`.
+- [tes-http-serverd-8] The TES request must be authenticated with an
+  authorization token provided by the client.
+- [tes-http-serverd-9] The authorization token must be validated by the
+  `ipc_component` coreBus responder with the `verify_svcuid` corebus message
+- [tes-http-serverd-10] The authorization token must be 16-octets long.
+- [tes-http-serverd-11] The `tes-http-serverd` shall not cache or otherwise
+  store any credentials. All credentials must be obtained fresh via corebus
+  transactions with the `tesd` process.
 
-## CLI parameters
+### Notes
 
-### port
+> 1: Requirement `tes-http-serverd-11` above is to encourage the TES HTTP server
+> to be as small as possible. Any caching should be done in a central place to
+> the system and with c-groups it may be necessary to start multiple
+> tes-http-serverd's
 
-- [tes-http-serverd-param-port-1] The port argument configures the port for
-  which the server will run on. If not provided will default to port `8090`.
+> 2: The authentication token is provided to the client component by the
+> environment variable `AWS_CONTAINER_AUTHORIZATION_TOKEN`. The client must send
+> this token to the tes-http-serverd in the TES request.
 
-## Environment Variables
-
-### AWS_CONTAINER_AUTHORIZATION_TOKEN
-
-- Authorization token which is used to connected to the Token Exchange Service
-  server hosted on `AWS_CONTAINER_CREDENTIALS_FULL_URI`. Greengrass Nucleus Lite
-  will export this variable for example the AWS SDK to use.
-
-### AWS_CONTAINER_CREDENTIALS_FULL_URI
-
-- The URI in which the Token Exchange Service is hosted on. When a component
-  creates an AWS SDK client, the client recognizes this URI environment variable
-  and uses the token in the `AWS_CONTAINER_AUTHORIZATION_TOKEN` to connect to
-  the token exchange service and retrieve AWS credentials. Greengrass Nucleus
-  Lite will export this variable for example the AWS SDK to use.
-
-## Core Bus API
+> 3: The tes-http-serverd URI shall be provided to all generic components as the
+> environment variable `AWS_CONTAINER_CREDENTIALS_FULL_URI`.
