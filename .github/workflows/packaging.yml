@@ -67,7 +67,8 @@ jobs:
             -DGGL_SYSTEMD_SYSTEM_USER=ggcore \
             -DGGL_SYSTEMD_SYSTEM_GROUP=ggcore  \
             -DGGL_SYSTEMD_SYSTEM_DIR=/lib/systemd/system \
-            -DCMAKE_INSTALL_PREFIX=/usr && \
+            -DCMAKE_INSTALL_PREFIX=/usr \
+            -DCMAKE_EXE_LINKER_FLAGS="-Wl,--no-keep-memory" && \
             ulimit -s unlimited && make -C build -j1 && \
             cd build && cpack -v -G DEB && cd - \
             "
