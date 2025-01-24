@@ -53,7 +53,16 @@ jobs:
         shell: bash
         run: |
           podman run -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
+            echo ulimit before: 
+            ulimit
             ulimit -s unlimited
+            echo ulimit after: 
+            ulimit
+            echo vm.mmap_min_addr before: 
+            sysctl vm.mmap_min_addr
+            sysctl vm.mmap_min_addr=65536
+            echo vm.mmap_min_addr after: 
+            sysctl vm.mmap_min_addr
             cd /aws-greengrass-lite && \
             rm -rf build/ && \
             cmake -B build \
