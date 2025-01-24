@@ -17,7 +17,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
+        uses: docker/setup-qemu-action@v3.2.0
 
       - name: Cache Podman image
         uses: actions/cache@v4
@@ -53,6 +53,7 @@ jobs:
         shell: bash
         run: |
           podman run -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
+            ulimit -s unlimited
             cd /aws-greengrass-lite && \
             rm -rf build/ && \
             cmake -B build \
