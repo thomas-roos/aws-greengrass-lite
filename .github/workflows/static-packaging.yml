@@ -8,7 +8,7 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-24.04-arm
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
@@ -52,7 +52,7 @@ jobs:
             -DGGL_SYSTEMD_SYSTEM_GROUP=ggcore  \
             -DGGL_SYSTEMD_SYSTEM_DIR=/lib/systemd/system \
             -DCMAKE_INSTALL_PREFIX=/usr && \
-            make -C build -j$(nproc) && \
+            make -C build -j1 && \
             cd build && cpack -v -G DEB && cd - \
             "
       - name: Save package
