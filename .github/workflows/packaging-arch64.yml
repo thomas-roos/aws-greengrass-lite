@@ -1,4 +1,4 @@
-name: Build deb packages and put them in zip files
+name: arch64 - Build deb and zip files
 on:
   push:
     branches:
