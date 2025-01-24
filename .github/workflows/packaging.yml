@@ -63,7 +63,7 @@ jobs:
             -DGGL_SYSTEMD_SYSTEM_GROUP=ggcore  \
             -DGGL_SYSTEMD_SYSTEM_DIR=/lib/systemd/system \
             -DCMAKE_INSTALL_PREFIX=/usr && \
-            make -C build -j$(nproc) && \
+            make -C build -j1 && \
             cd build && cpack -v -G DEB && cd - \
             "
 
