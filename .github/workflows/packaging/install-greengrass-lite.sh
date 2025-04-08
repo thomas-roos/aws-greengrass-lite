@@ -31,9 +31,9 @@ check_ubuntu_version() {
             return 0
         fi
     fi
-    echo "Error: This greengrass lite package is only working with Ubuntu {{ UBUNTU_VERSION }}"
+    echo "Warning: This greengrass lite package is only tested working with Ubuntu {{ UBUNTU_VERSION }}"
     echo "Current system: $PRETTY_NAME"
-    exit 1
+    return 0
 }
 
 
