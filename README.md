@@ -18,9 +18,7 @@ To configure and run Greengrass Nucleus Lite, see the
 [setup guide](docs/SETUP.md).
 
 For setting up as a Greengrass developer, also see the
-[developer setup guide](docs/DEVELOPMENT.md).
-
-### ⚠️ Important Notice
+[developer setup guide](docs/DEVELOPMENT.md
 
 The git tags in this repository represent stable, fully tested releases. Please
 use these for production environments.
