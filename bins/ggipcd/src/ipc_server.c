@@ -9,6 +9,8 @@
 #include <sys/types.h>
 #include <assert.h>
 #include <errno.h>
+#include <ggipc/auth.h>
+#include <ggl/alloc.h>
 #include <ggl/buffer.h>
 #include <ggl/bump_alloc.h>
 #include <ggl/cleanup.h>
@@ -18,6 +20,7 @@
 #include <ggl/eventstream/rpc.h>
 #include <ggl/eventstream/types.h>
 #include <ggl/io.h>
+#include <ggl/ipc/common.h>
 #include <ggl/json_decode.h>
 #include <ggl/json_encode.h>
 #include <ggl/log.h>
@@ -71,79 +74,16 @@ static GglError release_client_subscriptions(uint32_t handle, size_t index) {
     return ggl_ipc_release_subscriptions_for_conn(handle);
 }
 
-static void get_ipc_err_info(
-    GglIpcErrorCode error_code,
-    GglBuffer *err_str,
-    GglBuffer *service_model_type
+static GglError deserialize_payload(
+    GglBuffer payload, GglMap *out, GglAlloc *alloc
 ) {
-    switch (error_code) {
-    case GGL_IPC_ERR_SERVICE_ERROR:
-        *err_str = GGL_STR("ServiceError");
-        *service_model_type = GGL_STR("aws.greengrass#ServiceError");
-        return;
-
-    case GGL_IPC_ERR_RESOURCE_NOT_FOUND:
-        *err_str = GGL_STR("ResourceNotFoundError");
-        *service_model_type = GGL_STR("aws.greengrass#ResourceNotFoundError");
-        return;
-
-    case GGL_IPC_ERR_INVALID_ARGUMENTS:
-        *err_str = GGL_STR("InvalidArgumentsError");
-        *service_model_type = GGL_STR("aws.greengrass#InvalidArgumentsError");
-        return;
-
-    case GGL_IPC_ERR_COMPONENT_NOT_FOUND:
-        *err_str = GGL_STR("ComponentNotFoundError");
-        *service_model_type = GGL_STR("aws.greengrass#ComponentNotFoundError");
-        return;
-
-    case GGL_IPC_ERR_UNAUTHORIZED_ERROR:
-        *err_str = GGL_STR("UnauthorizedError");
-        *service_model_type = GGL_STR("aws.greengrass#UnauthorizedError");
-        return;
-
-    case GGL_IPC_ERR_CONFLICT_ERROR:
-        *err_str = GGL_STR("ConflictError");
-        *service_model_type = GGL_STR("aws.greengrass#ConflictError");
-        return;
-
-    case GGL_IPC_ERR_FAILED_UPDATE_CONDITION_CHECK_ERROR:
-        *err_str = GGL_STR("FailedUpdateConditionCheckError");
-        *service_model_type
-            = GGL_STR("aws.greengrass#FailedUpdateConditionCheckError");
-        return;
-
-    case GGL_IPC_ERR_INVALID_TOKEN_ERROR:
-        *err_str = GGL_STR("InvalidTokenError");
-        *service_model_type = GGL_STR("aws.greengrass#InvalidTokenError");
-        return;
-
-    case GGL_IPC_ERR_INVALID_RECIPE_DIRECTORY_PATH_ERROR:
-        *err_str = GGL_STR("InvalidRecipeDirectoryPathError");
-        *service_model_type
-            = GGL_STR("aws.greengrass#InvalidRecipeDirectoryPathError");
-        return;
-
-    case GGL_IPC_ERR_INVALID_ARTIFACTS_DIRECTORY_PATH_ERROR:
-        *err_str = GGL_STR("InvalidArtifactsDirectoryPathError");
-        *service_model_type
-            = GGL_STR("aws.greengrass#InvalidArtifactsDirectoryPathError");
-        return;
-    }
-}
-
-static GglError deserialize_payload(GglBuffer payload, GglMap *out) {
     GglObject obj;
-
-    static uint8_t
-        json_decode_mem[GGL_IPC_PAYLOAD_MAX_SUBOBJECTS * sizeof(GglObject)];
-    GglBumpAlloc balloc = ggl_bump_alloc_init(GGL_BUF(json_decode_mem));
 
     GGL_LOGT(
         "Deserializing payload %.*s", (int) payload.len, (char *) payload.data
     );
 
-    GglError ret = ggl_json_decode_destructive(payload, &balloc.alloc, &obj);
+    GglError ret = ggl_json_decode_destructive(payload, alloc, &obj);
     if (ret != GGL_ERR_OK) {
         GGL_LOGE("Failed to decode msg payload.");
         return ret;
@@ -165,78 +105,9 @@ static void set_conn_component(void *ctx, size_t index) {
     client_components[index] = *component_handle;
 }
 
-static GglError complete_conn_init(
-    uint32_t handle,
-    GglComponentHandle component_handle,
-    bool send_svcuid,
-    GglBuffer svcuid
+static GglError validate_conn_msg(
+    EventStreamMessage *msg, EventStreamCommonHeaders common_headers
 ) {
-    GGL_LOGT("Setting %d as connected.", handle);
-
-    GglError ret = ggl_socket_handle_protected(
-        set_conn_component, &component_handle, &pool, handle
-    );
-    if (ret != GGL_ERR_OK) {
-        return ret;
-    }
-
-    GGL_MTX_SCOPE_GUARD(&resp_array_mtx);
-    GglBuffer resp_buffer = GGL_BUF(resp_array);
-
-    ret = eventstream_encode(
-        &resp_buffer,
-        (EventStreamHeader[]) {
-            { GGL_STR(":message-type"),
-              { EVENTSTREAM_INT32, .int32 = EVENTSTREAM_CONNECT_ACK } },
-            { GGL_STR(":message-flags"),
-              { EVENTSTREAM_INT32, .int32 = EVENTSTREAM_CONNECTION_ACCEPTED } },
-            { GGL_STR(":stream-id"), { EVENTSTREAM_INT32, .int32 = 0 } },
-            { GGL_STR("svcuid"), { EVENTSTREAM_STRING, .string = svcuid } },
-        },
-        send_svcuid ? 4 : 3,
-        GGL_NULL_READER
-    );
-    if (ret != GGL_ERR_OK) {
-        return ret;
-    }
-
-    ret = ggl_socket_handle_write(&pool, handle, resp_buffer);
-    if (ret != GGL_ERR_OK) {
-        return ret;
-    }
-
-    GGL_LOGD("Successful connection.");
-    return GGL_ERR_OK;
-}
-
-static GglError handle_authentication_request(uint32_t handle) {
-    GGL_LOGD("Client %d requesting svcuid.", handle);
-
-    pid_t pid = 0;
-    GglError ret = ggl_socket_handle_get_peer_pid(&pool, handle, &pid);
-    if (ret != GGL_ERR_OK) {
-        return ret;
-    }
-
-    GglComponentHandle component_handle = 0;
-    uint8_t svcuid_buf[GGL_IPC_SVCUID_LEN];
-    GglBuffer svcuid = GGL_BUF(svcuid_buf);
-    ret = ggl_ipc_components_register(pid, &component_handle, &svcuid);
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Client %d failed authentication.", handle);
-        return ret;
-    }
-
-    return complete_conn_init(handle, component_handle, true, svcuid);
-}
-
-static GglError handle_conn_init(
-    uint32_t handle,
-    EventStreamMessage *msg,
-    EventStreamCommonHeaders common_headers
-) {
-    GGL_LOGD("Handling connect for %d.", handle);
-
     if (common_headers.message_type != EVENTSTREAM_CONNECT) {
         GGL_LOGE("Client initial message not of type connect.");
         return GGL_ERR_INVALID;
@@ -250,68 +121,176 @@ static GglError handle_conn_init(
         return GGL_ERR_INVALID;
     }
 
-    bool request_auth = false;
+    EventStreamHeaderIter iter = msg->headers;
+    EventStreamHeader header;
 
-    {
-        EventStreamHeaderIter iter = msg->headers;
-        EventStreamHeader header;
-
-        while (eventstream_header_next(&iter, &header) == GGL_ERR_OK) {
-            if (ggl_buffer_eq(header.name, GGL_STR(":version"))) {
-                if (header.value.type != EVENTSTREAM_STRING) {
-                    GGL_LOGE(":version header not string.");
-                    return GGL_ERR_INVALID;
-                }
-                if (!ggl_buffer_eq(header.value.string, GGL_STR("0.1.0"))) {
-                    GGL_LOGE("Client protocol version not 0.1.0.");
-                    return GGL_ERR_INVALID;
-                }
-            } else if (ggl_buffer_eq(header.name, GGL_STR("authenticate"))) {
-                if (header.value.type != EVENTSTREAM_INT32) {
-                    GGL_LOGE("request_svcuid header not an int.");
-                    return GGL_ERR_INVALID;
-                }
-                if (header.value.int32 == 1) {
-                    request_auth = true;
-                }
+    while (eventstream_header_next(&iter, &header) == GGL_ERR_OK) {
+        if (ggl_buffer_eq(header.name, GGL_STR(":version"))) {
+            if (header.value.type != EVENTSTREAM_STRING) {
+                GGL_LOGE(":version header not string.");
+                return GGL_ERR_INVALID;
+            }
+            if (!ggl_buffer_eq(header.value.string, GGL_STR("0.1.0"))) {
+                GGL_LOGE("Client protocol version not 0.1.0.");
+                return GGL_ERR_INVALID;
             }
         }
     }
 
-    if (request_auth) {
-        return handle_authentication_request(handle);
+    return GGL_ERR_OK;
+}
+
+static GglError send_conn_resp(uint32_t handle, GglBuffer *svcuid) {
+    GGL_MTX_SCOPE_GUARD(&resp_array_mtx);
+    GglBuffer resp_buffer = GGL_BUF(resp_array);
+
+    GglBuffer svcuid_buf = (svcuid != NULL) ? *svcuid : GGL_STR("");
+
+    GglError ret = eventstream_encode(
+        &resp_buffer,
+        (EventStreamHeader[]) {
+            { GGL_STR(":message-type"),
+              { EVENTSTREAM_INT32, .int32 = EVENTSTREAM_CONNECT_ACK } },
+            { GGL_STR(":message-flags"),
+              { EVENTSTREAM_INT32, .int32 = EVENTSTREAM_CONNECTION_ACCEPTED } },
+            { GGL_STR(":stream-id"), { EVENTSTREAM_INT32, .int32 = 0 } },
+            { GGL_STR("svcuid"), { EVENTSTREAM_STRING, .string = svcuid_buf } },
+
+        },
+        (svcuid != NULL) ? 4 : 3,
+        GGL_NULL_READER
+    );
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+
+    return ggl_socket_handle_write(&pool, handle, resp_buffer);
+}
+
+static GglError handle_conn_init(
+    uint32_t handle,
+    EventStreamMessage *msg,
+    EventStreamCommonHeaders common_headers,
+    GglAlloc *alloc
+) {
+    GGL_LOGD("Handling connect for %d.", handle);
+
+    GglError ret = validate_conn_msg(msg, common_headers);
+    if (ret != GGL_ERR_OK) {
+        return ret;
     }
 
     GglMap payload_data = { 0 };
-    GglError ret = deserialize_payload(msg->payload, &payload_data);
+    ret = deserialize_payload(msg->payload, &payload_data, alloc);
     if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Connect payload is not valid json.");
         return ret;
     }
 
-    GglObject *value;
-    bool found = ggl_map_get(payload_data, GGL_STR("authToken"), &value);
-    if (!found) {
-        GGL_LOGE("Connect message payload missing authToken.");
-        return GGL_ERR_INVALID;
-    }
-    if (value->type != GGL_TYPE_BUF) {
-        GGL_LOGE("Connect message authToken not a string.");
-        return GGL_ERR_INVALID;
-    }
-    GglBuffer auth_token = value->buf;
-
-    GGL_LOGD("Client connecting.");
-
-    GglComponentHandle component_handle = 0;
-    ret = ggl_ipc_components_get_handle(auth_token, &component_handle);
-    if (ret != GGL_ERR_OK) {
-        GGL_LOGE("Client failed authentication.");
-        return ret;
-    }
-
-    return complete_conn_init(
-        handle, component_handle, false, (GglBuffer) { 0 }
+    GglObject *auth_token_obj;
+    GglObject *component_name_obj;
+    ret = ggl_map_validate(
+        payload_data,
+        GGL_MAP_SCHEMA(
+            { GGL_STR("authToken"), false, GGL_TYPE_BUF, &auth_token_obj },
+            { GGL_STR("componentName"),
+              false,
+              GGL_TYPE_BUF,
+              &component_name_obj },
+        )
     );
+    if (ret != GGL_ERR_OK) {
+        GGL_LOGE("Connect payload key has unexpected non-string value.");
+        return GGL_ERR_INVALID;
+    }
+
+    uint8_t svcuid_buf[GGL_IPC_SVCUID_LEN];
+    GglBuffer auth_token;
+    GglComponentHandle component_handle = 0;
+
+    if (auth_token_obj != NULL) {
+        GGL_LOGD("Client %d provided authToken.", handle);
+
+        auth_token = auth_token_obj->buf;
+
+        ret = ggl_ipc_components_get_handle(auth_token, &component_handle);
+        if (ret != GGL_ERR_OK) {
+            GGL_LOGE(
+                "Client %d failed authentication: invalid svcuid.", handle
+            );
+            return ret;
+        }
+
+        if (component_name_obj != NULL) {
+            GGL_LOGD("Client %d also provided componentName.", handle);
+
+            GglBuffer component_name = component_name_obj->buf;
+            GglBuffer stored_name
+                = ggl_ipc_components_get_name(component_handle);
+
+            if (!ggl_buffer_eq(component_name, stored_name)) {
+                GGL_LOGE(
+                    "Client %d componentName (%.*s) does not match svcuid.",
+                    handle,
+                    (int) component_name.len,
+                    component_name.data
+                );
+                return GGL_ERR_FAILURE;
+            }
+        }
+    } else if (component_name_obj != NULL) {
+        GGL_LOGD("Client %d provided componentName.", handle);
+
+        GglBuffer component_name = component_name_obj->buf;
+
+        pid_t pid = 0;
+        ret = ggl_socket_handle_get_peer_pid(&pool, handle, &pid);
+        if (ret != GGL_ERR_OK) {
+            GGL_LOGE("Failed to get pid of client %d.", handle);
+            return ret;
+        }
+
+        ret = ggl_ipc_auth_validate_name(pid, component_name);
+        if (ret != GGL_ERR_OK) {
+            GGL_LOGE(
+                "Client %d failed to authenticate as %.*s.",
+                handle,
+                (int) component_name.len,
+                component_name.data
+            );
+            return ret;
+        }
+
+        auth_token = GGL_BUF(svcuid_buf);
+        ret = ggl_ipc_components_register(
+            component_name, &component_handle, &auth_token
+        );
+        if (ret != GGL_ERR_OK) {
+            return ret;
+        }
+    } else {
+        GGL_LOGE(
+            "Client %d did not provide authToken or componentName.", handle
+        );
+        return GGL_ERR_INVALID;
+    }
+
+    GGL_LOGT("Setting %d as connected.", handle);
+
+    ret = ggl_socket_handle_protected(
+        set_conn_component, &component_handle, &pool, handle
+    );
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+
+    ret = send_conn_resp(handle, (auth_token_obj == NULL) ? &auth_token : NULL);
+    if (ret != GGL_ERR_OK) {
+        return ret;
+    }
+
+    GGL_LOGD("Successful connection.");
+    return GGL_ERR_OK;
 }
 
 static GglError send_stream_error(
@@ -325,16 +304,15 @@ static GglError send_stream_error(
     GglBuffer service_model_type;
     GglBuffer error_code;
 
-    get_ipc_err_info(ipc_error.error_code, &error_code, &service_model_type);
+    ggl_ipc_err_info(ipc_error.error_code, &error_code, &service_model_type);
 
-    // TODO: Match classic error response
     EventStreamHeader resp_headers[] = {
         { GGL_STR(":message-type"),
           { EVENTSTREAM_INT32, .int32 = EVENTSTREAM_APPLICATION_ERROR } },
         { GGL_STR(":message-flags"),
           { EVENTSTREAM_INT32, .int32 = EVENTSTREAM_TERMINATE_STREAM } },
         { GGL_STR(":stream-id"), { EVENTSTREAM_INT32, .int32 = stream_id } },
-        { GGL_STR(":content-json"),
+        { GGL_STR(":content-type"),
           { EVENTSTREAM_STRING, .string = GGL_STR("application/json") } },
         { GGL_STR("service-model-type"),
           { EVENTSTREAM_STRING, .string = service_model_type } },
@@ -361,7 +339,8 @@ static GglError handle_stream_operation(
     uint32_t handle,
     EventStreamMessage *msg,
     EventStreamCommonHeaders common_headers,
-    GglIpcError *ipc_error
+    GglIpcError *ipc_error,
+    GglAlloc *alloc
 ) {
     if (common_headers.message_type != EVENTSTREAM_APPLICATION_MESSAGE) {
         GGL_LOGE("Client sent unhandled message type.");
@@ -397,7 +376,7 @@ static GglError handle_stream_operation(
     }
 
     GglMap payload_data = { 0 };
-    GglError ret = deserialize_payload(msg->payload, &payload_data);
+    GglError ret = deserialize_payload(msg->payload, &payload_data, alloc);
     if (ret != GGL_ERR_OK) {
         return ret;
     }
@@ -410,7 +389,8 @@ static GglError handle_stream_operation(
 static GglError handle_operation(
     uint32_t handle,
     EventStreamMessage *msg,
-    EventStreamCommonHeaders common_headers
+    EventStreamCommonHeaders common_headers,
+    GglAlloc *alloc
 ) {
     if (common_headers.stream_id == 0) {
         GGL_LOGE("Application message has zero :stream-id.");
@@ -419,8 +399,9 @@ static GglError handle_operation(
 
     GglIpcError ipc_error = { 0 };
 
-    GglError ret
-        = handle_stream_operation(handle, msg, common_headers, &ipc_error);
+    GglError ret = handle_stream_operation(
+        handle, msg, common_headers, &ipc_error, alloc
+    );
     if (ret == GGL_ERR_FATAL) {
         return GGL_ERR_FAILURE;
     }
@@ -508,11 +489,19 @@ static GglError client_ready(void *ctx, uint32_t handle) {
         return ret;
     }
 
+    GglBumpAlloc payload_decode_alloc = ggl_bump_alloc_init(GGL_BUF(
+        (uint8_t[GGL_IPC_PAYLOAD_MAX_SUBOBJECTS *sizeof(GglObject)]) { 0 }
+    ));
+
     if (component_handle == 0) {
-        return handle_conn_init(handle, &msg, common_headers);
+        return handle_conn_init(
+            handle, &msg, common_headers, &payload_decode_alloc.alloc
+        );
     }
 
-    return handle_operation(handle, &msg, common_headers);
+    return handle_operation(
+        handle, &msg, common_headers, &payload_decode_alloc.alloc
+    );
 }
 
 GglError ggl_ipc_listen(const char *socket_name, const char *socket_path) {

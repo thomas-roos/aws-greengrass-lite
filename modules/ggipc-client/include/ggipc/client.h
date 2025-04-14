@@ -8,25 +8,27 @@
 #include <ggl/alloc.h>
 #include <ggl/buffer.h>
 #include <ggl/error.h>
+#include <ggl/ipc/common.h>
 #include <ggl/object.h>
 #include <stdint.h>
 
-#ifndef GGL_IPC_AUTH_DISABLE
-#define GGL_IPC_MAX_SVCUID_LEN (16)
-#else
-// Max component name length
-#define GGL_IPC_MAX_SVCUID_LEN (128)
-#endif
+#define GGL_IPC_SVCUID_LEN (16)
 
-/// Connect to GG-IPC server, requesting an authentication token
-GglError ggipc_connect_auth(GglBuffer socket_path, GglBuffer *svcuid, int *fd);
+/// Connect to GG-IPC server using component name.
+/// If svcuid is non-null, it will be filled with the component's identity
+/// token.
+GglError ggipc_connect_by_name(
+    GglBuffer socket_path, GglBuffer component_name, GglBuffer *svcuid, int *fd
+);
 
 GglError ggipc_call(
     int conn,
     GglBuffer operation,
+    GglBuffer service_model_type,
     GglMap params,
     GglAlloc *alloc,
-    GglObject *result
+    GglObject *result,
+    GglIpcError *remote_err
 ) __attribute__((warn_unused_result));
 
 GglError ggipc_private_get_system_config(

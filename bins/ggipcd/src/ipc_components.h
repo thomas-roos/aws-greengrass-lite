@@ -26,9 +26,6 @@ typedef uint16_t GglComponentHandle;
 #error "Maximum number of generic components is too large."
 #endif
 
-/// Helper function to verify svcuid exists.
-GglError ipc_svcuid_exists(GglBuffer svcuid_buf);
-
 /// Start the IPC component server used to verify svcuid.
 GglError ggl_ipc_start_component_server(void);
 
@@ -42,7 +39,9 @@ GglBuffer ggl_ipc_components_get_name(GglComponentHandle component_handle);
 
 /// Authenticate client and create component entry and SVCUID.
 GglError ggl_ipc_components_register(
-    int client_fd, GglComponentHandle *component_handle, GglBuffer *svcuid
+    GglBuffer component_name,
+    GglComponentHandle *component_handle,
+    GglBuffer *svcuid
 );
 
 #endif
