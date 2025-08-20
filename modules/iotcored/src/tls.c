@@ -15,6 +15,7 @@
 #include <openssl/bio.h>
 #include <openssl/err.h>
 #include <openssl/http.h>
+#include <openssl/prov_ssl.h>
 #include <openssl/ssl.h>
 #include <openssl/types.h>
 #include <openssl/x509.h>
@@ -118,6 +119,37 @@ static GglError proxy_get_info(
     return GGL_ERR_OK;
 }
 
+static void check_ktls_status(SSL *ssl) {
+    BIO *wbio = SSL_get_wbio(ssl);
+    BIO *rbio = SSL_get_rbio(ssl);
+
+    int tx_status = BIO_get_ktls_send(wbio);
+    int rx_status = BIO_get_ktls_recv(rbio);
+
+    GGL_LOGD("kTLS TX status: %d, RX status: %d", tx_status, rx_status);
+
+    if (BIO_get_ktls_send(wbio) < 1) {
+        GGL_LOGW("kTLS Tx is not fully active.");
+    }
+
+    if (BIO_get_ktls_recv(rbio) < 1) {
+        GGL_LOGW("kTLS Rx is not fully active.");
+    }
+}
+
+static void enable_ktls(SSL_CTX *ssl_ctx) {
+    // Force TLS 1.2 for better kTLS support
+    SSL_CTX_set_max_proto_version(ssl_ctx, TLS1_2_VERSION);
+
+    // Enable kTLS on the ctx
+    SSL_CTX_set_options(ssl_ctx, SSL_OP_ENABLE_KTLS);
+    if (!(SSL_CTX_get_options(ssl_ctx) & SSL_OP_ENABLE_KTLS)) {
+        GGL_LOGW("Failed to enable kTLS option on SSL ctx.");
+    }
+
+    GGL_LOGD("kTLS enabled successfully.");
+}
+
 static void cleanup_ssl_ctx(SSL_CTX **ctx) {
     if (*ctx != NULL) {
         SSL_CTX_free(*ctx);
@@ -160,6 +192,8 @@ static GglError create_tls_context(
         return GGL_ERR_CONFIG;
     }
 
+    enable_ktls(new_ssl_ctx);
+
     ctx_cleanup = NULL;
     *ssl_ctx = new_ssl_ctx;
     return GGL_ERR_OK;
@@ -187,6 +221,8 @@ static GglError do_handshake(char *host, BIO *bio) {
         GGL_LOGE("Failed TLS server certificate verification.");
         return GGL_ERR_FAILURE;
     }
+
+    check_ktls_status(ssl);
 
     return GGL_ERR_OK;
 }
