@@ -21,7 +21,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 
-#define MAX_COMPONENTS 10
+
 
 typedef struct {
     char *name;
@@ -31,7 +31,7 @@ typedef struct {
 char *command = NULL;
 char *recipe_dir = NULL;
 char *artifacts_dir = NULL;
-Component components[MAX_COMPONENTS];
+Component *components = NULL;
 int component_count = 0;
 
 static char doc[] = "ggl-cli -- Greengrass CLI for Nucleus Lite";
@@ -43,7 +43,7 @@ static struct argp_option opts[] = {
       'c',
       "name=version",
       0,
-      "Component to add (can be used multiple times)",
+      "Component to add...",
       0 },
     { 0 },
 };
@@ -58,16 +58,12 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
         artifacts_dir = arg;
         break;
     case 'c': {
-        if (component_count >= MAX_COMPONENTS) {
-            fprintf(
-                stderr,
-                "Error: Maximum %d components supported\n",
-                MAX_COMPONENTS
-            );
-            // NOLINTNEXTLINE(concurrency-mt-unsafe)
-            argp_usage(state);
-            break;
+        Component *new_components = realloc(components, (size_t)(component_count + 1) * sizeof(Component));
+        if (new_components == NULL) {
+            GGL_LOGE("Memory allocation failed for components");
+            exit(1);
         }
+        components = new_components;
         char *eq = strchr(arg, '=');
         if (eq == NULL) {
             // NOLINTNEXTLINE(concurrency-mt-unsafe)
@@ -161,39 +157,64 @@ int main(int argc, char **argv) {
 
     // Handle multiple components
     if (component_count > 0) {
-        // Allocate memory for component pairs
-        static GglKV component_pairs[MAX_COMPONENTS];
+        GglKV *pairs = malloc((size_t)component_count * sizeof(GglKV));
+        if (pairs == NULL) {
+            GGL_LOGE("Memory allocation failed for component pairs");
+            free(components);
+            return 1;
+        }
+        GglKVVec component_pairs = { .map = { .pairs = pairs, .len = 0 }, .capacity = (size_t)component_count };
 
         for (int i = 0; i < component_count; i++) {
-            component_pairs[i] = ggl_kv(
-                ggl_buffer_from_null_term(components[i].name),
-                ggl_obj_buf(ggl_buffer_from_null_term(components[i].version))
+            GglError ret = ggl_kv_vec_push(
+                &component_pairs,
+                ggl_kv(
+                    ggl_buffer_from_null_term(components[i].name),
+                    ggl_obj_buf(ggl_buffer_from_null_term(components[i].version))
+                )
             );
+            if (ret != GGL_ERR_OK) {
+                free(pairs);
+                free(components);
+                assert(false);
+                return 1;
+            }
         }
 
         GglError ret = ggl_kv_vec_push(
             &args,
             ggl_kv(
                 GGL_STR("root_component_versions_to_add"),
-                ggl_obj_map((GglMap) { .pairs = component_pairs,
-                                       .len = (unsigned int) component_count })
+                ggl_obj_map(component_pairs.map)
             )
         );
         if (ret != GGL_ERR_OK) {
+            free(pairs);
+            free(components);
             assert(false);
             return 1;
         }
 
-        printf(
-            "Deploying %d components in a single deployment:\n", component_count
+        GGL_LOGI(
+            "Deploying %d components in a single deployment:", component_count
         );
         for (int i = 0; i < component_count; i++) {
-            printf("  - %s=%s\n", components[i].name, components[i].version);
+            GGL_LOGI("  - %s=%s", components[i].name, components[i].version);
         }
+        
+        free(pairs);
     }
 
     GglError remote_err = GGL_ERR_OK;
-    GglBuffer id_mem = GGL_BUF((uint8_t[36]) { 0 });
+    // Calculate buffer size: base (256) + components * estimated size per component (128)
+    size_t buffer_size = 256 + ((size_t)component_count * 128);
+    uint8_t *buffer = malloc(buffer_size);
+    if (buffer == NULL) {
+        GGL_LOGE("Memory allocation failed for buffer");
+        free(components);
+        return 1;
+    }
+    GglBuffer id_mem = { .data = buffer, .len = buffer_size };
     GglArena alloc = ggl_arena_init(id_mem);
     GglObject result;
 
@@ -207,20 +228,26 @@ int main(int argc, char **argv) {
     );
     if (ret != GGL_ERR_OK) {
         if (ret == GGL_ERR_REMOTE) {
-            GGL_LOGE("Got error from deployment: %d.", remote_err);
-            return 1;
+            GGL_LOGE("Deployment failed with remote error: %d", remote_err);
+        } else {
+            GGL_LOGE("Failed to send deployment request: %d", ret);
         }
-        GGL_LOGE("Error sending deployment: %d.", ret);
+        free(buffer);
+        free(components);
         return 1;
     }
 
     if (ggl_obj_type(result) != GGL_TYPE_BUF) {
         GGL_LOGE("Invalid return type.");
+        free(buffer);
+        free(components);
         return 1;
     }
 
     GglBuffer result_buf = ggl_obj_into_buf(result);
 
-    printf("Deployment id: %.*s.\n", (int) result_buf.len, result_buf.data);
+    GGL_LOGI("Deployment id: %.*s.", (int) result_buf.len, result_buf.data);
+    free(buffer);
+    free(components);
     return 0;
 }
