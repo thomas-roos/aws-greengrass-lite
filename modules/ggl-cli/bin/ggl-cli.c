@@ -20,6 +20,8 @@
 #include <stdint.h>
 #include <stdlib.h>
 
+#define MAX_LOCAL_DEPLOYMENT_COMPONENTS 10
+
 typedef struct {
     char *name;
     char *version;
@@ -28,7 +30,7 @@ typedef struct {
 char *command = NULL;
 char *recipe_dir = NULL;
 char *artifacts_dir = NULL;
-Component *components = NULL;
+static Component components[MAX_LOCAL_DEPLOYMENT_COMPONENTS];
 int component_count = 0;
 
 static char doc[] = "ggl-cli -- Greengrass CLI for Nucleus Lite";
@@ -50,14 +52,13 @@ static error_t arg_parser(int key, char *arg, struct argp_state *state) {
         artifacts_dir = arg;
         break;
     case 'c': {
-        Component *new_components = realloc(
-            components, (size_t) (component_count + 1) * sizeof(Component)
-        );
-        if (new_components == NULL) {
-            GGL_LOGE("Memory allocation failed for components");
+        if (component_count >= MAX_LOCAL_DEPLOYMENT_COMPONENTS) {
+            GGL_LOGE(
+                "Maximum of %d components allowed per local deployment",
+                MAX_LOCAL_DEPLOYMENT_COMPONENTS
+            );
             return ARGP_ERR_UNKNOWN;
         }
-        components = new_components;
         char *eq = strchr(arg, '=');
         if (eq == NULL) {
             // NOLINTNEXTLINE(concurrency-mt-unsafe)
@@ -149,13 +150,9 @@ static GglKV *setup_components(GglKVVec *args) {
         return NULL;
     }
 
-    GglKV *pairs = malloc((size_t) component_count * sizeof(GglKV));
-    if (pairs == NULL) {
-        GGL_LOGE("Memory allocation failed for component pairs");
-        return NULL;
-    }
+    static GglKV pairs[MAX_LOCAL_DEPLOYMENT_COMPONENTS];
     GglKVVec component_pairs = { .map = { .pairs = pairs, .len = 0 },
-                                 .capacity = (size_t) component_count };
+                                 .capacity = MAX_LOCAL_DEPLOYMENT_COMPONENTS };
 
     for (int i = 0; i < component_count; i++) {
         GglError ret = ggl_kv_vec_push(
@@ -166,7 +163,6 @@ static GglKV *setup_components(GglKVVec *args) {
             )
         );
         if (ret != GGL_ERR_OK) {
-            free(pairs);
             assert(false);
             return NULL;
         }
@@ -180,7 +176,6 @@ static GglKV *setup_components(GglKVVec *args) {
         )
     );
     if (ret != GGL_ERR_OK) {
-        free(pairs);
         assert(false);
         return NULL;
     }
@@ -194,15 +189,6 @@ static GglKV *setup_components(GglKVVec *args) {
     return pairs;
 }
 
-static void cleanup_memory(GglKV *pairs) {
-    if (pairs != NULL) {
-        free(pairs);
-    }
-    if (components != NULL) {
-        free(components);
-    }
-}
-
 int main(int argc, char **argv) {
     // NOLINTNEXTLINE(concurrency-mt-unsafe)
     argp_parse(&argp, argc, argv, 0, 0, NULL);
@@ -212,13 +198,11 @@ int main(int argc, char **argv) {
     GglKVVec args = GGL_KV_VEC((GglKV[3]) { 0 });
 
     if (setup_paths(&args) != 0) {
-        cleanup_memory(NULL);
         return 1;
     }
 
     GglKV *pairs = setup_components(&args);
     if (component_count > 0 && pairs == NULL) {
-        cleanup_memory(NULL);
         return 1;
     }
 
@@ -242,19 +226,16 @@ int main(int argc, char **argv) {
         } else {
             GGL_LOGE("Error sending deployment: %d.", ret);
         }
-        cleanup_memory(pairs);
         return 1;
     }
 
     if (ggl_obj_type(result) != GGL_TYPE_BUF) {
         GGL_LOGE("Invalid return type.");
-        cleanup_memory(pairs);
         return 1;
     }
 
     GglBuffer result_buf = ggl_obj_into_buf(result);
 
     GGL_LOGI("Deployment id: %.*s.", (int) result_buf.len, result_buf.data);
-    cleanup_memory(pairs);
     return 0;
 }
