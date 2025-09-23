@@ -414,8 +414,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS
     "libyaml-0-2 (>= 0.2.2), "
     "libsystemd0 (>= 249), "
     "liburiparser1 (>= 0.9.6), "
-    "libuuid1 (>= 2.37.2)"
-)
+    "libuuid1 (>= 2.37.2)")
 
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/debian/postinst
