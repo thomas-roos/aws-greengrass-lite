@@ -404,8 +404,9 @@ set(CPACK_PACKAGE_CONTACT
 
 set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 
-set(CPACK_DEBIAN_PACKAGE_DEPENDS 
-    "cgroup-tools (>= 2.0), libcurl4 | libcurl4t64 (>= 7.86), libevent-2.1-7 | libevent-2.1-7t64 (>= 2.1.12), libssl3 | libssl3t64 (>= 3.0), libzip4 | libzip4t64 (>= 1.7.3), libsqlite3-0 (>= 3.46.0), libyaml-0-2 (>= 0.2.2), libsystemd0 (>= 249), liburiparser1 (>= 0.9.6), libuuid1 (>= 2.37.2)")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS
+    "cgroup-tools (>= 2.0), libcurl4 | libcurl4t64 (>= 7.86), libevent-2.1-7 | libevent-2.1-7t64 (>= 2.1.12), libssl3 | libssl3t64 (>= 3.0), libzip4 | libzip4t64 (>= 1.7.3), libsqlite3-0 (>= 3.46.0), libyaml-0-2 (>= 0.2.2), libsystemd0 (>= 249), liburiparser1 (>= 0.9.6), libuuid1 (>= 2.37.2)"
+)
 
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/debian/postinst
