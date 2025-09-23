@@ -402,9 +402,10 @@ set(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "all")
 set(CPACK_PACKAGE_CONTACT
     "https://github.com/aws-greengrass/aws-greengrass-lite")
 
-set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS ON)
+set(CPACK_DEBIAN_PACKAGE_SHLIBDEPS OFF)
 
-set(CPACK_DEBIAN_PACKAGE_DEPENDS "cgroup-tools (>= 2.0)")
+set(CPACK_DEBIAN_PACKAGE_DEPENDS 
+    "cgroup-tools (>= 2.0), libcurl4 | libcurl4t64 (>= 7.16.2), libevent-2.1-7 | libevent-2.1-7t64 (>= 2.1.8), libssl3 | libssl3t64 (>= 3.0.0), libzip4 | libzip4t64 (>= 1.0)")
 
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/debian/postinst
