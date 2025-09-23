@@ -27,11 +27,13 @@ fi
 check_ubuntu_version() {
     if [ -f /etc/os-release ]; then
         . /etc/os-release
-        if [ "$ID" = "ubuntu" ] && [ "$VERSION_ID" = "{{ UBUNTU_VERSION }}" ]; then
+        if [ "$ID" = "ubuntu" ] && [[ "$VERSION_ID" =~ ^(22\.04|24\.04)$ ]]; then
+            return 0
+        elif [ "$ID" = "debian" ] && [[ "$VERSION_ID" =~ ^(12|13)$ ]]; then
             return 0
         fi
     fi
-    echo "Warning: This greengrass lite package is only tested working with Ubuntu {{ UBUNTU_VERSION }}"
+    echo "Warning: This greengrass lite package is only tested working with Ubuntu 22.04, 24.04, Debian 12, 13"
     echo "Current system: $PRETTY_NAME"
     return 0
 }
