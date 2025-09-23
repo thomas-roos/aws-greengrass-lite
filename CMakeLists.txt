@@ -410,7 +410,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS
     "libevent-2.1-7 | libevent-2.1-7t64 (>= 2.1.12), "
     "libssl3 | libssl3t64 (>= 3.0), "
     "libzip4 | libzip4t64 (>= 1.7.3), "
-    "libsqlite3-0 (>= 3.46.0), "
+    "libsqlite3-0 (>= 3.37.2), "
     "libyaml-0-2 (>= 0.2.2), "
     "libsystemd0 (>= 249), "
     "liburiparser1 (>= 0.9.6), "
