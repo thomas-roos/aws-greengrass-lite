@@ -99,13 +99,25 @@ jobs:
     container:
       image: ${{ matrix.os }}
     steps:
+      - uses: actions/checkout@v4
+
       - name: Download package
         uses: actions/download-artifact@v4
         with:
           name: aws-greengrass-lite-ubuntu-x86-64_MinSizeRel
 
-      - name: Install package and test
+      - name: Test package installation with install script
         run: |
           apt-get update
-          apt-get install -y ./aws-greengrass-lite*.deb
+          apt-get install -y zip
+          # Create mock ConnectionKit for testing
+          mkdir -p /tmp/kit
+          echo "system: {certificateFilePath: \"/tmp/cert.pem\", privateKeyPath: \"/tmp/key.pem\", rootCaPath: \"/tmp/ca.pem\", rootpath: \"{{data_dir}}\", thingName: \"test\"}" > /tmp/kit/config.yaml
+          cd /tmp/kit && zip ../connectionKit-test.zip config.yaml && cd -
+          cp /tmp/connectionKit-test.zip .
+          # Test installation
+          chmod +x install-greengrass-lite.sh
+          ./install-greengrass-lite.sh -p aws-greengrass-lite*.deb -k connectionKit-test.zip
           dpkg -l | grep aws-greengrass-lite
+          # Test uninstallation
+          ./install-greengrass-lite.sh -u
