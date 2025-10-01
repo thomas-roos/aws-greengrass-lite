@@ -111,7 +111,7 @@ jobs:
       - name: Test package installation with install script
         run: |
           apt-get update
-          apt-get install -y zip
+          apt-get install -y zip systemd
           # Create mock ConnectionKit for testing
           mkdir -p /tmp/kit
           echo "system: {certificateFilePath: \"/tmp/cert.pem\", privateKeyPath: \"/tmp/key.pem\", rootCaPath: \"/tmp/ca.pem\", rootpath: \"{{data_dir}}\", thingName: \"test\"}" > /tmp/kit/config.yaml
