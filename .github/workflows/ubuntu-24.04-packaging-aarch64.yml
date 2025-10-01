@@ -114,7 +114,7 @@ jobs:
         run: |
           podman run -d --name test-container --systemd=always --privileged \
             -v $PWD:/workspace:Z ${{ matrix.os }} /sbin/init
-          
+
           podman exec test-container bash -c "
             cd /workspace &&
             apt-get update &&
@@ -128,5 +128,5 @@ jobs:
             dpkg -l | grep aws-greengrass-lite &&
             ./install-greengrass-lite.sh -u
           "
-          
+
           podman stop test-container
