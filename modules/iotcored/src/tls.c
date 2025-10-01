@@ -7,6 +7,7 @@
 #include "ggl/log.h"
 #include "iotcored.h"
 #include <assert.h>
+#include <errno.h>
 #include <ggl/arena.h>
 #include <ggl/buffer.h>
 #include <ggl/cleanup.h>
@@ -47,7 +48,7 @@ static int ssl_error_callback(const char *str, size_t len, void *user) {
     if (len > 0) {
         --len;
     }
-    GGL_LOGE("[openssl]: %.*s", (int) len, str);
+    GGL_LOGE("openssl: %.*s", (int) len, str);
     return 1;
 }
 
@@ -155,6 +156,12 @@ static void try_enable_ktls(SSL_CTX *ssl_ctx) {
 static void cleanup_ssl_ctx(SSL_CTX **ctx) {
     if (*ctx != NULL) {
         SSL_CTX_free(*ctx);
+    }
+}
+
+static void cleanup_bio_free_all(BIO **bio_ptr) {
+    if ((bio_ptr != NULL) && (*bio_ptr != NULL)) {
+        BIO_free_all(*bio_ptr);
     }
 }
 
@@ -281,6 +288,7 @@ static GglError iotcored_tls_connect_no_proxy(
         GGL_LOGE("Failed to create openssl BIO.");
         return GGL_ERR_FATAL;
     }
+    GGL_CLEANUP_ID(bio_cleanup, cleanup_bio_free_all, bio);
 
     if (BIO_set_conn_port(bio, "8883") != 1) {
         GGL_LOGE("Failed to set port.");
@@ -301,7 +309,10 @@ static GglError iotcored_tls_connect_no_proxy(
         return ret;
     }
 
+    // Since connection is established, cancel the cleanup.
     ctx_cleanup = NULL;
+    bio_cleanup = NULL;
+
     conn = (IotcoredTlsCtx
     ) { .ssl_ctx = ssl_ctx, .bio = bio, .connected = true };
     *ctx = &conn;
@@ -358,6 +369,8 @@ static GglError iotcored_tls_connect_https_proxy(
         GGL_LOGE("Failed to create proxy socket.");
         return GGL_ERR_FATAL;
     }
+    GGL_CLEANUP_ID(mtls_bio_cleanup, cleanup_bio_free_all, mtls_proxy_bio);
+
     if (BIO_set_conn_hostname(mtls_proxy_bio, info.host.data) != 1) {
         GGL_LOGE("Failed to set proxy hostname.");
         return GGL_ERR_FATAL;
@@ -386,9 +399,10 @@ static GglError iotcored_tls_connect_https_proxy(
         GGL_LOGE("Failed to create openssl BIO.");
         return GGL_ERR_FATAL;
     }
+    GGL_CLEANUP_ID(mqtt_bio_cleanup, cleanup_bio_free_all, mqtt_bio);
+
     // MQTT BIO uses the underlying HTTPS TLS BIO as its source and sync.
     BIO *mqtt_proxy_chain = BIO_push(mqtt_bio, mtls_proxy_bio);
-
     // Do handshake with IoT core over the established HTTPS TLS connection.
     ret = do_handshake(args->endpoint, mqtt_proxy_chain);
     if (ret != GGL_ERR_OK) {
@@ -398,6 +412,8 @@ static GglError iotcored_tls_connect_https_proxy(
 
     // Since connection is established, cancel the cleanup.
     ctx_cleanup = NULL;
+    mtls_bio_cleanup = NULL;
+    mqtt_bio_cleanup = NULL;
 
     conn = (IotcoredTlsCtx
     ) { .ssl_ctx = ssl_ctx, .bio = mqtt_proxy_chain, .connected = true };
@@ -416,11 +432,14 @@ static GglError iotcored_tls_connect_http_proxy(
         return ret;
     }
     GGL_CLEANUP_ID(ctx_cleanup, cleanup_ssl_ctx, ssl_ctx);
+
     BIO *mqtt_bio = BIO_new_ssl(ssl_ctx, 1);
     if (mqtt_bio == NULL) {
         GGL_LOGE("Failed to create openssl BIO.");
         return GGL_ERR_FATAL;
     }
+    GGL_CLEANUP_ID(mqtt_bio_cleanup, cleanup_bio_free_all, mqtt_bio);
+
     // default fallback
     if (info.port.len == 0) {
         info.port = GGL_STR("80");
@@ -432,6 +451,8 @@ static GglError iotcored_tls_connect_http_proxy(
         GGL_LOGE("Failed to create proxy socket.");
         return GGL_ERR_FATAL;
     }
+    GGL_CLEANUP_ID(proxy_bio_cleanup, cleanup_bio_free_all, proxy_bio);
+
     if (BIO_set_conn_hostname(proxy_bio, info.host.data) != 1) {
         GGL_LOGE("Failed to set proxy hostname.");
         return GGL_ERR_FATAL;
@@ -465,6 +486,8 @@ static GglError iotcored_tls_connect_http_proxy(
 
     // Since connection is established, cancel the cleanup.
     ctx_cleanup = NULL;
+    mqtt_bio_cleanup = NULL;
+    proxy_bio_cleanup = NULL;
 
     conn = (IotcoredTlsCtx
     ) { .ssl_ctx = ssl_ctx, .bio = mqtt_proxy_chain, .connected = true };
@@ -521,11 +544,13 @@ GglError iotcored_tls_read(IotcoredTlsCtx *ctx, GglBuffer *buf) {
 
     if (ret != 1) {
         int error_code = SSL_get_error(ssl, ret);
+        int err = errno;
         ERR_print_errors_cb(ssl_error_callback, NULL);
         switch (error_code) {
         case SSL_ERROR_SSL:
         case SSL_ERROR_SYSCALL:
-            GGL_LOGE("Connection unexpectedly closed.");
+            errno = err;
+            GGL_LOGE("OpenSSL system error: %m.");
             ctx->connected = false;
             buf->len = 0;
             return GGL_ERR_FATAL;
@@ -535,8 +560,8 @@ GglError iotcored_tls_read(IotcoredTlsCtx *ctx, GglBuffer *buf) {
             return GGL_ERR_FAILURE;
         default:
             // All other error codes are related to non-blocking sockets
-            GGL_LOGW("Unexpected non-blocking socket error.");
-            break;
+            GGL_LOGE("Unexpected SSL_read_ex error.");
+            return GGL_ERR_FAILURE;
         }
     }
     buf->len = read_bytes;
