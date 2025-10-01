@@ -106,11 +106,23 @@ jobs:
 
       - name: Test package installation with systemd
         run: |
-          # Run container with systemd support
-          podman run -d --name test-container --systemd=always \
+          # Run container and install systemd
+          podman run -d --name test-container --privileged \
+            -v $PWD:/workspace:Z ${{ matrix.os }} sleep infinity
+          
+          podman exec test-container bash -c "
+            apt-get update &&
+            apt-get install -y systemd &&
+            systemctl --version
+          "
+          
+          # Restart container with systemd
+          podman stop test-container
+          podman rm test-container
+          podman run -d --name test-container --systemd=always --privileged \
             -v $PWD:/workspace:Z ${{ matrix.os }} /sbin/init
           
-          # Copy files and test installation
+          # Test installation
           podman exec test-container bash -c "
             cd /workspace &&
             apt-get update &&
