@@ -101,6 +101,7 @@ jobs:
           - os: jrei/systemd-ubuntu:22.04
           - os: jrei/systemd-ubuntu:24.04
           - os: jrei/systemd-debian:12
+          - os: jrei/systemd-debian:13
     steps:
       - uses: actions/checkout@v4
 
