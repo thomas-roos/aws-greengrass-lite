@@ -97,9 +97,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu:22.04, ubuntu:24.04, debian:12]
+        include:
+          - os: jrei/systemd-ubuntu:22.04
+          - os: jrei/systemd-ubuntu:24.04
+          - os: jrei/systemd-debian:12
     container:
-      image: arm64v8/${{ matrix.os }}
+      image: ${{ matrix.os }}
+      options: --privileged --tmpfs /tmp --tmpfs /run --tmpfs /run/lock -v /sys/fs/cgroup:/sys/fs/cgroup:rw
     steps:
       - uses: actions/checkout@v4
 
@@ -111,7 +115,7 @@ jobs:
       - name: Test package installation with install script
         run: |
           apt-get update
-          apt-get install -y zip systemd
+          apt-get install -y zip
           # Create mock ConnectionKit for testing
           mkdir -p /tmp/kit
           echo "system: {certificateFilePath: \"/tmp/cert.pem\", privateKeyPath: \"/tmp/key.pem\", rootCaPath: \"/tmp/ca.pem\", rootpath: \"{{data_dir}}\", thingName: \"test\"}" > /tmp/kit/config.yaml
