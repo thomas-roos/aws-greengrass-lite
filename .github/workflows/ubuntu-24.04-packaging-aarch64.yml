@@ -101,9 +101,6 @@ jobs:
           - os: jrei/systemd-ubuntu:22.04
           - os: jrei/systemd-ubuntu:24.04
           - os: jrei/systemd-debian:12
-    container:
-      image: ${{ matrix.os }}
-      options: --privileged --tmpfs /tmp --tmpfs /run --tmpfs /run/lock -v /sys/fs/cgroup:/sys/fs/cgroup:rw
     steps:
       - uses: actions/checkout@v4
 
@@ -114,23 +111,9 @@ jobs:
 
       - name: Test package installation with systemd
         run: |
-          # Run container and install systemd
-          podman run -d --name test-container --privileged \
-            -v $PWD:/workspace:Z ${{ matrix.os }} sleep infinity
-          
-          podman exec test-container bash -c "
-            apt-get update &&
-            apt-get install -y systemd &&
-            systemctl --version
-          "
-          
-          # Restart container with systemd
-          podman stop test-container
-          podman rm test-container
           podman run -d --name test-container --systemd=always --privileged \
             -v $PWD:/workspace:Z ${{ matrix.os }} /sbin/init
           
-          # Test installation
           podman exec test-container bash -c "
             cd /workspace &&
             apt-get update &&
