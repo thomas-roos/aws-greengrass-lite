@@ -112,18 +112,37 @@ jobs:
         with:
           name: aws-greengrass-lite-ubuntu-arm64
 
-      - name: Test package installation with install script
+      - name: Test package installation with systemd
         run: |
-          apt-get update
-          apt-get install -y zip
-          # Create mock ConnectionKit for testing
-          mkdir -p /tmp/kit
-          echo "system: {certificateFilePath: \"/tmp/cert.pem\", privateKeyPath: \"/tmp/key.pem\", rootCaPath: \"/tmp/ca.pem\", rootpath: \"{{data_dir}}\", thingName: \"test\"}" > /tmp/kit/config.yaml
-          cd /tmp/kit && zip ../connectionKit-test.zip config.yaml && cd -
-          cp /tmp/connectionKit-test.zip .
+          # Run container and install systemd
+          podman run -d --name test-container --privileged \
+            -v $PWD:/workspace:Z ${{ matrix.os }} sleep infinity
+          
+          podman exec test-container bash -c "
+            apt-get update &&
+            apt-get install -y systemd &&
+            systemctl --version
+          "
+          
+          # Restart container with systemd
+          podman stop test-container
+          podman rm test-container
+          podman run -d --name test-container --systemd=always --privileged \
+            -v $PWD:/workspace:Z ${{ matrix.os }} /sbin/init
+          
           # Test installation
-          chmod +x install-greengrass-lite.sh
-          ./install-greengrass-lite.sh -p aws-greengrass-lite*.deb -k connectionKit-test.zip
-          dpkg -l | grep aws-greengrass-lite
-          # Test uninstallation
-          ./install-greengrass-lite.sh -u
+          podman exec test-container bash -c "
+            cd /workspace &&
+            apt-get update &&
+            apt-get install -y zip &&
+            mkdir -p /tmp/kit &&
+            echo 'system: {certificateFilePath: \"/tmp/cert.pem\", privateKeyPath: \"/tmp/key.pem\", rootCaPath: \"/tmp/ca.pem\", rootpath: \"{{data_dir}}\", thingName: \"test\"}' > /tmp/kit/config.yaml &&
+            cd /tmp/kit && zip ../connectionKit-test.zip config.yaml && cd /workspace &&
+            cp /tmp/connectionKit-test.zip . &&
+            chmod +x install-greengrass-lite.sh &&
+            ./install-greengrass-lite.sh -p aws-greengrass-lite*.deb -k connectionKit-test.zip &&
+            dpkg -l | grep aws-greengrass-lite &&
+            ./install-greengrass-lite.sh -u
+          "
+          
+          podman stop test-container
