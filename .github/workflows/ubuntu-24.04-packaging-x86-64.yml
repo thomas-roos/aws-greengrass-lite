@@ -88,3 +88,24 @@ jobs:
           path: |
             ${{ github.workspace }}/zipfile/*
           retention-days: 1
+
+  install-test:
+    needs: build
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu:22.04, ubuntu:24.04, debian:12]
+    container:
+      image: ${{ matrix.os }}
+    steps:
+      - name: Download package
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-greengrass-lite-ubuntu-x86-64_MinSizeRel
+
+      - name: Install package and test
+        run: |
+          apt-get update
+          apt-get install -y ./aws-greengrass-lite*.deb
+          dpkg -l | grep aws-greengrass-lite
