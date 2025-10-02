@@ -101,6 +101,22 @@ jobs:
           mkdir ${{ github.workspace }}/zipfile/
           cp ${{ github.workspace }}/build/*.deb ${{ github.workspace }}/zipfile/
 
+      - name: Check binary dependencies
+        run: |
+          echo "Checking shared library dependencies:"
+          find ${{ github.workspace }}/zipfile/ -name "*.deb" -exec dpkg-deb -c {} \; | grep -E "(bin/|sbin/)" | awk '{print $6}' > binaries.txt
+          if [ -s binaries.txt ]; then
+            podman run --rm -v $PWD/.:/aws-greengrass-lite container:latest bash -c "
+              cd /aws-greengrass-lite &&
+              while read binary; do
+                if [ -f \"\$binary\" ]; then
+                  echo \"=== \$binary ===\" &&
+                  ldd \"\$binary\" || echo \"Not a dynamic executable\"
+                fi
+              done < binaries.txt
+            "
+          fi
+
       - name: Generate readme / install file
         run: |
           cat ${{ github.workspace }}/.github/workflows/packaging/readme.template.txt >> ${{ github.workspace }}/zipfile/readme.txt
@@ -178,6 +194,11 @@ jobs:
             chmod +x install-greengrass-lite.sh &&
             ./install-greengrass-lite.sh -p aws-greengrass-lite*.deb -k connectionKit-test.zip &&
             dpkg -l | grep aws-greengrass-lite &&
+            echo '=== Checking installed binaries for missing libraries ===' &&
+            find /usr/bin /usr/sbin -name 'ggl*' -o -name '*greengrass*' 2>/dev/null | while read binary; do
+              echo \"Checking \$binary:\" &&
+              ldd \"\$binary\" | grep 'not found' && echo \"ERROR: Missing libraries for \$binary\" || echo \"OK: \$binary\"
+            done &&
             ./install-greengrass-lite.sh -u
           "
 
