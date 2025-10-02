@@ -415,7 +415,7 @@ set(CPACK_DEBIAN_PACKAGE_DEPENDS
     liburiparser1 (>= 0.9.6), \
     libuuid1 (>= 2.37.2), \
     libyaml-0-2 (>= 0.2.2), \
-    libzip4 | libzip4t64 | libzip5 (>= 1.7.3)")
+    libzip4 | libzip4t64 (>= 1.7.3)")
 
 set(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA
     ${CMAKE_CURRENT_SOURCE_DIR}/debian/postinst
