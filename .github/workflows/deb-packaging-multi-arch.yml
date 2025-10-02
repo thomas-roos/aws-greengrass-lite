@@ -66,7 +66,8 @@ jobs:
           path: |
             ~/podman-${{ matrix.arch }}-image.tar
           key:
-            ${{ runner.os }}-podman-${{ matrix.arch }}-${{ hashFiles('misc/buildtestcontainer/*') }}
+            ${{ runner.os }}-podman-${{ matrix.arch }}-${{
+            hashFiles('misc/buildtestcontainer/*') }}
 
       - name: Build and save container for ${{ matrix.arch }}
         run: |
@@ -115,7 +116,9 @@ jobs:
       - name: Save package
         uses: actions/upload-artifact@v4
         with:
-          name: aws-greengrass-lite-ubuntu-${{ matrix.artifact_suffix }}-${{ matrix.build_type }}
+          name:
+            aws-greengrass-lite-ubuntu-${{ matrix.artifact_suffix }}-${{
+            matrix.build_type }}
           path: |
             ${{ github.workspace }}/zipfile/*
           retention-days: 1
@@ -138,7 +141,13 @@ jobs:
       fail-fast: false
       matrix:
         arch: [x86-64, aarch64, armv7]
-        os: [jrei/systemd-ubuntu:22.04, jrei/systemd-ubuntu:24.04, jrei/systemd-debian:12, jrei/systemd-debian:13]
+        os:
+          [
+            jrei/systemd-ubuntu:22.04,
+            jrei/systemd-ubuntu:24.04,
+            jrei/systemd-debian:12,
+            jrei/systemd-debian:13,
+          ]
     steps:
       - uses: actions/checkout@v4
 
@@ -148,7 +157,9 @@ jobs:
       - name: Download package
         uses: actions/download-artifact@v4
         with:
-          name: aws-greengrass-lite-ubuntu-${{ matrix.arch == 'aarch64' && 'arm64' || matrix.arch }}
+          name:
+            aws-greengrass-lite-ubuntu-${{ matrix.arch == 'aarch64' && 'arm64'
+            || matrix.arch }}
 
       - name: Test package installation with systemd
         run: |
@@ -158,8 +169,8 @@ jobs:
 
           podman exec test-container bash -c "
             cd /workspace &&
-            apt-get update &&
-            apt-get install -y zip sudo &&
+            apt-get update --allow-unauthenticated &&
+            apt-get install -y zip sudo --allow-unauthenticated &&
             mkdir -p /tmp/kit &&
             echo 'system: {certificateFilePath: \"/tmp/cert.pem\", privateKeyPath: \"/tmp/key.pem\", rootCaPath: \"/tmp/ca.pem\", rootpath: \"{{data_dir}}\", thingName: \"test\"}' > /tmp/kit/config.yaml &&
             cd /tmp/kit && zip ../connectionKit-test.zip config.yaml && cd /workspace &&
