@@ -164,7 +164,7 @@ jobs:
 
       - name: Build test container for ${{ matrix.os }}
         run: |
-          TAG="test-container-${{ matrix.arch }}-${{ matrix.os }}"
+          TAG="test-container-${{ matrix.arch }}-$(echo '${{ matrix.os }}' | tr ':' '-')"
           echo "Checking for cached test container: ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar"
           if [ ! -f ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar ]; then
             echo "Building new test container for ${{ matrix.os }}"
@@ -188,7 +188,7 @@ jobs:
 
       - name: Test package installation with systemd
         run: |
-          TAG="test-container-${{ matrix.arch }}-${{ matrix.os }}"
+          TAG="test-container-${{ matrix.arch }}-$(echo '${{ matrix.os }}' | tr ':' '-')"
           platform=${{ matrix.arch == 'x86-64' && 'linux/amd64' || matrix.arch == 'aarch64' && 'linux/arm64' || 'linux/arm/v7' }}
           podman run -d --name test-container --systemd=always --privileged --platform=$platform \
             -v $PWD:/workspace:Z $TAG /sbin/init
