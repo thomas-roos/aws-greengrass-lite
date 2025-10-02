@@ -37,13 +37,13 @@ jobs:
             artifact_suffix: arm64
             build_type: MinSizeRel
           - arch: armv7
-            runner: ubuntu-24.04
+            runner: ubuntu-24.04-arm
             container: arm32v7/ubuntu:22.04
             build_arch: arm/v7
             artifact_suffix: armv7
             build_type: RelWithDebInfo
           - arch: armv7
-            runner: ubuntu-24.04
+            runner: ubuntu-24.04-arm
             container: arm32v7/ubuntu:22.04
             build_arch: arm/v7
             artifact_suffix: armv7
@@ -100,22 +100,6 @@ jobs:
         run: |
           mkdir ${{ github.workspace }}/zipfile/
           cp ${{ github.workspace }}/build/*.deb ${{ github.workspace }}/zipfile/
-
-      - name: Check binary dependencies
-        run: |
-          echo "Checking shared library dependencies:"
-          find ${{ github.workspace }}/zipfile/ -name "*.deb" -exec dpkg-deb -c {} \; | grep -E "(bin/|sbin/)" | awk '{print $6}' > binaries.txt
-          if [ -s binaries.txt ]; then
-            podman run --rm -v $PWD/.:/aws-greengrass-lite container:latest bash -c "
-              cd /aws-greengrass-lite &&
-              while read binary; do
-                if [ -f \"\$binary\" ]; then
-                  echo \"=== \$binary ===\" &&
-                  ldd \"\$binary\" || echo \"Not a dynamic executable\"
-                fi
-              done < binaries.txt
-            "
-          fi
 
       - name: Generate readme / install file
         run: |
