@@ -1,4 +1,4 @@
-name: armv7 - Build deb packages and zip files
+name: Multi-arch - Build deb packages and zip files
 on:
   push:
     branches:
@@ -7,15 +7,52 @@ on:
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        build_type: [RelWithDebInfo, MinSizeRel]
+        include:
+          - arch: x86-64
+            runner: ubuntu-24.04
+            container: ubuntu:24.04
+            build_arch: amd64
+            artifact_suffix: x86-64
+            build_type: RelWithDebInfo
+          - arch: x86-64
+            runner: ubuntu-24.04
+            container: ubuntu:24.04
+            build_arch: amd64
+            artifact_suffix: x86-64
+            build_type: MinSizeRel
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            container: arm64v8/ubuntu:24.04
+            build_arch: arm64
+            artifact_suffix: arm64
+            build_type: RelWithDebInfo
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            container: arm64v8/ubuntu:24.04
+            build_arch: arm64
+            artifact_suffix: arm64
+            build_type: MinSizeRel
+          - arch: armv7
+            runner: ubuntu-24.04
+            container: arm32v7/ubuntu:24.04
+            build_arch: arm/v7
+            artifact_suffix: armv7
+            build_type: RelWithDebInfo
+          - arch: armv7
+            runner: ubuntu-24.04
+            container: arm32v7/ubuntu:24.04
+            build_arch: arm/v7
+            artifact_suffix: armv7
+            build_type: MinSizeRel
     steps:
       - uses: actions/checkout@v4
 
       - name: Set up QEMU
+        if: matrix.arch != 'aarch64' && matrix.arch != 'x86-64'
         uses: docker/setup-qemu-action@v3
 
       - name: Set up Podman
@@ -27,18 +64,18 @@ jobs:
         uses: actions/cache@v4
         with:
           path: |
-            ~/podman-armv7-linux-gnu-image.tar
+            ~/podman-${{ matrix.arch }}-image.tar
           key:
-            ${{ runner.os }}-podman-armv7-${{ hashFiles('misc/buildtestcontainer/*')
-            }}
+            ${{ runner.os }}-podman-${{ matrix.arch }}-${{
+            hashFiles('misc/buildtestcontainer/*') }}
 
-      - name: Build and save container for armv7-linux-gnu
+      - name: Build and save container for ${{ matrix.arch }}
         run: |
-          if [ ! -f ~/podman-armv7-linux-gnu-image.tar ]; then
-            podman build --from=docker.io/arm32v7/ubuntu:24.04 --arch=arm/v7 misc/buildtestcontainer -t container
-            podman save container:latest > ~/podman-armv7-linux-gnu-image.tar
+          if [ ! -f ~/podman-${{ matrix.arch }}-image.tar ]; then
+            podman build --from=docker.io/${{ matrix.container }} --arch=${{ matrix.build_arch }} misc/buildtestcontainer -t container
+            podman save container:latest > ~/podman-${{ matrix.arch }}-image.tar
           else
-            podman load < ~/podman-armv7-linux-gnu-image.tar
+            podman load < ~/podman-${{ matrix.arch }}-image.tar
           fi
 
       - name: Run build in container
@@ -79,34 +116,38 @@ jobs:
       - name: Save package
         uses: actions/upload-artifact@v4
         with:
-          name: aws-greengrass-lite-ubuntu-armv7-${{ matrix.build_type }}
+          name:
+            aws-greengrass-lite-ubuntu-${{ matrix.artifact_suffix }}-${{
+            matrix.build_type }}
           path: |
             ${{ github.workspace }}/zipfile/*
           retention-days: 1
 
-      - name:
-          Save armv7 package without build type - default package to download
-        if: matrix.build_type  == 'MinSizeRel'
+      - name: Save default package
+        if: matrix.build_type == 'MinSizeRel'
         uses: actions/upload-artifact@v4
         with:
-          name: aws-greengrass-lite-ubuntu-armv7
+          name: aws-greengrass-lite-ubuntu-${{ matrix.artifact_suffix }}
           path: |
             ${{ github.workspace }}/zipfile/*
           retention-days: 1
 
   install-test:
     needs: build
-    runs-on: ubuntu-latest
+    runs-on: ubuntu:24.04
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - os: jrei/systemd-ubuntu:22.04
-          - os: jrei/systemd-ubuntu:24.04
-          - os: jrei/systemd-debian:12
-          - os: jrei/systemd-debian:13
+        arch: [x86-64, aarch64, armv7]
+        os:
+          [
+            jrei/systemd-ubuntu:22.04,
+            jrei/systemd-ubuntu:24.04,
+            jrei/systemd-debian:12,
+            jrei/systemd-debian:13,
+          ]
     steps:
       - uses: actions/checkout@v4
 
@@ -116,17 +157,20 @@ jobs:
       - name: Download package
         uses: actions/download-artifact@v4
         with:
-          name: aws-greengrass-lite-ubuntu-armv7
+          name:
+            aws-greengrass-lite-ubuntu-${{ matrix.arch == 'aarch64' && 'arm64'
+            || matrix.arch }}
 
       - name: Test package installation with systemd
         run: |
-          podman run -d --name test-container --systemd=always --privileged --platform=linux/arm/v7 \
+          platform=${{ matrix.arch == 'x86-64' && 'linux/amd64' || matrix.arch == 'aarch64' && 'linux/arm64' || 'linux/arm/v7' }}
+          podman run -d --name test-container --systemd=always --privileged --platform=$platform \
             -v $PWD:/workspace:Z ${{ matrix.os }} /sbin/init
 
           podman exec test-container bash -c "
             cd /workspace &&
-            apt-get update &&
-            apt-get install -y zip sudo &&
+            apt-get update --allow-unauthenticated &&
+            apt-get install -y zip sudo --allow-unauthenticated &&
             mkdir -p /tmp/kit &&
             echo 'system: {certificateFilePath: \"/tmp/cert.pem\", privateKeyPath: \"/tmp/key.pem\", rootCaPath: \"/tmp/ca.pem\", rootpath: \"{{data_dir}}\", thingName: \"test\"}' > /tmp/kit/config.yaml &&
             cd /tmp/kit && zip ../connectionKit-test.zip config.yaml && cd /workspace &&
