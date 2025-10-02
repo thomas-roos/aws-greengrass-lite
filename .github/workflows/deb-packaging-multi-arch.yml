@@ -65,7 +65,7 @@ jobs:
         with:
           path: |
             ~/podman-${{ matrix.arch }}-image.tar
-            ~/test-container-${{ matrix.os }}.tar
+            ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar
           key:
             ${{ runner.os }}-podman-${{ matrix.arch }}-${{ matrix.os }}-${{
             hashFiles('misc/buildtestcontainer/*', '.github/workflows/packaging/*.Dockerfile') }}
@@ -165,20 +165,26 @@ jobs:
 
       - name: Build test container for ${{ matrix.os }}
         run: |
-          if [ ! -f ~/test-container-${{ matrix.os }}.tar ]; then
+          echo "Checking for cached test container: ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar"
+          if [ ! -f ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar ]; then
+            echo "Building new test container for ${{ matrix.os }}"
             if [[ "${{ matrix.os }}" == "systemd-ubuntu:22.04" ]]; then
-              podman build .github/workflows/packaging -f .github/workflows/packaging/systemd-ubuntu22.Dockerfile -t test-container
+              podman build --platform=linux/${{ matrix.build_arch }} .github/workflows/packaging -f .github/workflows/packaging/systemd-ubuntu22.Dockerfile -t test-container
             elif [[ "${{ matrix.os }}" == "systemd-ubuntu:24.04" ]]; then
-              podman build .github/workflows/packaging -f .github/workflows/packaging/systemd-ubuntu24.Dockerfile -t test-container
+              podman build --platform=linux/${{ matrix.build_arch }} .github/workflows/packaging -f .github/workflows/packaging/systemd-ubuntu24.Dockerfile -t test-container
             elif [[ "${{ matrix.os }}" == "systemd-debian:12" ]]; then
-              podman build .github/workflows/packaging -f .github/workflows/packaging/systemd-debian12.Dockerfile -t test-container
+              podman build --platform=linux/${{ matrix.build_arch }} .github/workflows/packaging -f .github/workflows/packaging/systemd-debian12.Dockerfile -t test-container
             elif [[ "${{ matrix.os }}" == "systemd-debian:13" ]]; then
-              podman build .github/workflows/packaging -f .github/workflows/packaging/systemd-debian13.Dockerfile -t test-container
+              podman build --platform=linux/${{ matrix.build_arch }} .github/workflows/packaging -f .github/workflows/packaging/systemd-debian13.Dockerfile -t test-container
             fi
-            podman save test-container:latest > ~/test-container-${{ matrix.os }}.tar
+            podman save test-container:latest > ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar
           else
-            podman load < ~/test-container-${{ matrix.os }}.tar
+            echo "Loading cached test container"
+            podman load < ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar
+            podman tag localhost/test-container:latest test-container:latest
           fi
+          echo "Available images:"
+          podman images | grep test-container
 
       - name: Test package installation with systemd
         run: |
