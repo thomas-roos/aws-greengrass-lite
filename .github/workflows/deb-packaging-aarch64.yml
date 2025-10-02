@@ -1,4 +1,4 @@
-name: Ubuntu 24.04 aarch64 - Build deb packages and zip files
+name: aarch64 - Build deb packages and zip files
 on:
   push:
     branches:
@@ -94,6 +94,8 @@ jobs:
   install-test:
     needs: build
     runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:

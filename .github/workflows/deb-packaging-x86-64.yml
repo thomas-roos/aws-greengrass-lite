@@ -1,4 +1,4 @@
-name: Ubuntu 24.04 x86-64 - Build deb packages and zip files
+name: x86-64 - Build deb packages and zip files
 on:
   push:
     branches:
@@ -92,6 +92,8 @@ jobs:
   install-test:
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
