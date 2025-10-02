@@ -11,7 +11,10 @@ RUN apt-get update \
   && apt-get clean
 
 # Build static libzip (as Debian 13 only ships with libzip5, which is not ABI compatible with libzip4)
-RUN apt-get source libzip && \
+# Enable source repositories and build static libzip
+RUN sed -i 's/^deb /deb-src /g' /etc/apt/sources.list.d/ubuntu.sources && \
+    apt-get update && \
+    apt-get source libzip && \
     cd libzip-* && \
     cmake -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=/usr . && \
     make -j$(nproc) && \
