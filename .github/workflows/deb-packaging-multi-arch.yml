@@ -178,6 +178,7 @@ jobs:
             podman save test-container:latest > ~/test-container-${{ matrix.os }}.tar
           else
             podman load < ~/test-container-${{ matrix.os }}.tar
+            podman tag localhost/test-container:latest test-container:latest
           fi
 
       - name: Test package installation with systemd
