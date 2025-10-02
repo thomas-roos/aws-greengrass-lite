@@ -132,7 +132,12 @@ jobs:
             cd /tmp/kit && zip ../connectionKit-test.zip config.yaml && cd /workspace &&
             cp /tmp/connectionKit-test.zip . &&
             chmod +x install-greengrass-lite.sh &&
-            ./install-greengrass-lite.sh -p aws-greengrass-lite*.deb -k connectionKit-test.zip &&
+            ./install-greengrass-lite.sh -p aws-greengrass-lite*.deb -k connectionKit-test.zip || {
+              echo 'Installation failed, checking systemd-tmpfiles-clean.service:'
+              systemctl status systemd-tmpfiles-clean.service || true
+              journalctl -xeu systemd-tmpfiles-clean.service || true
+              exit 1
+            } &&
             dpkg -l | grep aws-greengrass-lite &&
             ./install-greengrass-lite.sh -u
           "
