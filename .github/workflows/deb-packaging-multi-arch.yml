@@ -13,13 +13,13 @@ jobs:
       matrix:
         include:
           - arch: x86-64
-            runner: ubuntu:24.04
+            runner: ubuntu-24.04
             container: ubuntu:24.04
             build_arch: amd64
             artifact_suffix: x86-64
             build_type: RelWithDebInfo
           - arch: x86-64
-            runner: ubuntu:24.04
+            runner: ubuntu-24.04
             container: ubuntu:24.04
             build_arch: amd64
             artifact_suffix: x86-64
@@ -37,13 +37,13 @@ jobs:
             artifact_suffix: arm64
             build_type: MinSizeRel
           - arch: armv7
-            runner: ubuntu:24.04
+            runner: ubuntu-24.04
             container: arm32v7/ubuntu:24.04
             build_arch: arm/v7
             artifact_suffix: armv7
             build_type: RelWithDebInfo
           - arch: armv7
-            runner: ubuntu:24.04
+            runner: ubuntu-24.04
             container: arm32v7/ubuntu:24.04
             build_arch: arm/v7
             artifact_suffix: armv7
