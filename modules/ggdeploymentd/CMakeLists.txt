@@ -26,4 +26,5 @@ ggl_init_module(
        core-bus-aws-iot-mqtt
        core-bus-sub-response
        recipe2unit
-       PkgConfig::uuid)
+       PkgConfig::uuid
+       z)
