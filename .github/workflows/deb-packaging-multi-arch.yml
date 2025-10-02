@@ -195,9 +195,11 @@ jobs:
             ./install-greengrass-lite.sh -p aws-greengrass-lite*.deb -k connectionKit-test.zip &&
             dpkg -l | grep aws-greengrass-lite &&
             echo '=== Checking installed binaries for missing libraries ===' &&
-            find /usr/bin /usr/sbin -name 'ggl*' -o -name '*greengrass*' 2>/dev/null | while read binary; do
-              echo \"Checking \$binary:\" &&
-              ldd \"\$binary\" | grep 'not found' && echo \"ERROR: Missing libraries for \$binary\" || echo \"OK: \$binary\"
+            dpkg -L aws-greengrass-lite | while read file; do
+              if [ -x \"\$file\" ] && [ -f \"\$file\" ]; then
+                echo \"Checking \$file:\" &&
+                ldd \"\$file\" | grep 'not found' && echo \"ERROR: Missing libraries for \$file\" || echo \"OK: \$file\"
+              fi
             done &&
             ./install-greengrass-lite.sh -u
           "
