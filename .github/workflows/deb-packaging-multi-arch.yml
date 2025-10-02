@@ -14,37 +14,37 @@ jobs:
         include:
           - arch: x86-64
             runner: ubuntu-24.04
-            container: ubuntu:24.04
+            container: ubuntu:22.04
             build_arch: amd64
             artifact_suffix: x86-64
             build_type: RelWithDebInfo
           - arch: x86-64
             runner: ubuntu-24.04
-            container: ubuntu:24.04
+            container: ubuntu:22.04
             build_arch: amd64
             artifact_suffix: x86-64
             build_type: MinSizeRel
           - arch: aarch64
             runner: ubuntu-24.04-arm
-            container: arm64v8/ubuntu:24.04
+            container: arm64v8/ubuntu:22.04
             build_arch: arm64
             artifact_suffix: arm64
             build_type: RelWithDebInfo
           - arch: aarch64
             runner: ubuntu-24.04-arm
-            container: arm64v8/ubuntu:24.04
+            container: arm64v8/ubuntu:22.04
             build_arch: arm64
             artifact_suffix: arm64
             build_type: MinSizeRel
           - arch: armv7
             runner: ubuntu-24.04
-            container: arm32v7/ubuntu:24.04
+            container: arm32v7/ubuntu:22.04
             build_arch: arm/v7
             artifact_suffix: armv7
             build_type: RelWithDebInfo
           - arch: armv7
             runner: ubuntu-24.04
-            container: arm32v7/ubuntu:24.04
+            container: arm32v7/ubuntu:22.04
             build_arch: arm/v7
             artifact_suffix: armv7
             build_type: MinSizeRel
@@ -195,12 +195,22 @@ jobs:
             ./install-greengrass-lite.sh -p aws-greengrass-lite*.deb -k connectionKit-test.zip &&
             dpkg -l | grep aws-greengrass-lite &&
             echo '=== Checking installed binaries for missing libraries ===' &&
+            missing_libs=0 &&
             dpkg -L aws-greengrass-lite | while read file; do
               if [ -x \"\$file\" ] && [ -f \"\$file\" ]; then
                 echo \"Checking \$file:\" &&
-                ldd \"\$file\" | grep 'not found' && echo \"ERROR: Missing libraries for \$file\" || echo \"OK: \$file\"
+                if ldd \"\$file\" | grep 'not found'; then
+                  echo \"ERROR: Missing libraries for \$file\"
+                  missing_libs=1
+                else
+                  echo \"OK: \$file\"
+                fi
               fi
             done &&
+            if [ \$missing_libs -eq 1 ]; then
+              echo \"FATAL: Some binaries have missing library dependencies\"
+              exit 1
+            fi &&
             ./install-greengrass-lite.sh -u
           "
 
