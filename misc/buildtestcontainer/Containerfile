@@ -12,7 +12,8 @@ RUN apt-get update \
 
 # Build static libzip (as Debian 13 only ships with libzip5, which is not ABI compatible with libzip4)
 # Enable source repositories and build static libzip
-RUN find /etc/apt -name "*.sources" -exec sed -i 's/^Types: deb$/Types: deb deb-src/' {} \; && \
+RUN find /etc/apt -name "*.sources" -exec cat {} \; && \
+    find /etc/apt -name "*.sources" -exec sed -i '/^Types: deb$/c\Types: deb deb-src' {} \; && \
     apt-get update && \
     apt-get source libzip && \
     cd libzip-* && \
