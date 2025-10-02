@@ -65,9 +65,10 @@ jobs:
         with:
           path: |
             ~/podman-${{ matrix.arch }}-image.tar
+            ~/test-container-${{ matrix.os }}.tar
           key:
-            ${{ runner.os }}-podman-${{ matrix.arch }}-${{
-            hashFiles('misc/buildtestcontainer/*') }}
+            ${{ runner.os }}-podman-${{ matrix.arch }}-${{ matrix.os }}-${{
+            hashFiles('misc/buildtestcontainer/*', '.github/workflows/packaging/*.Dockerfile') }}
 
       - name: Build and save container for ${{ matrix.arch }}
         run: |
@@ -144,10 +145,10 @@ jobs:
         arch: [x86-64, aarch64, armv7]
         os:
           [
-            jrei/systemd-ubuntu:22.04,
-            jrei/systemd-ubuntu:24.04,
-            jrei/systemd-debian:12,
-            jrei/systemd-debian:13,
+            systemd-ubuntu:22.04,
+            systemd-ubuntu:24.04,
+            systemd-debian:12,
+            systemd-debian:13,
           ]
     steps:
       - uses: actions/checkout@v4
@@ -162,16 +163,33 @@ jobs:
             aws-greengrass-lite-ubuntu-${{ matrix.arch == 'aarch64' && 'arm64'
             || matrix.arch }}
 
+      - name: Build test container for ${{ matrix.os }}
+        run: |
+          if [ ! -f ~/test-container-${{ matrix.os }}.tar ]; then
+            if [[ "${{ matrix.os }}" == "systemd-ubuntu:22.04" ]]; then
+              podman build .github/workflows/packaging -f .github/workflows/packaging/systemd-ubuntu22.Dockerfile -t test-container
+            elif [[ "${{ matrix.os }}" == "systemd-ubuntu:24.04" ]]; then
+              podman build .github/workflows/packaging -f .github/workflows/packaging/systemd-ubuntu24.Dockerfile -t test-container
+            elif [[ "${{ matrix.os }}" == "systemd-debian:12" ]]; then
+              podman build .github/workflows/packaging -f .github/workflows/packaging/systemd-debian12.Dockerfile -t test-container
+            elif [[ "${{ matrix.os }}" == "systemd-debian:13" ]]; then
+              podman build .github/workflows/packaging -f .github/workflows/packaging/systemd-debian13.Dockerfile -t test-container
+            fi
+            podman save test-container:latest > ~/test-container-${{ matrix.os }}.tar
+          else
+            podman load < ~/test-container-${{ matrix.os }}.tar
+          fi
+
       - name: Test package installation with systemd
         run: |
           platform=${{ matrix.arch == 'x86-64' && 'linux/amd64' || matrix.arch == 'aarch64' && 'linux/arm64' || 'linux/arm/v7' }}
           podman run -d --name test-container --systemd=always --privileged --platform=$platform \
-            -v $PWD:/workspace:Z ${{ matrix.os }} /sbin/init
+            -v $PWD:/workspace:Z test-container:latest /sbin/init
 
           podman exec test-container bash -c "
             cd /workspace &&
-            apt-get update --allow-unauthenticated &&
-            apt-get install -y zip sudo --allow-unauthenticated &&
+            apt-get update &&
+            apt-get install -y zip sudo &&
             mkdir -p /tmp/kit &&
             echo 'system: {certificateFilePath: \"/tmp/cert.pem\", privateKeyPath: \"/tmp/key.pem\", rootCaPath: \"/tmp/ca.pem\", rootpath: \"{{data_dir}}\", thingName: \"test\"}' > /tmp/kit/config.yaml &&
             cd /tmp/kit && zip ../connectionKit-test.zip config.yaml && cd /workspace &&
