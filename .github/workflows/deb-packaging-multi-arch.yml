@@ -17,17 +17,37 @@ jobs:
             container: ubuntu:24.04
             build_arch: amd64
             artifact_suffix: x86-64
+            build_type: RelWithDebInfo
+          - arch: x86-64
+            runner: ubuntu-latest
+            container: ubuntu:24.04
+            build_arch: amd64
+            artifact_suffix: x86-64
+            build_type: MinSizeRel
           - arch: aarch64
             runner: ubuntu-24.04-arm
             container: arm64v8/ubuntu:24.04
             build_arch: arm64
             artifact_suffix: arm64
+            build_type: RelWithDebInfo
+          - arch: aarch64
+            runner: ubuntu-24.04-arm
+            container: arm64v8/ubuntu:24.04
+            build_arch: arm64
+            artifact_suffix: arm64
+            build_type: MinSizeRel
           - arch: armv7
             runner: ubuntu-latest
             container: arm32v7/ubuntu:24.04
             build_arch: arm/v7
             artifact_suffix: armv7
-        build_type: [RelWithDebInfo, MinSizeRel]
+            build_type: RelWithDebInfo
+          - arch: armv7
+            runner: ubuntu-latest
+            container: arm32v7/ubuntu:24.04
+            build_arch: arm/v7
+            artifact_suffix: armv7
+            build_type: MinSizeRel
     steps:
       - uses: actions/checkout@v4
 
