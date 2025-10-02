@@ -1,4 +1,4 @@
-name: Multi-arch - Build deb packages and zip files
+name: DEB packages and zip files
 on:
   push:
     branches:
