@@ -178,7 +178,7 @@ jobs:
               BASE_IMAGE="debian:13"
             fi
             podman build --build-arg BASE_IMAGE=$BASE_IMAGE --platform=linux/${{ matrix.build_arch }} .github/workflows/packaging -f .github/workflows/packaging/systemd-test.Dockerfile -t $TAG
-            podman save $TAG:latest > ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar
+            podman save $TAG > ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar
           else
             echo "Loading cached test container"
             podman load < ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar
@@ -191,7 +191,7 @@ jobs:
           TAG="test-container-${{ matrix.arch }}-${{ matrix.os }}"
           platform=${{ matrix.arch == 'x86-64' && 'linux/amd64' || matrix.arch == 'aarch64' && 'linux/arm64' || 'linux/arm/v7' }}
           podman run -d --name test-container --systemd=always --privileged --platform=$platform \
-            -v $PWD:/workspace:Z $TAG:latest /sbin/init
+            -v $PWD:/workspace:Z $TAG /sbin/init
 
           podman exec test-container bash -c "
             cd /workspace &&
