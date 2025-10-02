@@ -168,6 +168,7 @@ jobs:
           echo "Checking for cached test container: ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar"
           if [ ! -f ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar ]; then
             echo "Building new test container for ${{ matrix.os }}"
+            BUILD_PLATFORM=${{ matrix.arch == 'x86-64' && 'linux/amd64' || matrix.arch == 'aarch64' && 'linux/arm64' || 'linux/arm/v7' }}
             if [[ "${{ matrix.os }}" == "systemd-ubuntu:22.04" ]]; then
               BASE_IMAGE="ubuntu:22.04"
             elif [[ "${{ matrix.os }}" == "systemd-ubuntu:24.04" ]]; then
@@ -177,7 +178,7 @@ jobs:
             elif [[ "${{ matrix.os }}" == "systemd-debian:13" ]]; then
               BASE_IMAGE="debian:13"
             fi
-            podman build --build-arg BASE_IMAGE=$BASE_IMAGE --platform=linux/${{ matrix.build_arch }} .github/workflows/packaging -f .github/workflows/packaging/systemd-test.Dockerfile -t $TAG
+            podman build --build-arg BASE_IMAGE=$BASE_IMAGE --platform=$BUILD_PLATFORM .github/workflows/packaging -f .github/workflows/packaging/systemd-test.Dockerfile -t $TAG
             podman save $TAG > ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar
           else
             echo "Loading cached test container"

@@ -5,7 +5,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         systemd systemd-sysv dbus ca-certificates \
-        zip sudo bash-completion nano curl file \
+        zip unzip sudo bash-completion nano curl file \
     && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
