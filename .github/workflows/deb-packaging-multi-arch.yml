@@ -15,17 +15,17 @@ jobs:
           - arch: x86-64
             runner: ubuntu-latest
             container: ubuntu:24.04
-            platform: linux/amd64
+            build_arch: amd64
             artifact_suffix: x86-64
           - arch: aarch64
             runner: ubuntu-24.04-arm
             container: arm64v8/ubuntu:24.04
-            platform: linux/arm64
+            build_arch: arm64
             artifact_suffix: arm64
           - arch: armv7
             runner: ubuntu-latest
             container: arm32v7/ubuntu:24.04
-            platform: linux/arm/v7
+            build_arch: arm/v7
             artifact_suffix: armv7
         build_type: [RelWithDebInfo, MinSizeRel]
     steps:
@@ -51,7 +51,7 @@ jobs:
       - name: Build and save container for ${{ matrix.arch }}
         run: |
           if [ ! -f ~/podman-${{ matrix.arch }}-image.tar ]; then
-            podman build --from=docker.io/${{ matrix.container }} --arch=${{ matrix.platform }} misc/buildtestcontainer -t container
+            podman build --from=docker.io/${{ matrix.container }} --arch=${{ matrix.build_arch }} misc/buildtestcontainer -t container
             podman save container:latest > ~/podman-${{ matrix.arch }}-image.tar
           else
             podman load < ~/podman-${{ matrix.arch }}-image.tar
