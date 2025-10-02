@@ -1,0 +1,140 @@
+name: armv7 - Build deb packages and zip files
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        build_type: [RelWithDebInfo, MinSizeRel]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Podman
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y podman
+
+      - name: Cache Podman image
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/podman-armv7-linux-gnu-image.tar
+          key:
+            ${{ runner.os }}-podman-armv7-${{ hashFiles('misc/buildtestcontainer/*')
+            }}
+
+      - name: Build and save container for armv7-linux-gnu
+        run: |
+          if [ ! -f ~/podman-armv7-linux-gnu-image.tar ]; then
+            podman build --from=docker.io/arm32v7/ubuntu:24.04 --arch=arm/v7 misc/buildtestcontainer -t container
+            podman save container:latest > ~/podman-armv7-linux-gnu-image.tar
+          else
+            podman load < ~/podman-armv7-linux-gnu-image.tar
+          fi
+
+      - name: Run build in container
+        shell: bash
+        run: |
+          podman run -v $PWD/.:/aws-greengrass-lite --replace --name ggl container:latest bash -c "\
+            cd /aws-greengrass-lite && \
+            rm -rf build/ && \
+            cmake -B build \
+            -DGGL_LOG_LEVEL=DEBUG \
+            -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+            -DCMAKE_FIND_DEBUG_MODE=ON \
+            -DGGL_SYSTEMD_SYSTEM_USER=ggcore \
+            -DGGL_SYSTEMD_SYSTEM_GROUP=ggcore  \
+            -DGGL_SYSTEMD_SYSTEM_DIR=/lib/systemd/system \
+            -DCMAKE_INSTALL_PREFIX=/usr && \
+            make -C build -j$(nproc) && \
+            cd build && cpack -v -G DEB && cd - \
+            "
+
+      - name: Save package
+        run: |
+          mkdir ${{ github.workspace }}/zipfile/
+          cp ${{ github.workspace }}/build/*.deb ${{ github.workspace }}/zipfile/
+
+      - name: Generate readme / install file
+        run: |
+          cat ${{ github.workspace }}/.github/workflows/packaging/readme.template.txt >> ${{ github.workspace }}/zipfile/readme.txt
+          cp ${{ github.workspace }}/.github/workflows/packaging/install-greengrass-lite.sh ${{ github.workspace }}/zipfile/
+          sed -i 's|{{ VERSION_LINK }}|${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}|g' ${{ github.workspace }}/zipfile/readme.txt
+          sed -i 's|{{ UBUNTU_VERSION }}|24.04|g' ${{ github.workspace }}/zipfile/install-greengrass-lite.sh
+          cat ${{ github.workspace }}/LICENSE >> ${{ github.workspace }}/zipfile/readme.txt
+
+      - name: md5sums
+        run: |
+          md5sum ${{ github.workspace }}/zipfile/*
+
+      - name: Save package
+        uses: actions/upload-artifact@v4
+        with:
+          name: aws-greengrass-lite-ubuntu-armv7-${{ matrix.build_type }}
+          path: |
+            ${{ github.workspace }}/zipfile/*
+          retention-days: 1
+
+      - name:
+          Save armv7 package without build type - default package to download
+        if: matrix.build_type  == 'MinSizeRel'
+        uses: actions/upload-artifact@v4
+        with:
+          name: aws-greengrass-lite-ubuntu-armv7
+          path: |
+            ${{ github.workspace }}/zipfile/*
+          retention-days: 1
+
+  install-test:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: jrei/systemd-ubuntu:22.04
+          - os: jrei/systemd-ubuntu:24.04
+          - os: jrei/systemd-debian:12
+          - os: jrei/systemd-debian:13
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Download package
+        uses: actions/download-artifact@v4
+        with:
+          name: aws-greengrass-lite-ubuntu-armv7
+
+      - name: Test package installation with systemd
+        run: |
+          podman run -d --name test-container --systemd=always --privileged --platform=linux/arm/v7 \
+            -v $PWD:/workspace:Z ${{ matrix.os }} /sbin/init
+
+          podman exec test-container bash -c "
+            cd /workspace &&
+            apt-get update &&
+            apt-get install -y zip sudo &&
+            mkdir -p /tmp/kit &&
+            echo 'system: {certificateFilePath: \"/tmp/cert.pem\", privateKeyPath: \"/tmp/key.pem\", rootCaPath: \"/tmp/ca.pem\", rootpath: \"{{data_dir}}\", thingName: \"test\"}' > /tmp/kit/config.yaml &&
+            cd /tmp/kit && zip ../connectionKit-test.zip config.yaml && cd /workspace &&
+            cp /tmp/connectionKit-test.zip . &&
+            chmod +x install-greengrass-lite.sh &&
+            ./install-greengrass-lite.sh -p aws-greengrass-lite*.deb -k connectionKit-test.zip &&
+            dpkg -l | grep aws-greengrass-lite &&
+            ./install-greengrass-lite.sh -u
+          "
+
+          podman stop test-container
