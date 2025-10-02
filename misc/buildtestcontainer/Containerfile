@@ -18,10 +18,7 @@ RUN echo "deb-src http://ports.ubuntu.com/ubuntu-ports jammy main restricted uni
     cd libzip-* && \
     cmake -DBUILD_SHARED_LIBS=OFF -DCMAKE_INSTALL_PREFIX=/usr . && \
     make -j$(nproc) && \
-    make install && \
-    cd .. && rm -rf libzip-* && \
-    apt-get remove -y libzip-dev && \
-    rm -f /usr/lib/*/libzip.so*
+    make install
 
 COPY ./getty-override.conf \
   /etc/systemd/system/console-getty.service.d/override.conf
