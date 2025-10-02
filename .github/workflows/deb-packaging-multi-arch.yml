@@ -72,7 +72,7 @@ jobs:
       - name: Build and save container for ${{ matrix.arch }}
         run: |
           if [ ! -f ~/podman-${{ matrix.arch }}-image.tar ]; then
-            podman build --from=docker.io/${{ matrix.container }} --arch=${{ matrix.build_arch }} misc/buildtestcontainer -t container
+            podman build --build-arg BASE_IMAGE=${{ matrix.container }} --arch=${{ matrix.build_arch }} misc/buildtestcontainer -t container
             podman save container:latest > ~/podman-${{ matrix.arch }}-image.tar
           else
             podman load < ~/podman-${{ matrix.arch }}-image.tar
