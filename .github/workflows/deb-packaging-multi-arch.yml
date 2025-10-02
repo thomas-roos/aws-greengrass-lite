@@ -76,7 +76,7 @@ jobs:
             podman save container:latest > ~/podman-${{ matrix.arch }}-image.tar
           else
             podman load < ~/podman-${{ matrix.arch }}-image.tar
-          fi
+          fi.github/workflows/packaging/systemd-test.Dockerfile
 
       - name: Run build in container
         shell: bash
