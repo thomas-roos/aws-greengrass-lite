@@ -65,11 +65,9 @@ jobs:
         with:
           path: |
             ~/podman-${{ matrix.arch }}-image.tar
-            ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar
           key:
             ${{ runner.os }}-podman-${{ matrix.arch }}-${{ matrix.os }}-${{
-            hashFiles('misc/buildtestcontainer/*',
-            '.github/workflows/packaging/*.Dockerfile') }}
+            hashFiles('misc/buildtestcontainer/*')}}
 
       - name: Build and save container for ${{ matrix.arch }}
         run: |
@@ -161,6 +159,15 @@ jobs:
           name:
             aws-greengrass-lite-ubuntu-${{ matrix.arch == 'aarch64' && 'arm64'
             || matrix.arch }}
+
+      - name: Cache Podman image
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/test-container-${{ matrix.arch }}-${{ matrix.os }}.tar
+          key:
+            ${{ runner.os }}-podman-${{ matrix.arch }}-${{ matrix.os }}-${{
+            hashFiles('.github/workflows/packaging/*.Dockerfile') }}
 
       - name: Build test container for ${{ matrix.os }}
         run: |
