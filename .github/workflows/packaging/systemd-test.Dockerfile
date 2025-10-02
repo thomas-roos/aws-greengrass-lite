@@ -5,9 +5,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
         systemd systemd-sysv dbus ca-certificates \
-        zip unzip sudo bash-completion nano curl file
-
-# Configure systemd
-RUN systemctl set-default multi-user.target
+        zip unzip sudo
 
 CMD ["/lib/systemd/systemd"]
