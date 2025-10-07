@@ -129,7 +129,10 @@ GglError ggl_handle_subscribe_to_configuration_update(
         return ret;
     }
 
-    GglObject config_path_obj[GGL_MAX_OBJECT_DEPTH] = { 0 };
+    // Increase buffer size to prevent _FORTIFY_SOURCE stringop-overflow
+    // _FORTIFY_SOURCE detected write at offset 186, need minimum 187 bytes
+    // GGL_MAX_OBJECT_DEPTH (15) + 2 = 17 elements * 11 bytes = 187 bytes
+    GglObject config_path_obj[GGL_MAX_OBJECT_DEPTH + 2] = { 0 };
     for (size_t i = 0; i < full_key_path.len; i++) {
         config_path_obj[i] = ggl_obj_buf(full_key_path.bufs[i]);
     }
