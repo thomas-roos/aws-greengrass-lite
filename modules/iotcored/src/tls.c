@@ -125,6 +125,10 @@ static GglError proxy_get_info(
 static void check_ktls_status(SSL *ssl) {
     BIO *wbio = SSL_get_wbio(ssl);
     BIO *rbio = SSL_get_rbio(ssl);
+    // Suppress unused warnings - _FORTIFY_SOURCE may optimize away variable
+    // usage
+    (void) wbio;
+    (void) rbio;
 
     int tx_status = BIO_get_ktls_send(wbio);
     int rx_status = BIO_get_ktls_recv(rbio);
