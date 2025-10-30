@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
 
 jobs:
   uat-test:
@@ -36,15 +37,15 @@ jobs:
       - name: Checkout testing repository
         uses: actions/checkout@v4
         with:
-          repository: aws-greengrass/aws-greengrass-testing
-          ref: python_testing
+          repository: ${{ secrets.TESTING_REPO }}
+          ref: ${{ secrets.TESTING_REPO_REF }}
           path: aws-greengrass-testing
 
       - name: Get temporary AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           audience: sts.amazonaws.com
-          aws-region: us-west-2
+          aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
           role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
           role-duration-seconds: ${{ matrix.test-category.timeout }}
           unset-current-credentials: true
@@ -63,5 +64,5 @@ jobs:
             --aws-account=${{ secrets.AWS_ACCOUNT_ID }} \
             --s3-bucket=${{ secrets.S3_BUCKET }} \
             --commit-id=${{ env.SHA }} \
-            --aws-region=us-west-2 \
+            --aws-region=${{ secrets.AWS_DEFAULT_REGION }} \
             --test-category=${{ matrix.test-category.category }}
