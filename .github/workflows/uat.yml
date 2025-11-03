@@ -5,6 +5,15 @@ on:
     branches:
       - main
   workflow_dispatch:
+    inputs:
+      testing_repo:
+        description: 'Testing repository to use as source of tests'
+        required: false
+        default: 'aws-greengrass/aws-greengrass-testing'
+      testing_repo_ref:
+        description: 'Ref (branch) on the testing repo to use'
+        required: false
+        default: 'python_testing'
 
 jobs:
   list-tests:
@@ -15,8 +24,8 @@ jobs:
       - name: Checkout testing repository
         uses: actions/checkout@v4
         with:
-          repository: ${{ secrets.TESTING_REPO }}
-          ref: ${{ secrets.TESTING_REPO_REF }}
+          repository: ${{ github.event.inputs.testing_repo }}
+          ref: ${{ github.event.inputs.testing_repo_ref }}
           path: aws-greengrass-testing
 
       - name: List all tests
@@ -57,8 +66,8 @@ jobs:
       - name: Checkout testing repository
         uses: actions/checkout@v4
         with:
-          repository: ${{ secrets.TESTING_REPO }}
-          ref: ${{ secrets.TESTING_REPO_REF }}
+          repository: ${{ github.event.inputs.testing_repo }}
+          ref: ${{ github.event.inputs.testing_repo_ref }}
           path: aws-greengrass-testing
 
       - name: Get temporary AWS credentials
