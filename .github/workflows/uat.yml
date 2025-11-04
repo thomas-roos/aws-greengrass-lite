@@ -7,13 +7,13 @@ on:
   workflow_dispatch:
     inputs:
       testing_repo:
-        description: 'Testing repository to use as source of tests'
+        description: "Testing repository to use as source of tests"
         required: false
-        default: 'aws-greengrass/aws-greengrass-testing'
+        default: "aws-greengrass/aws-greengrass-testing"
       testing_repo_ref:
-        description: 'Ref (branch) on the testing repo to use'
+        description: "Ref (branch) on the testing repo to use"
         required: false
-        default: 'python_testing'
+        default: "python_testing"
 
 jobs:
   list-tests:
@@ -71,7 +71,7 @@ jobs:
           path: aws-greengrass-testing
 
       - name: Get temporary AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
+        uses: aws-actions/configure-aws-credentials@v5
         with:
           audience: sts.amazonaws.com
           aws-region: ${{ secrets.AWS_DEFAULT_REGION }}
